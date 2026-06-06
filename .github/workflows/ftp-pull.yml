@@ -1,0 +1,72 @@
+name: Pull edits from FTP site
+
+# server -> GitHub. FTP has no webhooks, so this polls on a schedule and
+# commits anything that changed on the server back to the repo. Also runnable
+# on demand from the Actions tab.
+on:
+  schedule:
+    # Every 30 minutes. GitHub may delay scheduled runs under load.
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: ftp-sync
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  pull:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install lftp
+        run: sudo apt-get update && sudo apt-get install -y lftp
+
+      - name: Download site files from server
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          SITE_FILES: index.html styles.css script.js
+          REMOTE_DIR: ${{ vars.FTP_REMOTE_DIR || '/' }}
+        run: |
+          set -euo pipefail
+          mkdir -p .ftp-remote
+          lftp -c "
+            set ftp:ssl-force true;
+            set ssl:verify-certificate no;
+            open -u '$FTP_USERNAME','$FTP_PASSWORD' '$FTP_SERVER';
+            lcd .ftp-remote;
+            cd '$REMOTE_DIR';
+            mget $SITE_FILES;
+            bye
+          "
+
+      - name: Commit any changes back to the repo
+        run: |
+          set -euo pipefail
+          changed=0
+          for f in index.html styles.css script.js; do
+            if [ -f ".ftp-remote/$f" ] && ! cmp -s ".ftp-remote/$f" "$f"; then
+              cp ".ftp-remote/$f" "$f"
+              changed=1
+            fi
+          done
+          rm -rf .ftp-remote
+
+          if [ "$changed" -eq 0 ]; then
+            echo "No changes on the server."
+            exit 0
+          fi
+
+          git config user.name  "ftp-sync[bot]"
+          git config user.email "ftp-sync@users.noreply.github.com"
+          git add index.html styles.css script.js
+          # [skip ci] stops this commit from re-triggering the push-to-FTP
+          # workflow, which would just re-upload identical bytes.
+          git commit -m "Sync edits from FTP site [skip ci]"
+          git push

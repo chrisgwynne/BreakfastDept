@@ -1,0 +1,49 @@
+name: Push to FTP site
+
+# GitHub -> server. Runs whenever the site files change on the default
+# branch, and can be triggered manually from the Actions tab.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "index.html"
+      - "styles.css"
+      - "script.js"
+  workflow_dispatch:
+
+# Share one lane with the pull workflow so the two directions never run
+# at the same time and fight each other.
+concurrency:
+  group: ftp-sync
+  cancel-in-progress: false
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install lftp
+        run: sudo apt-get update && sudo apt-get install -y lftp
+
+      - name: Upload site over FTPS
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          # Files that make up the site. Add more here as the site grows.
+          SITE_FILES: index.html styles.css script.js
+          # Remote target dir. Set repo variable FTP_REMOTE_DIR if your host
+          # serves from e.g. /public_html instead of /.
+          REMOTE_DIR: ${{ vars.FTP_REMOTE_DIR || '/' }}
+        run: |
+          set -euo pipefail
+          lftp -c "
+            set ftp:ssl-force true;
+            set ftp:ssl-protect-data true;
+            set ssl:verify-certificate no;
+            open -u '$FTP_USERNAME','$FTP_PASSWORD' '$FTP_SERVER';
+            mput -O '$REMOTE_DIR' $SITE_FILES;
+            bye
+          "
