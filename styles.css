@@ -368,17 +368,12 @@ button { font: inherit; }
 /* =========================================================
    Final CTA
    ========================================================= */
-.cta-wrap { padding-block: var(--s-20); }
-.cta-block { position: relative; text-align: center; padding: var(--s-20) var(--s-8); background: var(--primary); border: var(--border-3); border-radius: var(--radius); box-shadow: var(--shadow-lg); overflow: hidden; }
-.cta-block::before, .cta-block::after { content: ""; position: absolute; width: 130px; height: 130px; border: var(--border-3); border-radius: 50%; opacity: .35; }
-.cta-block::before { top: -44px; left: -30px; background: var(--white); }
-.cta-block::after { bottom: -54px; right: -20px; background: var(--secondary); opacity: .25; }
-.note--cta { position: absolute; top: var(--s-6); right: 8%; transform: rotate(6deg); z-index: 2; font-size: 1.6rem; }
-.cta-block__badge { position: relative; font-size: 2.6rem; display: inline-block; margin-bottom: var(--s-3); }
-.cta-block__title { position: relative; font-size: clamp(2.1rem, 5.2vw, 3.4rem); font-weight: 900; letter-spacing: -.025em; line-height: 1.03; max-width: 17ch; margin-inline: auto; }
-.cta-block__copy { position: relative; max-width: 48ch; margin: var(--s-4) auto 0; font-size: 1.14rem; }
-.cta-block__actions { position: relative; display: flex; flex-wrap: wrap; gap: var(--s-4); justify-content: center; margin-top: var(--s-8); }
-.cta-block__reassure { position: relative; margin-top: var(--s-6); font-family: var(--mono); font-size: .85rem; font-weight: 500; }
+.cta-wrap { padding-block: var(--s-24); }
+.cta-block { text-align: center; padding: var(--s-24) var(--s-8); background: var(--primary); border: var(--border-3); border-radius: var(--radius); box-shadow: var(--shadow-lg); }
+.cta-block__title { font-size: clamp(2.2rem, 5.4vw, 3.6rem); font-weight: 900; letter-spacing: -.03em; line-height: 1.02; max-width: 16ch; margin-inline: auto; }
+.cta-block__copy { max-width: 50ch; margin: var(--s-6) auto 0; font-size: 1.18rem; line-height: 1.5; color: var(--ink-soft); }
+.cta-block__actions { display: flex; justify-content: center; margin-top: var(--s-8); }
+.cta-block__note { margin-top: var(--s-6); font-family: var(--mono); font-size: .85rem; color: var(--muted); }
 
 /* =========================================================
    Footer
