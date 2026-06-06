@@ -226,6 +226,8 @@ button { font: inherit; }
 .wcard__name { font-size: 1.5rem; font-weight: 900; letter-spacing: -.02em; }
 .wcard__line { color: var(--ink-soft); }
 .wcard__outcome { margin-top: auto; padding-top: var(--s-4); font-size: 1.1rem; font-weight: 900; letter-spacing: -.01em; color: var(--success); }
+.wcard__link { margin-top: var(--s-3); }
+.case-hero__link { align-self: start; }
 
 /* realistic CSS "screenshots" */
 .shot { padding: var(--s-3); display: grid; gap: var(--s-3); min-height: 240px; align-content: start; }
@@ -315,25 +317,22 @@ button { font: inherit; }
 .timeline__desc { color: var(--ink-soft); }
 
 /* =========================================================
-   Pricing
+   What it costs — editorial, not a pricing table
    ========================================================= */
-.pricing__grid { display: grid; grid-template-columns: repeat(3,1fr); gap: var(--s-8); align-items: start; }
-.price-card { position: relative; display: flex; flex-direction: column; gap: var(--s-3); padding: var(--s-8); }
-.price-card--featured { background: var(--primary); border-width: 3px; box-shadow: var(--shadow-lg); }
-.price-card__flag { position: absolute; top: calc(-1 * var(--s-3)); right: var(--s-6); font-family: var(--mono); font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; padding: var(--s-1) var(--s-3); background: var(--secondary); color: var(--white); border: var(--border); border-radius: 999px; box-shadow: var(--shadow-sm); }
-.price-card__name { font-size: 1.4rem; font-weight: 800; }
-.price-card__price { font-size: clamp(2rem, 4vw, 2.8rem); font-weight: 900; letter-spacing: -.03em; }
-.price-card__from { display: block; font-size: .8rem; font-family: var(--mono); font-weight: 600; color: var(--muted); letter-spacing: .04em; text-transform: uppercase; }
-.price-card--featured .price-card__from { color: var(--ink-soft); }
-.price-card__for { color: var(--ink-soft); }
-.price-card--featured .price-card__for { color: var(--text); }
-.price-card__list { display: grid; gap: var(--s-2); margin: var(--s-2) 0 var(--s-4); }
-.price-card__list li { position: relative; padding-left: var(--s-6); color: var(--ink-soft); }
-.price-card--featured .price-card__list li { color: var(--text); }
-.price-card__list li::before { content: "✓"; position: absolute; left: 0; top: 1px; display: grid; place-items: center; width: 18px; height: 18px; font-size: .65rem; font-weight: 900; color: var(--white); background: var(--success); border: 1.5px solid var(--text); border-radius: 50%; }
-.price-card__cta { margin-top: auto; width: 100%; }
-.pricing__note { margin-top: var(--s-8); text-align: center; font-size: 1.02rem; color: var(--ink-soft); }
-.pricing__note a { font-weight: 800; color: var(--secondary); text-decoration: underline; text-underline-offset: 3px; }
+.cost__intro { max-width: 760px; }
+.cost__title { margin-top: var(--s-3); font-size: clamp(2.2rem, 5.4vw, 3.9rem); font-weight: 900; letter-spacing: -.03em; line-height: 1.02; }
+.cost__lead { margin-top: var(--s-6); font-size: 1.18rem; line-height: 1.55; color: var(--ink-soft); }
+.cost__examples { margin-top: var(--s-16); border-top: 3px solid var(--text); }
+.cost__ex { display: grid; grid-template-columns: minmax(70px, .3fr) 1fr; gap: var(--s-8); align-items: start; padding-block: var(--s-12); border-bottom: 2px solid rgba(28,41,60,.16); }
+.cost__exno { font-family: var(--mono); font-size: 1.1rem; font-weight: 700; color: var(--secondary); padding-top: .35em; }
+.cost__exname { font-size: clamp(1.5rem, 3.4vw, 2.2rem); font-weight: 900; letter-spacing: -.02em; }
+.cost__exfor { margin-top: var(--s-3); max-width: 54ch; font-size: 1.12rem; color: var(--ink-soft); }
+.cost__exlabel { margin-top: var(--s-6); font-family: var(--mono); font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+.cost__exlist { margin-top: var(--s-2); max-width: 60ch; font-weight: 600; }
+.cost__close { position: relative; max-width: 60ch; margin-top: var(--s-16); }
+.cost__closecopy { font-size: clamp(1.3rem, 2.8vw, 1.9rem); font-weight: 800; letter-spacing: -.02em; line-height: 1.2; }
+.cost__close .btn { margin-top: var(--s-8); }
+.cost__note { display: inline-block; margin-left: var(--s-4); transform: rotate(-3deg); vertical-align: middle; }
 
 /* =========================================================
    Lead magnet
@@ -414,7 +413,7 @@ button { font: inherit; }
   .services__grid { grid-template-columns: repeat(2,1fr); }
   .logos { grid-template-columns: repeat(3,1fr); }
   .work__grid { grid-template-columns: repeat(2, 1fr); gap: var(--s-8); }
-  .pricing__grid { grid-template-columns: 1fr; max-width: 480px; margin-inline: auto; }
+  .cost__ex { grid-template-columns: 1fr; gap: var(--s-2); }
   .lead__inner { grid-template-columns: 1fr; gap: var(--s-8); padding: var(--s-8); }
   .faq__inner { grid-template-columns: 1fr; gap: var(--s-8); }
 }
