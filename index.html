@@ -18,7 +18,7 @@
     href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&family=Caveat:wght@600;700&display=swap"
     rel="stylesheet"
   />
-  <link rel="stylesheet" href="styles.css?v=10" />
+  <link rel="stylesheet" href="styles.css?v=11" />
   <link
     rel="icon"
     href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='42' fill='%23FBFBF9' stroke='%231C293C' stroke-width='6'/%3E%3Ccircle cx='50' cy='50' r='16' fill='%23FDC800'/%3E%3C/svg%3E"
@@ -207,6 +207,8 @@
           <blockquote class="case-hero__quote">
             The food was never the problem. The website was.
           </blockquote>
+
+          <a class="link-cta case-hero__link" href="#">Read the case study <span aria-hidden="true">→</span></a>
         </article>
 
         <!-- MORE WORK — consistent grid -->
@@ -227,6 +229,7 @@
                 <h3 class="wcard__name">Brightside</h3>
                 <p class="wcard__line">A fuse box trips at 11pm and they're in the dark. The old site made them hunt for a phone number. We made the number the first thing you see.</p>
                 <p class="wcard__outcome">Phone calls, not back buttons.</p>
+                <a class="wcard__link link-cta" href="#">Read the case study <span aria-hidden="true">→</span></a>
               </div>
             </article>
 
@@ -244,6 +247,7 @@
                 <h3 class="wcard__name">Studio Bloom</h3>
                 <p class="wcard__line">Everything sold through a marketplace that owned the customer and took a cut. We gave the brand its own front door.</p>
                 <p class="wcard__outcome">A brand, not a stall.</p>
+                <a class="wcard__link link-cta" href="#">Read the case study <span aria-hidden="true">→</span></a>
               </div>
             </article>
 
@@ -261,6 +265,7 @@
                 <h3 class="wcard__name">Foundry Coffee</h3>
                 <p class="wcard__line">The café menu and the online shop lived in two places, and customers could find neither. We put ordering at the top.</p>
                 <p class="wcard__outcome">One site, ordering you can find.</p>
+                <a class="wcard__link link-cta" href="#">Read the case study <span aria-hidden="true">→</span></a>
               </div>
             </article>
           </div>
@@ -437,60 +442,50 @@
       </div>
     </section>
 
-    <!-- ============ PRICING ============ -->
-    <section class="section pricing" id="pricing" aria-labelledby="pricing-heading">
+    <!-- ============ WHAT IT COSTS ============ -->
+    <section class="section cost" id="pricing" aria-labelledby="cost-heading">
       <div class="container">
-        <div class="section__head">
-          <span class="kicker">What it costs</span>
-          <h2 id="pricing-heading" class="section__title">No "request a <span class="hl hl--yellow">quote".</span></h2>
-          <p class="section__lead">Here's roughly what things cost. You'll get a fixed number before any work starts — no hourly meter, no surprise at the end.</p>
+        <div class="cost__intro">
+          <span class="kicker">What does a website cost?</span>
+          <h2 id="cost-heading" class="cost__title">The honest answer? <span class="hl hl--yellow">It depends.</span></h2>
+          <p class="cost__lead">A local business that needs a simple website is a very different job from a retailer selling hundreds of products online. Some projects take a couple of weeks; others take several months. So rather than squeezing every business into a package, we scope each website around what it actually needs.</p>
         </div>
 
-        <div class="pricing__grid">
-          <article class="card price-card">
-            <h3 class="price-card__name">One page</h3>
-            <p class="price-card__price"><span class="price-card__from">from</span> £1,500</p>
-            <p class="price-card__for">One page, done properly, to get you found and taking enquiries. Usually live in about a week.</p>
-            <ul class="price-card__list">
-              <li>A single page that earns its keep</li>
-              <li>We write the words</li>
-              <li>Fast, and proper on a phone</li>
-              <li>The Google basics sorted</li>
-              <li>Roughly a week, start to finish</li>
-            </ul>
-            <a class="btn btn--ghost price-card__cta" href="#contact">Start here</a>
-          </article>
+        <ol class="cost__examples">
+          <li class="cost__ex">
+            <span class="cost__exno" aria-hidden="true">01</span>
+            <div class="cost__exbody">
+              <h3 class="cost__exname">Small business websites</h3>
+              <p class="cost__exfor">For businesses that need a professional site which clearly explains what they do and brings in enquiries.</p>
+              <p class="cost__exlabel">Usually something like</p>
+              <p class="cost__exlist">Homepage · Services · About · Contact · proper on mobile · we write the words</p>
+            </div>
+          </li>
+          <li class="cost__ex">
+            <span class="cost__exno" aria-hidden="true">02</span>
+            <div class="cost__exbody">
+              <h3 class="cost__exname">Ecommerce websites</h3>
+              <p class="cost__exfor">For businesses selling products online, where finding something and paying for it has to be effortless.</p>
+              <p class="cost__exlabel">Usually something like</p>
+              <p class="cost__exlist">Shopify setup · product pages · collections · checkout improvements · customer journey planning</p>
+            </div>
+          </li>
+          <li class="cost__ex">
+            <span class="cost__exno" aria-hidden="true">03</span>
+            <div class="cost__exbody">
+              <h3 class="cost__exname">Custom projects</h3>
+              <p class="cost__exfor">For businesses with more going on, where an off-the-shelf site won't cut it.</p>
+              <p class="cost__exlabel">Things like</p>
+              <p class="cost__exlist">Booking systems · memberships · integrations · multi-location · bespoke functionality</p>
+            </div>
+          </li>
+        </ol>
 
-          <article class="card price-card price-card--featured">
-            <span class="price-card__flag">Most people</span>
-            <h3 class="price-card__name">A proper site</h3>
-            <p class="price-card__price"><span class="price-card__from">from</span> £3,500</p>
-            <p class="price-card__for">A handful of pages for a business with more than one thing to say.</p>
-            <ul class="price-card__list">
-              <li>Up to six pages</li>
-              <li>We write all of it</li>
-              <li>Forms and the tools you already use</li>
-              <li>Set up so people can find you</li>
-              <li>A month of tweaks after launch</li>
-            </ul>
-            <a class="btn btn--secondary price-card__cta" href="#contact">Talk it through</a>
-          </article>
-
-          <article class="card price-card">
-            <h3 class="price-card__name">A shop</h3>
-            <p class="price-card__price"><span class="price-card__from">from</span> £6,000</p>
-            <p class="price-card__for">A Shopify shop built so people actually make it through the checkout.</p>
-            <ul class="price-card__list">
-              <li>Full Shopify build</li>
-              <li>Product pages and checkout sorted</li>
-              <li>Brand and design to match</li>
-              <li>Found and fast</li>
-              <li>We show you how to run it</li>
-            </ul>
-            <a class="btn btn--ghost price-card__cta" href="#contact">Start here</a>
-          </article>
+        <div class="cost__close">
+          <p class="cost__closecopy">Every project is quoted individually — no two businesses are the same. The best way to get a real sense of budget and timeline is to tell us a little about what you're trying to do.</p>
+          <a class="btn btn--secondary btn--lg" href="#contact">Book a call</a>
+          <span class="note cost__note" aria-hidden="true">a number, not a guess</span>
         </div>
-        <p class="pricing__note">Not sure which one? <a href="#contact">Email us.</a> We'll tell you honestly which you need — or whether you need us at all.</p>
       </div>
     </section>
 
@@ -604,6 +599,6 @@
     </div>
   </div>
 
-  <script src="script.js?v=10"></script>
+  <script src="script.js?v=11"></script>
 </body>
 </html>

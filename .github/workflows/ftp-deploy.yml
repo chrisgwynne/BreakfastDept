@@ -1,14 +1,10 @@
 name: Push to FTP site
 
-# GitHub -> server. Runs whenever the site files change on the default
-# branch, and can be triggered manually from the Actions tab.
+# GitHub -> server. Mirrors the whole repo to the web docroot on every
+# push to the default branch, and can be triggered manually.
 on:
   push:
     branches: [main]
-    paths:
-      - "index.html"
-      - "styles.css"
-      - "script.js"
   workflow_dispatch:
 
 # Share one lane with the pull workflow so the two directions never run
@@ -32,18 +28,23 @@ jobs:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
           FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
-          # Files that make up the site. Add more here as the site grows.
-          SITE_FILES: index.html styles.css script.js
           # Web docroot on the server. Override with repo variable
           # FTP_REMOTE_DIR if your host serves from a different path.
           REMOTE_DIR: ${{ vars.FTP_REMOTE_DIR || '/public_html' }}
         run: |
           set -euo pipefail
+          # mirror -R uploads the whole working tree to the server.
+          # Everything except git/CI plumbing goes up; nothing is deleted
+          # remotely (safe for any files you keep on the server directly).
           lftp -c "
             set ftp:ssl-force true;
             set ftp:ssl-protect-data true;
             set ssl:verify-certificate no;
             open -u '$FTP_USERNAME','$FTP_PASSWORD' '$FTP_SERVER';
-            mput -O '$REMOTE_DIR' $SITE_FILES;
+            mirror -R --verbose --parallel=4 \
+              --exclude '^\.git' \
+              --exclude '^\.github' \
+              --exclude 'README' \
+              ./ '$REMOTE_DIR';
             bye
           "
