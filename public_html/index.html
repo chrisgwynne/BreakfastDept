@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<!-- Breakfast — breakfastdept.com -->
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Breakfast — a small web studio that cares whether websites work</title>
+  <meta
+    name="description"
+    content="Breakfast is a small web studio. We build websites that make people understand what you do — fast. Mostly for independents tired of explaining their website over the phone."
+  />
+  <meta property="og:title" content="Breakfast — a small web studio" />
+  <meta property="og:description" content="Most websites are built backwards. We build them the other way round." />
+  <meta property="og:type" content="website" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&family=Caveat:wght@600;700&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="styles.css?v=12" />
+  <link
+    rel="icon"
+    href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='42' fill='%23FBFBF9' stroke='%231C293C' stroke-width='6'/%3E%3Ccircle cx='50' cy='50' r='16' fill='%23FDC800'/%3E%3C/svg%3E"
+  />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to main content</a>
+
+  <!-- ============ HEADER ============ -->
+  <header class="site-header" id="top">
+    <div class="container header__inner">
+      <a class="logo" href="#top" aria-label="Breakfast home">
+        <span class="logo__word">Breakfast</span>
+        <span class="logo__egg" aria-hidden="true"><span class="logo__white"><span class="logo__yolk"></span></span></span>
+      </a>
+
+      <nav class="nav" aria-label="Primary">
+        <button class="nav__toggle" id="navToggle" aria-expanded="false" aria-controls="navMenu">
+          <span class="nav__toggle-label">Menu</span>
+          <span class="nav__toggle-bars" aria-hidden="true"><span></span><span></span><span></span></span>
+        </button>
+        <ul class="nav__menu" id="navMenu">
+          <li><a class="nav__link" href="#work">Work</a></li>
+          <li><a class="nav__link" href="#services">Services</a></li>
+          <li><a class="nav__link" href="#process">Process</a></li>
+          <li><a class="nav__link" href="#pricing">Pricing</a></li>
+          <li><a class="nav__link" href="#contact">Contact</a></li>
+          <li class="nav__cta-mobile"><a class="btn btn--primary" href="#contact">Book a call</a></li>
+        </ul>
+      </nav>
+
+      <a class="btn btn--primary header__cta" href="#contact">Book a call</a>
+    </div>
+  </header>
+
+  <main id="main">
+    <!-- ============ HERO ============ -->
+    <section class="hero" aria-labelledby="hero-heading">
+      <div class="container hero__inner">
+        <div class="hero__copy">
+          <p class="eyebrow"><span class="eyebrow__dot" aria-hidden="true"></span> A small web studio</p>
+          <h1 id="hero-heading" class="hero__title">
+            Most websites are built <span class="hl hl--yellow">backwards.</span>
+          </h1>
+          <p class="hero__sub">
+            Businesses talk about themselves before they explain why anyone should
+            care. We build them the other way round — so a stranger understands what
+            you do in about five seconds, and knows what to do next.
+          </p>
+          <div class="hero__actions">
+            <a class="btn btn--secondary btn--lg" href="#contact">Start a project</a>
+            <a class="btn btn--ghost btn--lg" href="#work">See the work</a>
+          </div>
+        </div>
+
+        <div class="hero__visual">
+          <div class="mockup mockup--hero" role="img" aria-label="A simple website with one clear headline and one obvious button.">
+            <div class="mockup__bar" aria-hidden="true">
+              <span class="dot dot--red"></span><span class="dot dot--amber"></span><span class="dot dot--green"></span>
+              <span class="mockup__url">yourbusiness.co</span>
+            </div>
+            <div class="mockup__screen mockup__screen--hero" aria-hidden="true">
+              <div class="m-nav"><span class="m-logo"></span><span class="m-links"><i></i><i></i><i></i></span><span class="m-btn"></span></div>
+              <div class="m-hero">
+                <span class="m-h1"></span><span class="m-h1 m-h1--short"></span>
+                <span class="m-p"></span><span class="m-p m-p--short"></span><span class="m-cta"></span>
+              </div>
+              <div class="m-grid"><span class="m-card"></span><span class="m-card"></span><span class="m-card"></span></div>
+            </div>
+          </div>
+
+          <span class="badge badge--enquiries">says what it does</span>
+          <span class="badge badge--speed">loads fast</span>
+          <span class="badge badge--seo">works on a phone</span>
+          <span class="badge badge--mobile">one clear button</span>
+
+          <span class="note note--hero" aria-hidden="true">a site that explains itself</span>
+
+          <svg class="doodle doodle--arrow" viewBox="0 0 80 64" aria-hidden="true">
+            <path d="M6 40c20-30 44-30 66-8" fill="none" stroke="#1C293C" stroke-width="4" stroke-linecap="round"/>
+            <path d="M60 16l12 16-19 3" fill="none" stroke="#1C293C" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <svg class="doodle doodle--orbit" viewBox="0 0 160 120" aria-hidden="true">
+            <ellipse cx="80" cy="60" rx="74" ry="40" fill="none" stroke="#432DD7" stroke-width="3" stroke-dasharray="6 8"/>
+          </svg>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ TRUST ============ -->
+    <section class="trust" aria-labelledby="trust-heading">
+      <div class="container">
+        <div class="trust__top">
+          <h2 id="trust-heading" class="trust__heading">A few of the businesses we've helped <span class="hl hl--yellow">explain themselves.</span></h2>
+          <p class="trust__note">Mostly independents. Mostly people who were tired of explaining their own website over the phone.</p>
+        </div>
+        <ul class="logos" aria-label="A selection of clients">
+          <li class="logos__item"><span class="logos__name">Passo</span><span class="logos__cat">Restaurant</span></li>
+          <li class="logos__item"><span class="logos__name">Brightside</span><span class="logos__cat">Electrician</span></li>
+          <li class="logos__item"><span class="logos__name">Foundry</span><span class="logos__cat">Coffee</span></li>
+          <li class="logos__item"><span class="logos__name">Studio&nbsp;Bloom</span><span class="logos__cat">Handmade</span></li>
+          <li class="logos__item"><span class="logos__name">NorthPeak</span><span class="logos__cat">Joinery</span></li>
+          <li class="logos__item"><span class="logos__name">Harbour&nbsp;&amp;&nbsp;Co</span><span class="logos__cat">Florist</span></li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ============ WORK — business stories ============ -->
+    <section class="section work" id="work" aria-labelledby="work-heading">
+      <div class="container">
+        <div class="section__head section__head--wide">
+          <span class="kicker">The work</span>
+          <h2 id="work-heading" class="section__title">Less about <span class="hl hl--purple">websites.</span> More about businesses.</h2>
+          <p class="section__lead">Nobody hires us because they want a website. They hire us because something about the current one is costing them customers. Here's what that looked like.</p>
+        </div>
+
+        <!-- FEATURED CASE STUDY -->
+        <article class="case-hero reveal" aria-label="Case study: Passo Del Mortirolo">
+          <header class="case-hero__head">
+            <span class="case-hero__industry">Italian restaurant · Manchester</span>
+            <h3 class="case-hero__name">Passo Del Mortirolo</h3>
+            <p class="case-hero__tagline">The owner was taking every booking through Instagram DMs — because nobody could find the booking button. The food was the best in the area. The website was the worst.</p>
+          </header>
+
+          <div class="case-hero__showcase">
+            <div class="mockup mockup--big" role="img" aria-label="The rebuilt Passo homepage: a warm hero, the menu, and a 'Book a table' button right at the top.">
+              <div class="mockup__bar" aria-hidden="true">
+                <span class="dot dot--red"></span><span class="dot dot--amber"></span><span class="dot dot--green"></span>
+                <span class="mockup__url">passo.restaurant</span>
+              </div>
+              <div class="site site--passo" aria-hidden="true">
+                <div class="site__nav">
+                  <span class="site__brand">PASSO</span>
+                  <span class="site__links"><i>Menu</i><i>Story</i><i>Visit</i></span>
+                  <span class="site__book">Book a table</span>
+                </div>
+                <div class="site__hero">
+                  <span class="site__eyebrow">Mountain Italian · since 1971</span>
+                  <p class="site__title">Slow food,<br>steep roads.</p>
+                  <p class="site__lede">Hand-rolled pasta and Alpine wine, five minutes from Piccadilly.</p>
+                  <span class="site__actions"><b class="site__btn site__btn--p">Book a table</b><b class="site__btn site__btn--g">See the menu</b></span>
+                </div>
+                <div class="site__plates">
+                  <span class="site__platelabel">On this week</span>
+                  <div class="site__platerow">
+                    <span class="plate"><i class="plate__img plate__img--1"></i><b class="plate__name"></b><b class="plate__price"></b></span>
+                    <span class="plate"><i class="plate__img plate__img--2"></i><b class="plate__name"></b><b class="plate__price"></b></span>
+                    <span class="plate"><i class="plate__img plate__img--3"></i><b class="plate__name"></b><b class="plate__price"></b></span>
+                  </div>
+                </div>
+                <div class="site__bookbar"><span class="site__bookbar-t">Table for two, 7:30pm?</span><b class="site__bookbar-btn">Find a time</b></div>
+              </div>
+            </div>
+
+            <div class="mockup mockup--before" role="img" aria-label="The old Passo website: a cramped, dated grey page with centred text and no booking button.">
+              <div class="mockup__bar mockup__bar--old" aria-hidden="true">
+                <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+              </div>
+              <div class="site site--old" aria-hidden="true">
+                <p class="old__title">Welcome to our Website</p>
+                <p class="old__hr"></p>
+                <div class="old__cols"><span></span><span></span></div>
+                <p class="old__line"></p><p class="old__line old__line--s"></p>
+                <span class="old__hit">hit counter: 004213</span>
+              </div>
+            </div>
+            <span class="case-hero__beforetag" aria-hidden="true">before</span>
+            <span class="case-hero__aftertag note" aria-hidden="true">after</span>
+          </div>
+
+          <div class="case-hero__story">
+            <div class="case-hero__col">
+              <span class="case__lbl">The problem</span>
+              <p>You couldn't find the menu, and there was no way to book. People phoned to ask the opening hours — every single day.</p>
+            </div>
+            <div class="case-hero__col">
+              <span class="case__lbl">What we did</span>
+              <p>Put the menu and a booking button where people actually look — the top. Wrote the page so it sounds like the restaurant, not a brochure.</p>
+            </div>
+            <div class="case-hero__col case-hero__col--result">
+              <span class="case__lbl">What changed</span>
+              <p class="case-hero__stat">Bookings happen on the site now — not in the DMs.</p>
+            </div>
+          </div>
+
+          <blockquote class="case-hero__quote">
+            The food was never the problem. The website was.
+          </blockquote>
+
+          <a class="link-cta case-hero__link" href="#">Read the case study <span aria-hidden="true">→</span></a>
+        </article>
+
+        <!-- MORE WORK — consistent grid -->
+        <div class="work__more">
+          <p class="work__morelabel">Three more, same idea — find the bit that's quietly losing customers, then fix it.</p>
+          <div class="work__grid">
+            <article class="wcard reveal">
+              <div class="wcard__shot mockup mockup--shot">
+                <div class="mockup__bar" aria-hidden="true"><span class="dot dot--red"></span><span class="dot dot--amber"></span><span class="dot dot--green"></span></div>
+                <div class="shot shot--brightside" aria-hidden="true">
+                  <div class="shot__nav shot__nav--light"><span class="shot__brand shot__brand--b">Brightside</span><span class="shot__pill shot__pill--b">Call now</span></div>
+                  <div class="shot__headblock"><p class="shot__bigline">Power gone?<br>We answer.</p><p class="shot__subline">Same-day callout · Leeds</p><span class="shot__cta shot__cta--b">Call 0113…</span></div>
+                  <div class="shot__trustrow"><i></i><i></i><i></i><i></i></div>
+                </div>
+              </div>
+              <div class="wcard__body">
+                <p class="wcard__cat">Electrician · Leeds</p>
+                <h3 class="wcard__name">Brightside</h3>
+                <p class="wcard__line">A fuse box trips at 11pm and they're in the dark. The old site made them hunt for a phone number. We made the number the first thing you see.</p>
+                <p class="wcard__outcome">Phone calls, not back buttons.</p>
+                <a class="wcard__link link-cta" href="#">Read the case study <span aria-hidden="true">→</span></a>
+              </div>
+            </article>
+
+            <article class="wcard reveal">
+              <div class="wcard__shot mockup mockup--shot">
+                <div class="mockup__bar" aria-hidden="true"><span class="dot dot--red"></span><span class="dot dot--amber"></span><span class="dot dot--green"></span></div>
+                <div class="shot shot--bloom" aria-hidden="true">
+                  <div class="shot__nav shot__nav--bloom"><span class="shot__brand shot__brand--bloom">bloom.</span><span class="shot__bag"></span></div>
+                  <p class="shot__shoptitle">New season</p>
+                  <div class="shot__products"><span><i></i><b></b></span><span><i></i><b></b></span><span><i></i><b></b></span><span><i></i><b></b></span></div>
+                </div>
+              </div>
+              <div class="wcard__body">
+                <p class="wcard__cat">Handmade · Bristol</p>
+                <h3 class="wcard__name">Studio Bloom</h3>
+                <p class="wcard__line">Everything sold through a marketplace that owned the customer and took a cut. We gave the brand its own front door.</p>
+                <p class="wcard__outcome">A brand, not a stall.</p>
+                <a class="wcard__link link-cta" href="#">Read the case study <span aria-hidden="true">→</span></a>
+              </div>
+            </article>
+
+            <article class="wcard reveal">
+              <div class="wcard__shot mockup mockup--shot">
+                <div class="mockup__bar" aria-hidden="true"><span class="dot dot--red"></span><span class="dot dot--amber"></span><span class="dot dot--green"></span></div>
+                <div class="shot shot--foundry" aria-hidden="true">
+                  <div class="shot__nav shot__nav--dark"><span class="shot__brand shot__brand--f">FOUNDRY</span><span class="shot__pill shot__pill--f">Order</span></div>
+                  <p class="shot__darktitle">Roasted on Leith Walk.</p>
+                  <div class="shot__cards"><span></span><span></span><span></span></div>
+                </div>
+              </div>
+              <div class="wcard__body">
+                <p class="wcard__cat">Coffee &amp; café · Edinburgh</p>
+                <h3 class="wcard__name">Foundry Coffee</h3>
+                <p class="wcard__line">The café menu and the online shop lived in two places, and customers could find neither. We put ordering at the top.</p>
+                <p class="wcard__outcome">One site, ordering you can find.</p>
+                <a class="wcard__link link-cta" href="#">Read the case study <span aria-hidden="true">→</span></a>
+              </div>
+            </article>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ HOW WE THINK ============ -->
+    <section class="think" id="think" aria-labelledby="think-heading">
+      <div class="container">
+        <header class="think__head">
+          <span class="kicker">What we believe</span>
+          <h2 id="think-heading" class="think__title">We spend more time on <span class="hl hl--yellow">words</span> than colours.</h2>
+        </header>
+
+        <div class="think__grid">
+          <div class="think__lead">
+            <p class="think__big">If somebody lands on your website and still can't tell what you do, the design has failed. It doesn't matter how nice it looks.</p>
+            <span class="note think__note" aria-hidden="true">↳ this is the whole job</span>
+          </div>
+
+          <aside class="think__panel">
+            <span class="think__panel-label">So before we open the design tool, we ask:</span>
+            <ol class="think__qs">
+              <li>What do you actually sell?</li>
+              <li>What's the customer worried about?</li>
+              <li>Why should they pick you over the next tab?</li>
+            </ol>
+          </aside>
+
+          <div class="think__shot">
+            <div class="mockup mockup--shot" role="img" aria-label="A website with a single plain headline and one button.">
+              <div class="mockup__bar" aria-hidden="true"><span class="dot dot--red"></span><span class="dot dot--amber"></span><span class="dot dot--green"></span></div>
+              <div class="site site--clarity" aria-hidden="true">
+                <p class="clarity__h">We fix leaky roofs. Today.</p>
+                <p class="clarity__p"></p><p class="clarity__p clarity__p--s"></p>
+                <span class="clarity__btn">Get a quote</span>
+              </div>
+            </div>
+            <span class="note think__note think__note--shot" aria-hidden="true">one job, one button</span>
+          </div>
+
+          <p class="think__stmt"><span class="think__stmt-no" aria-hidden="true">01</span> People don't read websites. <span class="think__muted">They scan them. So we design for the scan, not the essay.</span></p>
+          <p class="think__stmt"><span class="think__stmt-no" aria-hidden="true">02</span> Pretty websites are easy. <span class="think__muted">Useful ones are harder — and they're the only ones worth paying for.</span></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ SERVICES ============ -->
+    <section class="section services" id="services" aria-labelledby="services-heading">
+      <div class="container">
+        <div class="section__head">
+          <span class="kicker">On the menu</span>
+          <h2 id="services-heading" class="section__title">What's on the <span class="hl hl--yellow">menu.</span></h2>
+          <p class="section__lead">Most people start with a call and we figure out which of these you actually need. Sometimes the answer is "less than you think".</p>
+        </div>
+
+        <ul class="services__grid">
+          <li class="card service-card">
+            <span class="service-card__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M3 8h18M7 21h10"/></svg></span>
+            <h3 class="service-card__title">A new website</h3>
+            <p class="service-card__what">Built around what you sell, written in words a customer gets on the first read. The usual reason people call us.</p>
+          </li>
+          <li class="card service-card">
+            <span class="service-card__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3l2.5 5L20 9l-4 4 1 6-5-3-5 3 1-6-4-4 5.5-1z"/></svg></span>
+            <h3 class="service-card__title">A single page</h3>
+            <p class="service-card__what">One offer, one thing to do. Handy when you're running ads or a launch and every click costs you money.</p>
+          </li>
+          <li class="card service-card">
+            <span class="service-card__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 6h18l-2 11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L3 6z"/><circle cx="9" cy="22" r="1"/><circle cx="17" cy="22" r="1"/></svg></span>
+            <h3 class="service-card__title">An online shop</h3>
+            <p class="service-card__what">A Shopify store where finding a product and paying for it isn't a small ordeal. Fewer people give up at the checkout.</p>
+          </li>
+          <li class="card service-card">
+            <span class="service-card__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 17l5-5 4 4 8-8"/><path d="M16 8h4v4"/></svg></span>
+            <h3 class="service-card__title">Fixing what you've got</h3>
+            <p class="service-card__what">A site that gets visitors but no enquiries usually has a confusing bit. We find it and fix it — no full rebuild needed.</p>
+          </li>
+          <li class="card service-card">
+            <span class="service-card__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></span>
+            <h3 class="service-card__title">Getting found</h3>
+            <p class="service-card__what">The unglamorous technical groundwork so people searching for what you do can actually land on your site.</p>
+          </li>
+          <li class="card service-card">
+            <span class="service-card__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/><circle cx="12" cy="12" r="3"/></svg></span>
+            <h3 class="service-card__title">A tidy-up</h3>
+            <p class="service-card__what">Sharper words, type and colour for when the business has quietly outgrown the look it started with.</p>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ============ PROCESS ============ -->
+    <section class="section process" id="process" aria-labelledby="process-heading">
+      <div class="container">
+        <div class="section__head">
+          <span class="kicker">How it goes</span>
+          <h2 id="process-heading" class="section__title">Four steps. <span class="hl hl--purple">No drama.</span></h2>
+          <p class="section__lead">You'll always know what's happening, what's next, and why it matters. We don't do mystery.</p>
+        </div>
+
+        <ol class="timeline">
+          <li class="timeline__item">
+            <span class="timeline__num" aria-hidden="true">1</span>
+            <div class="card timeline__card">
+              <h3 class="timeline__title">We ask annoying questions</h3>
+              <p class="timeline__desc">What do you actually sell, who buys it, and why. The least glamorous part of the job and easily the most important.</p>
+            </div>
+          </li>
+          <li class="timeline__item">
+            <span class="timeline__num" aria-hidden="true">2</span>
+            <div class="card timeline__card">
+              <h3 class="timeline__title">We decide what goes where</h3>
+              <p class="timeline__desc">We plan the page around the one thing a visitor needs to do. Everything that doesn't help that gets cut.</p>
+            </div>
+          </li>
+          <li class="timeline__item">
+            <span class="timeline__num" aria-hidden="true">3</span>
+            <div class="card timeline__card">
+              <h3 class="timeline__title">We write it, then build it</h3>
+              <p class="timeline__desc">Words first, design around them. Fast, clear, and it works properly on a phone — because that's where most people will see it.</p>
+            </div>
+          </li>
+          <li class="timeline__item">
+            <span class="timeline__num" aria-hidden="true">4</span>
+            <div class="card timeline__card">
+              <h3 class="timeline__title">We don't disappear</h3>
+              <p class="timeline__desc">We launch, watch what people actually do, and fix what's confusing. Launch is the start of the job, not the end of it.</p>
+            </div>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ============ WHY ============ -->
+    <section class="section why" aria-labelledby="why-heading">
+      <div class="container">
+        <div class="section__head">
+          <span class="kicker">Why people stick with us</span>
+          <h2 id="why-heading" class="section__title">A studio, <span class="hl hl--purple">not a factory.</span></h2>
+        </div>
+
+        <ol class="pillars">
+          <li class="pillar">
+            <span class="pillar__num" aria-hidden="true">01</span>
+            <div class="pillar__body">
+              <h3 class="pillar__title">You talk to the people doing the work.</h3>
+              <p class="pillar__copy">No account managers, no handoffs, no game of telephone. The person you brief is the person building the thing.</p>
+            </div>
+          </li>
+          <li class="pillar">
+            <span class="pillar__num" aria-hidden="true">02</span>
+            <div class="pillar__body">
+              <h3 class="pillar__title">We care if it makes you money.</h3>
+              <p class="pillar__copy">Nice-looking is the easy bit. The question we keep asking is whether a real customer can use it. Pretty earns its place; it doesn't get a free pass.</p>
+              <span class="note pillar__note" aria-hidden="true">↑ the only question that matters</span>
+            </div>
+          </li>
+          <li class="pillar">
+            <span class="pillar__num" aria-hidden="true">03</span>
+            <div class="pillar__body">
+              <h3 class="pillar__title">We build for your customer, not other designers.</h3>
+              <p class="pillar__copy">Awards are lovely. The person trying to book a table on their phone at the bus stop matters more.</p>
+            </div>
+          </li>
+          <li class="pillar">
+            <span class="pillar__num" aria-hidden="true">04</span>
+            <div class="pillar__body">
+              <h3 class="pillar__title">We're still around after launch.</h3>
+              <p class="pillar__copy">A website isn't finished the day it goes live — that's when you find out what's working. We stay to fix the rest.</p>
+            </div>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ============ WHAT IT COSTS ============ -->
+    <section class="section cost" id="pricing" aria-labelledby="cost-heading">
+      <div class="container">
+        <div class="cost__intro">
+          <span class="kicker">What does a website cost?</span>
+          <h2 id="cost-heading" class="cost__title">The honest answer? <span class="hl hl--yellow">It depends.</span></h2>
+          <p class="cost__lead">A local business that needs a simple website is a very different job from a retailer selling hundreds of products online. Some projects take a couple of weeks; others take several months. So rather than squeezing every business into a package, we scope each website around what it actually needs.</p>
+        </div>
+
+        <ol class="cost__examples">
+          <li class="cost__ex">
+            <span class="cost__exno" aria-hidden="true">01</span>
+            <div class="cost__exbody">
+              <h3 class="cost__exname">Small business websites</h3>
+              <p class="cost__exfor">For businesses that need a professional site which clearly explains what they do and brings in enquiries.</p>
+              <p class="cost__exlabel">Usually something like</p>
+              <p class="cost__exlist">Homepage · Services · About · Contact · proper on mobile · we write the words</p>
+            </div>
+          </li>
+          <li class="cost__ex">
+            <span class="cost__exno" aria-hidden="true">02</span>
+            <div class="cost__exbody">
+              <h3 class="cost__exname">Ecommerce websites</h3>
+              <p class="cost__exfor">For businesses selling products online, where finding something and paying for it has to be effortless.</p>
+              <p class="cost__exlabel">Usually something like</p>
+              <p class="cost__exlist">Shopify setup · product pages · collections · checkout improvements · customer journey planning</p>
+            </div>
+          </li>
+          <li class="cost__ex">
+            <span class="cost__exno" aria-hidden="true">03</span>
+            <div class="cost__exbody">
+              <h3 class="cost__exname">Custom projects</h3>
+              <p class="cost__exfor">For businesses with more going on, where an off-the-shelf site won't cut it.</p>
+              <p class="cost__exlabel">Things like</p>
+              <p class="cost__exlist">Booking systems · memberships · integrations · multi-location · bespoke functionality</p>
+            </div>
+          </li>
+        </ol>
+
+        <div class="cost__close">
+          <p class="cost__closecopy">Every project is quoted individually — no two businesses are the same. The best way to get a real sense of budget and timeline is to tell us a little about what you're trying to do.</p>
+          <a class="btn btn--secondary btn--lg" href="#contact">Book a call</a>
+          <span class="note cost__note" aria-hidden="true">a number, not a guess</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ LEAD MAGNET ============ -->
+    <section class="section lead" aria-labelledby="lead-heading">
+      <div class="container">
+        <div class="lead__inner card">
+          <div class="lead__copy">
+            <span class="kicker">Free, no pitch</span>
+            <h2 id="lead-heading" class="lead__title">Send us your website. We'll tell you what's confusing about it.</h2>
+            <p class="lead__sub">Two minutes of your time. We record a short video walking through your site as a first-time customer would — and point out where they'd get lost. No invoice, no sales call at the end.</p>
+          </div>
+          <form class="lead__form" action="mailto:hello@breakfast.studio" method="post" enctype="text/plain" aria-label="Send your website for a free walkthrough">
+            <label class="lead__field">
+              <span class="lead__label">Your website</span>
+              <input class="lead__input" type="url" name="website" inputmode="url" placeholder="yourbusiness.co.uk" required />
+            </label>
+            <label class="lead__field">
+              <span class="lead__label">Where to send it</span>
+              <input class="lead__input" type="email" name="email" placeholder="you@business.co.uk" required />
+            </label>
+            <button class="btn btn--primary" type="submit">Send it over</button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ FAQ ============ -->
+    <section class="section faq" aria-labelledby="faq-heading">
+      <div class="container faq__inner">
+        <div class="section__head">
+          <span class="kicker">The usual questions</span>
+          <h2 id="faq-heading" class="section__title">Before you <span class="hl hl--purple">ask.</span></h2>
+          <p class="faq__aside" aria-hidden="true">Everyone wants to know the same three things, really.</p>
+        </div>
+
+        <div class="faq__list">
+          <details class="faq__item">
+            <summary class="faq__q">How long does it take?</summary>
+            <div class="faq__a"><p>A one-pager is usually about a week. A bigger site, three to five weeks depending on how much there is. We'll give you a date before we start and we keep to it.</p></div>
+          </details>
+          <details class="faq__item">
+            <summary class="faq__q">How much, really?</summary>
+            <div class="faq__a"><p>It starts at the numbers above, and you get a fixed price before anyone does any work. No hourly meter ticking away, no invoice that's bigger than you expected.</p></div>
+          </details>
+          <details class="faq__item">
+            <summary class="faq__q">Do you write the words too?</summary>
+            <div class="faq__a"><p>Yes — and we'd argue it's the most important part. We spend more time on the words than the colours, because that's what people actually read.</p></div>
+          </details>
+          <details class="faq__item">
+            <summary class="faq__q">Will it show up on Google?</summary>
+            <div class="faq__a"><p>Every site gets the technical basics so it can be found. If you're in a crowded market and need to fight for it, that's more work — and a separate, honest conversation.</p></div>
+          </details>
+          <details class="faq__item">
+            <summary class="faq__q">What happens after it's live?</summary>
+            <div class="faq__a"><p>We don't vanish. We watch what people do, fix what's confusing them, and you can keep us on a small monthly plan if you'd like a hand from time to time.</p></div>
+          </details>
+          <details class="faq__item">
+            <summary class="faq__q">Can you fix the site I've got?</summary>
+            <div class="faq__a"><p>Usually, yes — most of our work is rebuilds and rescues. Send it through the form above and we'll tell you what's worth keeping and what isn't.</p></div>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ FINAL CTA ============ -->
+    <section class="section cta-wrap" id="contact" aria-labelledby="cta-heading">
+      <div class="container">
+        <div class="cta-block">
+          <h2 id="cta-heading" class="cta-block__title">Thinking about a new website?</h2>
+          <p class="cta-block__copy">Tell us a little about your business and what you're hoping to achieve. Whether you're starting from scratch or replacing something that's holding you back, we'll let you know if we're the right people to help.</p>
+          <div class="cta-block__actions">
+            <a class="btn btn--secondary btn--lg" href="mailto:hello@breakfast.studio?subject=New%20website%20enquiry">Book a call</a>
+          </div>
+          <p class="cta-block__note">We only take on a small number of projects at a time.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ============ FOOTER ============ -->
+  <footer class="site-footer">
+    <div class="container footer__inner">
+      <div class="footer__brand">
+        <a class="logo logo--footer" href="#top" aria-label="Breakfast home">
+          <span class="logo__word">Breakfast</span>
+          <span class="logo__egg" aria-hidden="true"><span class="logo__white"><span class="logo__yolk"></span></span></span>
+        </a>
+        <p class="footer__tagline">A small studio that cares whether websites actually work.</p>
+      </div>
+      <nav class="footer__nav" aria-label="Footer">
+        <ul>
+          <li><a href="#work">Work</a></li>
+          <li><a href="#services">Services</a></li>
+          <li><a href="#process">Process</a></li>
+          <li><a href="#pricing">Pricing</a></li>
+          <li><a href="#contact">Contact</a></li>
+        </ul>
+      </nav>
+    </div>
+    <div class="container footer__base">
+      <p>© <span id="year">2026</span> Breakfast. Made by people, in Britain.</p>
+    </div>
+  </footer>
+
+  <!-- ============ STICKY CTA ============ -->
+  <div class="sticky-cta" id="stickyCta" data-visible="false" aria-hidden="true">
+    <div class="sticky-cta__inner container">
+      <p class="sticky-cta__text"><strong>Website nobody understands?</strong> We mostly fix those.</p>
+      <a class="btn btn--secondary sticky-cta__btn" href="#contact">Book a call</a>
+    </div>
+  </div>
+
+  <script src="script.js?v=12"></script>
+</body>
+</html>
