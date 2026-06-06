@@ -32,7 +32,7 @@ jobs:
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
           FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
           SITE_FILES: index.html styles.css script.js
-          REMOTE_DIR: ${{ vars.FTP_REMOTE_DIR || '/' }}
+          REMOTE_DIR: ${{ vars.FTP_REMOTE_DIR || '/public_html' }}
         run: |
           set -euo pipefail
           mkdir -p .ftp-remote
