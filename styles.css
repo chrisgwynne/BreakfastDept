@@ -585,3 +585,77 @@ button { font: inherit; }
   .case-hero__beforetag { margin-top: var(--s-2); }
   .case-hero__showcase { padding-bottom: var(--s-6); }
 }
+
+/* =========================================================
+   Mobile polish — calm, spacious, edge-safe
+   Mobile only; desktop layout is unchanged.
+   ========================================================= */
+@media (max-width: 600px) {
+  /* softer shadows everywhere (one place, cascades via vars) */
+  :root {
+    --shadow: 4px 4px 0 var(--text);
+    --shadow-sm: 3px 3px 0 var(--text);
+    --shadow-lg: 6px 6px 0 var(--text);
+    --shadow-xl: 7px 7px 0 var(--text);
+  }
+
+  body { overflow-x: clip; }
+
+  /* one consistent gutter for every section */
+  .container { padding-inline: 20px; }
+
+  /* highlighted phrases wrap instead of overflowing the screen */
+  .hl { white-space: normal; }
+
+  /* nicer wrapping */
+  h1, h2, h3 { text-wrap: balance; }
+  p, li, .section__lead, .cost__lead { text-wrap: pretty; }
+
+  /* calmer vertical rhythm between sections */
+  .section { padding-block: 64px; }
+  .think { padding-block: 64px; }
+  .trust, .services, .testimonials { padding-block: 56px; }
+  .section__head { margin-bottom: 40px; }
+
+  /* hero rebalanced for a phone */
+  .hero { padding-top: 52px; padding-bottom: 44px; overflow-x: clip; }
+  .hero__inner { gap: 40px; }
+  .hero__title { font-size: clamp(2.4rem, 11vw, 3.4rem); }
+  .hero__sub { font-size: 1.06rem; max-width: none; }
+  .hero__visual { min-height: 0; }
+  .mockup--hero { transform: none; max-width: 100%; }
+
+  /* drop the floating/decorative clutter on mobile */
+  .badge, .doodle, .note--hero, .think__note--shot { display: none; }
+
+  /* keep every mockup inside the viewport */
+  .case-hero, .case-hero__showcase { overflow-x: clip; }
+  .mockup--big { transform: none; max-width: 100%; }
+  .mockup--before { width: 72%; }
+
+  /* section headings sized for the column */
+  .section__title, .cost__title, .think__title { font-size: clamp(1.9rem, 8.5vw, 2.7rem); }
+  .case-hero__name { font-size: clamp(2rem, 9vw, 3rem); }
+
+  /* buttons: stacked, full width, easy to tap */
+  .hero__actions, .cta-block__actions { flex-direction: column; align-items: stretch; gap: 12px; }
+  .hero__actions .btn, .cta-block__actions .btn, .cost__close .btn { width: 100%; }
+  .btn { min-height: 50px; }
+
+  /* tidy card / block padding */
+  .service-card, .timeline__card, .wcard__body { padding: 20px; }
+  .lead__inner { padding: 24px; }
+  .cta-block { padding: 48px 24px; }
+
+  /* cost section: keep the note in flow under the button */
+  .cost__note { display: block; margin-left: 0; margin-top: 12px; }
+  .cost__ex { padding-block: 32px; }
+
+  /* trust note sits cleanly under the heading */
+  .trust__note { max-width: none; }
+}
+
+@media (max-width: 380px) {
+  .container { padding-inline: 16px; }
+  .logos { grid-template-columns: 1fr; }
+}
