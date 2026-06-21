@@ -3,10 +3,14 @@ name: Pull edits from FTP site
 # server -> GitHub. FTP has no webhooks, so this polls on a schedule and
 # commits anything that changed on the server back to the repo. Also runnable
 # on demand from the Actions tab.
+#
+# NOTE: The schedule is currently DISABLED. Runs only happen when triggered
+# manually from the Actions tab. To re-enable automatic polling, uncomment the
+# schedule block below. (lftp timeouts that stop multi-hour hangs land in PR #13.)
 on:
-  schedule:
-    # Every 30 minutes. GitHub may delay scheduled runs under load.
-    - cron: "*/30 * * * *"
+  # schedule:
+  #   # Every 30 minutes. GitHub may delay scheduled runs under load.
+  #   - cron: "*/30 * * * *"
   workflow_dispatch:
 
 concurrency:
@@ -19,6 +23,7 @@ permissions:
 jobs:
   pull:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -39,6 +44,9 @@ jobs:
           lftp -c "
             set ftp:ssl-force true;
             set ssl:verify-certificate no;
+            set net:timeout 60;
+            set net:max-retries 2;
+            set net:idle 300;
             open -u '$FTP_USERNAME','$FTP_PASSWORD' '$FTP_SERVER';
             mirror --verbose --parallel=4 \
               --exclude '^\.git' \
