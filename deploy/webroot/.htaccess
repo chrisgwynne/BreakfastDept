@@ -1,0 +1,58 @@
+# Breakfast — Apache config for a SINGLE-FOLDER deploy.
+#
+# The whole application is uploaded into this directory (the public web root).
+# Only `index.php`, `assets/` and Kirby's generated `media/` may be served; every
+# application internal — vendor, site, content, storage, bin, .env — is hard-
+# blocked here. (On a host that CAN point the docroot at a `public/` subfolder,
+# use `public/.htaccess` instead; this file is for the FTP-to-web-root case.)
+
+Options -Indexes -MultiViews +FollowSymLinks
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # If the site lives in a subfolder, set this to that folder, e.g. "/blog/".
+    # RewriteBase /
+
+    # 1. Hard-deny application internals — these bytes must NEVER be served,
+    #    regardless of whether the requested path is a real file.
+    RewriteRule ^(vendor|storage|bin|tests|playwright|node_modules)(/|$) - [F,L]
+
+    # 2. Route Kirby's own content/site/config areas through the front
+    #    controller (Kirby serves files via /media/; direct access is a 404),
+    #    matching Kirby's standard hardening.
+    RewriteRule ^(kirby|site|content)(/|$) index.php [L]
+
+    # 3. Block dotfiles (.env, .git, …) except the ACME challenge directory.
+    RewriteRule (^|/)\.(?!well-known/) - [F,L]
+
+    # 4. Everything else that is not a real file or directory → front controller.
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^ index.php [L]
+</IfModule>
+
+# Belt-and-braces: deny sensitive file types wherever they resolve, even if
+# mod_rewrite is unavailable.
+<FilesMatch "\.(env|sqlite|sqlite-wal|sqlite-shm|log|lock|neon|ya?ml|md|dist|sh|sql)$">
+    Require all denied
+</FilesMatch>
+
+<IfModule mod_headers.c>
+    # Long-lived immutable caching for fingerprinted static assets.
+    <FilesMatch "\.(css|js|woff2|jpg|jpeg|png|webp|avif|svg|ico)$">
+        Header set Cache-Control "public, max-age=31536000, immutable"
+    </FilesMatch>
+    # Never cache the HTML entrypoint.
+    <FilesMatch "\.php$">
+        Header set Cache-Control "no-store"
+    </FilesMatch>
+    # Baseline security headers (the app also sets a per-request CSP with a nonce).
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    Header always set X-Frame-Options "DENY"
+</IfModule>
+
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/css application/javascript application/json image/svg+xml application/xml
+</IfModule>
