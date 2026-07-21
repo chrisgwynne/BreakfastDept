@@ -180,7 +180,6 @@ php bin/console hermes:keys      # manage Hermes integration credentials
 | [manual-release-checklist.md](docs/manual-release-checklist.md) | Manual pre-release QA checklist (site, Panel, CRM, Brevo, Hermes, ops) |
 | [editor-guide.md](docs/editor-guide.md) | For non-technical content editors |
 | [content-model.md](docs/content-model.md) | The field contract for every page type |
-| [implementation-plan.md](docs/implementation-plan.md) | The rebuild plan and definition of done |
 
 ## Licence
 
