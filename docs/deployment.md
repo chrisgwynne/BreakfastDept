@@ -1,12 +1,84 @@
 # Deployment
 
-How to deploy Breakfast to conventional PHP hosting. The site is a standard
-Kirby 5 application with a `public/` docroot; any host that can run PHP-FPM
-behind Nginx, or PHP under Apache, will work.
+How to deploy Breakfast to conventional PHP hosting. There are two supported
+shapes:
+
+1. **FTP auto-deploy to a shared host** (you push, GitHub builds and uploads —
+   you never run Composer). This is described in the next section and is the
+   right choice for typical cPanel/shared hosting where the FTP folder *is* the
+   web root. **[Start here if you deploy over FTP.](#ftp-auto-deploy-no-composer-on-your-side)**
+2. **Dedicated server / VPS** with a `public/` docroot and a Composer build
+   step, behind Nginx or Apache. This is the rest of the document.
 
 The web-server configuration files themselves — `deploy/nginx.conf.example`,
 `deploy/apache.conf.example` and `public/.htaccess` — are maintained alongside
 this document; the blocks below show what they must contain.
+
+## FTP auto-deploy (no Composer on your side)
+
+For hosts where you upload files over FTP and the upload folder is served
+directly as the website (e.g. `public_html/`, which cannot be pointed at a
+`public/` subfolder). You push to `main`; a GitHub Action
+(`.github/workflows/deploy.yml`) installs dependencies **in CI**, assembles a
+ready-to-serve tree and uploads it over FTP. **You never run Composer**, and the
+schema keeps itself up to date. Requires an **Apache** host with `mod_rewrite`
+(standard on shared hosting).
+
+### One-time setup
+
+1. **Add FTP credentials** in GitHub → *Settings → Secrets and variables →
+   Actions*:
+   - Secrets: `FTP_SERVER` (e.g. `ftp.yourhost.com`), `FTP_USERNAME`,
+     `FTP_PASSWORD`.
+   - Variables (optional): `FTP_SERVER_DIR` — the remote web root, ending in `/`
+     (e.g. `public_html/`; default `./`); `FTP_PROTOCOL` — `ftps` (default),
+     `ftp`, or `ftps-legacy`.
+
+2. **Create `.env` in the host web root** (e.g. `public_html/.env`) with your
+   production values — at minimum:
+
+   ```dotenv
+   APP_ENV=production
+   APP_DEBUG=false
+   KIRBY_LICENSE=your-license-key
+   BREAKFAST_ADMIN_SLUG=your-private-admin-path
+   # Brevo (if sending email), Hermes, preview host, etc. — see .env.example
+   ```
+
+   This file is **never** uploaded, overwritten or deleted by a deploy, so your
+   secrets persist across releases. The bundled `.htaccess` blocks it (and all
+   of `vendor/`, `site/`, `content/`, `storage/`, `bin/`) from the web.
+
+3. **Add the queue cron** in your host's control panel (cPanel → *Cron Jobs*),
+   running every minute. It sends queued email/webhooks **and applies any
+   pending database migrations** on its next tick, so a deploy needs no manual
+   migrate step:
+
+   ```cron
+   * * * * * cd ~/public_html && /usr/bin/php bin/console queue:run >> storage/logs/queue-cron.log 2>&1
+   ```
+
+   (Optionally add the nightly `retention:cleanup` / `previews:cleanup` lines
+   from [`deploy/cron.example`](../deploy/cron.example).)
+
+4. **First deploy** — push to `main` (or run the *Deploy (FTP)* workflow from the
+   Actions tab). Within a minute the queue cron creates the database schema
+   automatically; if you want it ready instantly, run `php bin/console migrate`
+   once in the host terminal.
+
+### Every deploy after that
+
+Just push to `main` (or merge a PR). The Action rebuilds and re-uploads. Code,
+content and template changes are live immediately; a release that adds a
+migration is applied by the queue cron within a minute. Your database, uploads,
+Panel accounts, generated media and `.env` are all left untouched.
+
+### Rollback
+
+Re-run an earlier successful *Deploy (FTP)* run from the Actions tab, or push a
+revert commit — either way the previous file set is re-uploaded. Because
+migrations are forward-only, keep a database backup before deploys that change
+the schema (see [backups.md](backups.md)).
 
 ## Requirements
 
