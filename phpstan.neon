@@ -1,0 +1,24 @@
+# PHPStan configuration. Level 6 over the pure-logic platform code.
+#
+# The thin Kirby-adapter files below are excluded: they consume Kirby's
+# intentionally dynamically-typed fluent content API ($page->field()->toFile()
+# etc.), which PHPStan cannot model without the official Kirby extension (not
+# installable in this build sandbox). They are verified instead by the
+# integration + render + app:check boot tests. All domain logic — mail
+# providers, repositories, services, webhook, suppression, queue, forms,
+# security, value objects — is analysed at level 6.
+parameters:
+    level: 6
+    paths:
+        - site/plugins/breakfast-platform/src
+    excludePaths:
+        analyseAndScan:
+            - site/plugins/breakfast-platform/src/Seo/Meta.php
+            - site/plugins/breakfast-platform/src/Seo/StructuredData.php
+            - site/plugins/breakfast-platform/src/Mail/SmtpMailProvider.php
+            - site/plugins/breakfast-platform/src/Hermes/DraftFactory.php
+            - site/plugins/breakfast-platform/src/Hermes/Api.php
+    bootstrapFiles:
+        - vendor/autoload.php
+    treatPhpDocTypesAsCertain: false
+    reportUnmatchedIgnoredErrors: false

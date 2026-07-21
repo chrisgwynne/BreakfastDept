@@ -1,0 +1,31 @@
+# team block — people cards.
+# fields: heading, members(structure: name, role, bio, photo)
+name: Team
+icon: users
+fields:
+  heading:
+    label: Heading
+    type: text
+  members:
+    label: Members
+    type: structure
+    fields:
+      name:
+        label: Name
+        type: text
+        required: true
+        width: 1/2
+      role:
+        label: Role
+        type: text
+        width: 1/2
+      bio:
+        label: Bio
+        type: textarea
+        buttons: false
+      photo:
+        label: Photo
+        type: files
+        max: 1
+        query: page.images
+        uploads: images

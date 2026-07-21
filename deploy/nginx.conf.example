@@ -1,0 +1,51 @@
+# Breakfast — example Nginx server block.
+# The document root is the project's public/ directory. Everything sensitive
+# (content, site, storage, vendor, .env) lives ABOVE it and is never served.
+
+server {
+    listen 443 ssl http2;
+    server_name breakfastdept.com www.breakfastdept.com;
+
+    # --- TLS (managed by your CA / certbot) ---
+    ssl_certificate     /etc/letsencrypt/live/breakfastdept.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/breakfastdept.com/privkey.pem;
+
+    # >>> IMPORTANT: docroot is public/, not the project root <<<
+    root /var/www/breakfast/public;
+    index index.php;
+
+    # Deny access to anything that must never be public. With a public/ docroot
+    # these paths are already unreachable; these rules are defence in depth.
+    location ~ /\.(?!well-known) { deny all; }
+    location ~* \.(sqlite|sqlite-wal|sqlite-shm|env|log)$ { deny all; }
+
+    # Long-lived immutable caching for cache-busted assets.
+    location ~* \.(css|js|woff2|jpg|jpeg|png|webp|avif|svg|ico)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        try_files $uri =404;
+    }
+
+    # Kirby front controller.
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location ~ \.php$ {
+        include fastcgi_params;
+        fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_hide_header X-Powered-By;
+        # Pass real client IP through if behind a proxy/CDN (adjust to taste).
+    }
+
+    client_max_body_size 8m;   # form uploads are validated + capped in the app
+    server_tokens off;
+}
+
+# Redirect HTTP → HTTPS.
+server {
+    listen 80;
+    server_name breakfastdept.com www.breakfastdept.com;
+    return 301 https://$host$request_uri;
+}

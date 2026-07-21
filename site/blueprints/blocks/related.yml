@@ -1,0 +1,19 @@
+# related block — curated related projects / articles.
+# fields: heading, items, layout
+name: Related
+icon: layout
+fields:
+  heading:
+    label: Heading
+    type: text
+  items:
+    label: Related pages
+    type: pages
+    query: site.index.filterBy("intendedTemplate", "in", ["project", "article", "service"])
+  layout:
+    label: Layout
+    type: select
+    default: cards
+    options:
+      cards: Cards
+      list: List

@@ -1,0 +1,110 @@
+##
+# Article — a journal post. Ordered by date (newest first). Date is datetime.
+##
+title: Article
+icon: text
+num: date
+preview: true
+
+tabs:
+  content:
+    label: Content
+    icon: text
+    fields:
+      title:
+        label: Title
+        type: text
+        required: true
+        maxlength: 90
+        counter: true
+      excerpt:
+        label: Standfirst
+        type: textarea
+        buttons: false
+        maxlength: 300
+        counter: true
+        help: The opening summary shown on cards and used as an SEO fallback.
+      body:
+        label: Body
+        type: blocks
+        extends: fields/bodyblocks
+
+  media:
+    label: Media
+    icon: image
+    fields:
+      cover:
+        label: Cover image
+        type: files
+        max: 1
+        query: page.images
+        uploads: images
+
+  relationships:
+    label: Relationships
+    icon: merge
+    fields:
+      related_articles:
+        label: Related articles
+        type: pages
+        query: site.index.filterBy("intendedTemplate", "article")
+      related_projects:
+        label: Related projects
+        type: pages
+        query: site.index.filterBy("intendedTemplate", "project")
+      ctaheadline:
+        type: headline
+        label: CTA
+      cta_heading:
+        label: CTA heading
+        type: text
+      cta_text:
+        label: CTA text
+        type: textarea
+        buttons: false
+      cta_label:
+        label: Button label
+        type: text
+        width: 1/2
+      cta_link:
+        label: Button link
+        type: link
+        width: 1/2
+
+  settings:
+    label: Settings
+    icon: settings
+    fields:
+      date:
+        label: Published
+        type: date
+        time: true
+        default: today
+        required: true
+      updated:
+        label: Updated
+        type: date
+      author:
+        label: Author
+        type: text
+      categories:
+        label: Categories
+        type: tags
+      tags:
+        label: Tags
+        type: tags
+      toc_enabled:
+        label: Show table of contents
+        type: toggle
+        default: false
+
+  seo:
+    label: SEO & sharing
+    icon: search
+    fields:
+      structured_data_note:
+        type: info
+        label: Structured data
+        text: Articles default to the "Article" structured data type. Override below if needed.
+      seo:
+        extends: fields/seogroup

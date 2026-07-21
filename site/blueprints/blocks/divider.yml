@@ -1,0 +1,23 @@
+# divider block — visual separator / spacer.
+# fields: style, spacing
+name: Divider
+icon: dots
+fields:
+  style:
+    label: Style
+    type: select
+    default: line
+    width: 1/2
+    options:
+      line: Line
+      dots: Dots
+      space: Blank space
+  spacing:
+    label: Spacing
+    type: select
+    default: medium
+    width: 1/2
+    options:
+      small: Small
+      medium: Medium
+      large: Large

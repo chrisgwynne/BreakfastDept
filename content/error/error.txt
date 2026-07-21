@@ -1,0 +1,21 @@
+Title: Page not found
+
+----
+
+Heading: We couldn't find that page.
+
+----
+
+Text: The page may have moved, or the link might be wrong. Let's get you back on track.
+
+----
+
+Cta_label: Back to home
+
+----
+
+Cta_link: /
+
+----
+
+Uuid: error

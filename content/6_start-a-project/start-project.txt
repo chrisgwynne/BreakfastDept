@@ -1,0 +1,87 @@
+Title: Start a project
+
+----
+
+Intro:
+
+[{"id":"sp1","type":"text","content":{"text":"<p>Thinking about a new website, or replacing one that's holding you back? Tell us a little about your business and what you're hoping to achieve. The more you can share, the more useful our reply will be — but don't worry about getting it perfect.</p>"}},{"id":"sp2","type":"text","content":{"text":"<p>We'll come back with an honest view on whether we're the right fit, roughly what your project might involve, and what happens next. No hard sell, and no obligation.</p>"}}]
+
+----
+
+Form_name_label: Your name
+
+----
+
+Form_name_placeholder: e.g. Sam Okafor
+
+----
+
+Form_email_label: Email address
+
+----
+
+Form_email_placeholder: you@yourbusiness.co.uk
+
+----
+
+Form_company_label: Business name
+
+----
+
+Form_company_placeholder: The name above your door
+
+----
+
+Form_message_label: Tell us about the project
+
+----
+
+Form_message_placeholder: What does your business do, who are your customers, and what would a great outcome look like?
+
+----
+
+Form_message_help: Don't worry about getting it perfect — a rough sketch is genuinely fine.
+
+----
+
+Form_consent_text: I'm happy for Breakfast to store what I've sent so they can reply and scope the work. We'll only use it for that — nothing else.
+
+----
+
+Form_submit_label: Send enquiry
+
+----
+
+Form_success_message: Thanks — that's landed with us. We'll read it properly and come back with an honest view, usually within a couple of working days.
+
+----
+
+Form_error_message: Hmm, that didn't send. Please try again, or email us directly at hello@breakfastdept.com.
+
+----
+
+Form_budget_label: Rough budget
+
+----
+
+Form_budget_help: A ballpark is fine — it helps us suggest something that actually fits. If you genuinely don't know, say so and we'll guide you.
+
+----
+
+Form_timeline_label: When would you like this live?
+
+----
+
+Form_timeline_help: No rush, a specific date, or somewhere in between — whatever's true.
+
+----
+
+Form_services_label: What are you after?
+
+----
+
+Form_services_help: A new website, a single page, an online shop, a rescue of what you've got, or ongoing support — tick anything that sounds right.
+
+----
+
+Uuid: start-project

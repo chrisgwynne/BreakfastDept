@@ -1,0 +1,28 @@
+# stats block — headline metrics.
+# fields: heading, items(structure: value, label, context)
+name: Stats
+icon: chart
+fields:
+  heading:
+    label: Heading
+    type: text
+  items:
+    label: Stats
+    type: structure
+    fields:
+      value:
+        label: Value
+        type: text
+        required: true
+        width: 1/3
+        help: e.g. "+38%", "2.4s", "12k".
+      label:
+        label: Label
+        type: text
+        required: true
+        width: 1/3
+      context:
+        label: Context
+        type: text
+        width: 1/3
+        help: Optional supporting note.

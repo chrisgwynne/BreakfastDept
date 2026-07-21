@@ -1,0 +1,29 @@
+# code block — syntax-highlighted code sample. Rendered escaped in <pre><code>.
+# fields: language, filename, code
+name: Code
+icon: code
+fields:
+  language:
+    label: Language
+    type: select
+    default: plain
+    width: 1/2
+    options:
+      plain: Plain text
+      html: HTML
+      css: CSS
+      javascript: JavaScript
+      php: PHP
+      bash: Shell
+      json: JSON
+      yaml: YAML
+  filename:
+    label: Filename
+    type: text
+    width: 1/2
+  code:
+    label: Code
+    type: textarea
+    buttons: false
+    font: monospace
+    required: true

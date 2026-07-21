@@ -1,0 +1,57 @@
+##
+# Work index — lists project children.
+##
+title: Work
+icon: grid
+preview: true
+status:
+  draft: false
+  listed: true
+options:
+  changeStatus: false
+  delete: false
+num: default
+
+tabs:
+  content:
+    label: Content
+    icon: text
+    fields:
+      title:
+        label: Title
+        type: text
+        required: true
+        maxlength: 70
+        counter: true
+      intro:
+        label: Intro
+        type: textarea
+        buttons: false
+        maxlength: 320
+        counter: true
+      filters_enabled:
+        label: Show filters
+        type: toggle
+        default: true
+        help: Let visitors filter projects by service / industry.
+
+  projects:
+    label: Projects
+    icon: grid
+    sections:
+      projects:
+        label: Projects
+        type: pages
+        template: project
+        create: project
+        sortBy: date desc
+        status: all
+        layout: cards
+        info: "{{ page.client }}"
+
+  seo:
+    label: SEO & sharing
+    icon: search
+    fields:
+      seo:
+        extends: fields/seogroup

@@ -1,0 +1,59 @@
+# Dependencies (installed via composer / npm)
+/vendor/
+/kirby/
+/node_modules/
+
+# Secrets — never commit
+/.env
+/.env.*
+!/.env.example
+
+# Kirby-generated media (thumbs, resized images)
+/public/media/*
+!/public/media/.gitkeep
+
+# Operational storage — sessions, cache, logs, sqlite, private uploads, queue
+/storage/sessions/*
+/storage/cache/*
+/storage/logs/*
+/storage/accounts/*
+/storage/database/*.sqlite
+/storage/database/*.sqlite-*
+/storage/uploads/*
+/storage/queue/*
+/storage/client-previews/*
+# Kirby writes sessions/accounts under site/ when those roots aren't relocated.
+/site/sessions/*
+/site/accounts/*
+!/storage/**/.gitkeep
+!/site/sessions/.gitkeep
+
+# Panel accounts (Kirby user files) must never be committed
+/site/accounts/
+
+# Build / test artefacts
+/public/assets/css/*.map
+/.phpunit.cache/
+/.php-cs-fixer.cache
+/coverage/
+/playwright-report/
+/test-results/
+/playwright/.cache/
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# Superseded static site + FTP sync artefacts
+/public_html/
+
+# Local test tool binaries (real tools come from composer.lock)
+/tools/
+/test-results/
+/playwright-report/
+
+# Never track scratch/temp artifacts.
+/tmp/

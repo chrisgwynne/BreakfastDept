@@ -1,0 +1,22 @@
+# quote block — single attributed quote.
+# fields: quote, name, role, company
+name: Quote
+icon: quote
+fields:
+  quote:
+    label: Quote
+    type: textarea
+    buttons: false
+    required: true
+  name:
+    label: Name
+    type: text
+    width: 1/3
+  role:
+    label: Role
+    type: text
+    width: 1/3
+  company:
+    label: Company
+    type: text
+    width: 1/3

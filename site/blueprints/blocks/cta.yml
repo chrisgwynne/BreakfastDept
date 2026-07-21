@@ -1,0 +1,28 @@
+# cta block — call to action panel.
+# fields: heading, text, label, link, style
+name: Call to action
+icon: bolt
+fields:
+  heading:
+    label: Heading
+    type: text
+    required: true
+  text:
+    label: Text
+    type: textarea
+    buttons: false
+  label:
+    label: Button label
+    type: text
+    width: 1/2
+  link:
+    label: Button link
+    type: link
+    width: 1/2
+  style:
+    label: Style
+    type: select
+    default: primary
+    options:
+      primary: Primary
+      secondary: Secondary

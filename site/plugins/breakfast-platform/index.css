@@ -1,0 +1,25 @@
+/* Breakfast — small Panel refinements for the custom CRM area.
+   Kept minimal; relies on Kirby's own Panel design system. */
+
+.k-crm-stat {
+  border: 1px solid var(--color-border, #e5e5e5);
+  border-radius: var(--rounded, 6px);
+  padding: 1rem 1.25rem;
+  background: var(--color-white, #fff);
+}
+.k-crm-stat__value { font-size: 1.9rem; font-weight: 700; line-height: 1.1; }
+.k-crm-stat__label { color: var(--color-text-dimmed, #777); font-size: 0.85rem; margin-top: 0.25rem; }
+
+.k-crm-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+.k-crm-pipeline { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+.k-crm-column { background: var(--color-light, #f7f7f7); border-radius: 6px; padding: 0.75rem; }
+.k-crm-column h3 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.5rem; }
+.k-crm-card { background: #fff; border: 1px solid #e5e5e5; border-radius: 5px; padding: 0.6rem 0.75rem; margin-bottom: 0.5rem; }
+.k-crm-badge { display: inline-block; font-size: 0.7rem; padding: 0.1rem 0.45rem; border-radius: 999px; background: #eef; font-weight: 600; }
+.k-crm-badge--new { background: #fde68a; }
+.k-crm-badge--spam { background: #fecaca; }
+.k-crm .k-mt-huge { margin-top: 2rem; }
+.k-crm .k-mt-medium { margin-top: 1rem; }
+.k-crm .k-mt-small { margin-top: .5rem; }
+.k-crm .k-mb-medium { margin-bottom: 1rem; }
+.k-crm-card { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }

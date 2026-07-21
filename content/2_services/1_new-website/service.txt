@@ -1,0 +1,102 @@
+Title: A new website
+
+----
+
+Short_name: New website
+
+----
+
+Summary: A complete website designed and built around what you actually sell and who buys it — usually a first proper site, or a long-overdue replacement for one that's holding you back.
+
+----
+
+Introduction:
+
+[{"id":"n1a2","type":"text","content":{"text":"<p>This is the full job: we work out what your website needs to do, write it, design it and build it. Most people come to us for one of two reasons — they've never had a proper website, or the one they've got is quietly costing them customers.</p>"}},{"id":"n2b3","type":"text","content":{"text":"<p>We start with words, not colours. If a visitor can't tell what you do in a sentence, no amount of nice design will save it. So we begin with the least glamorous, most important question: what do you sell, and who's buying?</p>"}}]
+
+----
+
+Suitable_for: Small and independent businesses who want a site that looks professional and, more importantly, works. Restaurants, trades, makers and shops who are tired of explaining their own website over the phone.
+
+----
+
+Problems:
+
+-
+  text: Nobody can tell what you do from your homepage, so most visitors leave before they scroll.
+-
+  text: The thing you want people to do — book, call, buy — is buried where no one will find it.
+-
+  text: Your current site falls apart on a phone, which is where most people will actually see it.
+
+----
+
+Deliverables:
+
+-
+  text: A clear, fast website built around one main thing you want visitors to do.
+-
+  text: Copy written in your voice, not brochure language.
+-
+  text: A simple way for you to make everyday edits yourself.
+-
+  text: Sensible analytics that respect your visitors' privacy.
+
+----
+
+Process:
+
+-
+  title: We ask annoying questions
+  text: What you sell, who buys it, and why they choose you. The least glamorous part of the job and easily the most important.
+-
+  title: We decide what goes where
+  text: We plan each page around the one thing a visitor needs to do. Anything that doesn't help that gets cut.
+-
+  title: We write it, then build it
+  text: Words first, design around them. Fast, clear, and working properly on a phone.
+-
+  title: We don't disappear
+  text: We launch, watch what people actually do, and fix what's confusing.
+
+----
+
+Pricing_guidance: There's no fixed price, because there's no fixed website. A single clear site for a small business is a very different job from a shop with hundreds of products. We scope every project after an honest conversation about what you need, give you a written quote before anything starts, and never surprise you with a bill. If a cheaper, smaller approach would serve you better, we'll say so.
+
+----
+
+Timescale: Usually four to eight weeks from first conversation to launch, depending on how much writing and photography is involved and how quickly we can get feedback from you.
+
+----
+
+Faqs:
+
+-
+  question: Do I need to write all the words myself?
+  answer: No. Writing the site is part of the job. We'll ask you plenty of questions and turn your answers into copy that sounds like you.
+-
+  question: Will I be able to update it myself?
+  answer: Yes. We set the site up so everyday changes — hours, prices, new items — take minutes, and we show you how.
+-
+  question: What if I only need something small?
+  answer: Then we'll build you something small. If a single page would do the job, we'll tell you rather than sell you more.
+
+----
+
+Cta_heading: Thinking about a new website?
+
+----
+
+Cta_text: Tell us a little about your business and what you're hoping to achieve. We'll come back with an honest view on whether we're the right fit.
+
+----
+
+Cta_label: Start a project
+
+----
+
+Cta_link: /start-a-project
+
+----
+
+Uuid: service-new-website

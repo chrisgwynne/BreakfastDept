@@ -1,0 +1,48 @@
+# hero block — large page-opening banner.
+# fields: eyebrow, headline, highlight, text, availability,
+#         primary_label/primary_link, secondary_label/secondary_link, image
+name: Hero
+icon: bolt
+fields:
+  eyebrow:
+    label: Eyebrow
+    type: text
+    help: Small line above the headline.
+  headline:
+    label: Headline
+    type: text
+    required: true
+  highlight:
+    label: Highlighted word/phrase
+    type: text
+    help: A fragment of the headline to visually emphasise.
+  text:
+    label: Intro text
+    type: textarea
+    buttons: false
+  availability:
+    label: Availability note
+    type: text
+    help: e.g. "Taking projects for Q3".
+  primary_label:
+    label: Primary button label
+    type: text
+    width: 1/2
+  primary_link:
+    label: Primary button link
+    type: link
+    width: 1/2
+  secondary_label:
+    label: Secondary button label
+    type: text
+    width: 1/2
+  secondary_link:
+    label: Secondary button link
+    type: link
+    width: 1/2
+  image:
+    label: Image
+    type: files
+    max: 1
+    query: page.images
+    uploads: images

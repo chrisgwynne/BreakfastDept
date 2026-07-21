@@ -1,0 +1,45 @@
+# Breakfast — example Apache virtual host.
+# Document root is the project's public/ directory.
+
+<VirtualHost *:443>
+    ServerName breakfastdept.com
+    ServerAlias www.breakfastdept.com
+
+    # >>> docroot is public/, not the project root <<<
+    DocumentRoot /var/www/breakfast/public
+
+    SSLEngine on
+    SSLCertificateFile      /etc/letsencrypt/live/breakfastdept.com/fullchain.pem
+    SSLCertificateKeyFile   /etc/letsencrypt/live/breakfastdept.com/privkey.pem
+
+    <Directory /var/www/breakfast/public>
+        Options -Indexes +FollowSymLinks
+        AllowOverride All          # allows public/.htaccess to apply
+        Require all granted
+    </Directory>
+
+    # Belt and braces: refuse to serve the sensitive project directories even
+    # if a symlink points into the docroot.
+    <DirectoryMatch "/var/www/breakfast/(content|site|storage|vendor)">
+        Require all denied
+    </DirectoryMatch>
+
+    ServerSignature Off
+</VirtualHost>
+
+<VirtualHost *:80>
+    ServerName breakfastdept.com
+    ServerAlias www.breakfastdept.com
+    Redirect permanent / https://breakfastdept.com/
+</VirtualHost>
+
+# --- Fallback: host that CANNOT set the docroot to public/ ---
+# If your host serves from the project root, add a root .htaccess that rewrites
+# all requests into public/ and blocks the sensitive directories:
+#
+#   RewriteEngine On
+#   RewriteRule ^(content|site|storage|vendor|kirby|\.env)(/|$) - [F]
+#   RewriteCond %{REQUEST_URI} !^/public/
+#   RewriteRule ^(.*)$ public/$1 [L]
+#
+# This is less clean than a public/ docroot; prefer the docroot approach.

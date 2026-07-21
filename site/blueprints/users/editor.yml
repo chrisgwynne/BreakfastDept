@@ -1,0 +1,30 @@
+##
+# Editor — manages public content and uploads media.
+# No user management, no system config, no CRM access.
+##
+name: Editor
+title: Editor
+description: Manages public pages and media. No user management, system config or CRM.
+permissions:
+  access:
+    panel: true
+    site: true
+    system: false
+    users: false
+    account: true
+  pages: true
+  files: true
+  site: true
+  languages: false
+  user: true
+  users: false
+  breakfast.platform: false
+  # Client Previews: editors build and upload previews; publishing, slug changes,
+  # passwords and deletion stay with admins.
+  breakfast.previews:
+    view: true
+    create: true
+    upload: true
+    validate: true
+    manageExpiry: true
+    disable: true

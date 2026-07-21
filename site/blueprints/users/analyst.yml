@@ -1,0 +1,50 @@
+##
+# Analyst — read-only. Views content and the CRM but changes nothing.
+# breakfast.platform: access only (view). No manage, no export.
+##
+name: Analyst
+title: Analyst
+description: Read-only access to content and the CRM. Cannot edit, publish or export.
+permissions:
+  access:
+    panel: true
+    site: true
+    system: false
+    users: false
+    account: true
+  pages:
+    access: true
+    list: true
+    read: true
+    create: false
+    update: false
+    changeStatus: false
+    changeTitle: false
+    changeSlug: false
+    changeTemplate: false
+    duplicate: false
+    delete: false
+    sort: false
+    move: false
+  files:
+    access: true
+    list: true
+    read: true
+    create: false
+    update: false
+    replace: false
+    delete: false
+    changeName: false
+    sort: false
+  site: false
+  languages: false
+  user: true
+  users: false
+  breakfast.platform:
+    access: true
+    manage: false
+    export: false
+  # Client Previews: read-only metadata + analytics.
+  breakfast.previews:
+    view: true
+    viewAnalytics: true

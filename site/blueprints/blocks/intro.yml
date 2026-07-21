@@ -1,0 +1,15 @@
+# intro block — section lead-in with heading + short rich text.
+# fields: heading, text
+name: Intro
+icon: text
+fields:
+  heading:
+    label: Heading
+    type: text
+  text:
+    label: Text
+    type: writer
+    marks:
+      - bold
+      - italic
+      - link

@@ -1,0 +1,26 @@
+# columns block — two columns, each holding a small set of nested blocks.
+# Nested blocks are limited to text + image only (no recursion into columns).
+# fields: ratio, left, right
+name: Columns
+icon: columns
+fields:
+  ratio:
+    label: Ratio
+    type: select
+    default: "1-1"
+    options:
+      "1-1": 50 / 50
+      "2-1": 66 / 33
+      "1-2": 33 / 66
+  left:
+    label: Left column
+    type: blocks
+    fieldsets:
+      - text
+      - image
+  right:
+    label: Right column
+    type: blocks
+    fieldsets:
+      - text
+      - image

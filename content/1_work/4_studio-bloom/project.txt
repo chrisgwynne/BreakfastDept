@@ -1,0 +1,93 @@
+Title: Studio Bloom — a maker who wanted a shop, not a full-time job running one
+
+----
+
+Client: Studio Bloom
+
+----
+
+Summary: A Bristol maker of handmade ceramics selling through craft fairs and a fiddly marketplace. We built a small, calm shop she can run in the gaps between making things.
+
+----
+
+Challenge: Studio Bloom is one person making ceramics by hand in Bristol. Sales came from craft fairs and a third-party marketplace that took a cut, buried her among thousands of others, and owned the customer relationship. She wanted her own shop but was, understandably, terrified of ending up with a second unpaid job maintaining a website.
+
+----
+
+Approach: We kept it deliberately small. A maker's time is better spent making, so the brief was: the least website that does the job properly. Enough to sell the work, tell the story, and take payment — and nothing that demands constant attention.
+
+----
+
+Strategy: We leaned into the thing a marketplace can't offer: her. The site is unmistakably one person's work, with her voice, her process and her face on it. Products are grouped simply, restocks are easy to announce, and the checkout is boringly reliable, which is exactly what you want a checkout to be.
+
+----
+
+Design_explanation: Quiet and handmade-feeling, letting the pieces do the talking. Generous photography, soft edges, and a layout that doesn't fight the work. On a phone it's calm and quick, so buying a mug is a pleasure rather than a chore.
+
+----
+
+Build_explanation: A small shop platform she can run without help, set up so adding a new batch of pieces takes minutes. Payments and postage are handled by tools she already understood, so there was nothing scary to learn.
+
+----
+
+Outcome: Studio Bloom now sells directly, keeps the customer relationship, and isn't handing a slice to a marketplace. Crucially, the site doesn't eat her week — restocking is a five-minute job between kiln loads, not a second career.
+
+----
+
+Metrics:
+
+-
+  value: Her own
+  label: customer relationship
+  context: Sales direct rather than through a marketplace middleman
+  note:
+-
+  value: Five minutes
+  label: to restock
+  context: Adding a new batch fits between kiln loads
+  note:
+-
+  value: No cut
+  label: taken by a marketplace
+  context: She keeps the margin she used to give away
+  note:
+
+----
+
+Testimonial_quote: I was scared a website would become a second job. It didn't. I sell my own work now, and restocking takes five minutes.
+
+----
+
+Testimonial_name: Placeholder client
+
+----
+
+Testimonial_role: Maker, illustrative ceramics studio
+
+----
+
+Services:
+
+----
+
+Industries: Handmade, Bristol, Retail
+
+----
+
+Technology: Shopify, Managed hosting
+
+----
+
+Featured: false
+
+----
+
+Confidential: false
+
+----
+
+Date: 2025-05-10
+
+----
+
+Uuid: project-studio-bloom

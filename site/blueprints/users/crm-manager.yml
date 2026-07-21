@@ -1,0 +1,46 @@
+##
+# CRM Manager — runs the CRM (enquiries, contacts, pipeline, tasks).
+# Custom permission breakfast.platform: access + manage, but NOT export.
+# Deliberately cannot create/publish/delete site content.
+##
+name: CRM manager
+title: CRM manager
+description: Manages the CRM (enquiries, contacts, pipeline). Cannot publish site content or export data.
+permissions:
+  access:
+    panel: true
+    site: true
+    system: false
+    users: false
+    account: true
+  pages:
+    access: true
+    list: true
+    read: true
+    create: false
+    update: false
+    changeStatus: false
+    changeTitle: false
+    changeSlug: false
+    changeTemplate: false
+    duplicate: false
+    delete: false
+    sort: false
+    move: false
+  files: false
+  site: false
+  languages: false
+  user: true
+  users: false
+  breakfast.platform:
+    access: true
+    manage: true
+    export: false
+  # Client Previews: CRM managers view linked previews, create them, prepare
+  # invitation email drafts and manage expiry. Publishing/passwords stay admin.
+  breakfast.previews:
+    view: true
+    create: true
+    emailDraft: true
+    manageExpiry: true
+    viewAnalytics: true

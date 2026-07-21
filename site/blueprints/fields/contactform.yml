@@ -1,0 +1,74 @@
+##
+# Reusable editable form-copy group. Keeps ALL form strings in content so no
+# copy is hard-coded in templates. Shared by contact + start-project.
+# Extend via:  form: { extends: fields/contactform }
+##
+type: group
+fields:
+  form_intro_headline:
+    type: headline
+    label: Field labels & placeholders
+  form_name_label:
+    label: Name — label
+    type: text
+    width: 1/2
+    default: Your name
+  form_name_placeholder:
+    label: Name — placeholder
+    type: text
+    width: 1/2
+  form_email_label:
+    label: Email — label
+    type: text
+    width: 1/2
+    default: Email address
+  form_email_placeholder:
+    label: Email — placeholder
+    type: text
+    width: 1/2
+  form_company_label:
+    label: Company — label
+    type: text
+    width: 1/2
+    default: Company
+  form_company_placeholder:
+    label: Company — placeholder
+    type: text
+    width: 1/2
+  form_message_label:
+    label: Message — label
+    type: text
+    width: 1/2
+    default: How can we help?
+  form_message_placeholder:
+    label: Message — placeholder
+    type: text
+    width: 1/2
+  form_message_help:
+    label: Message — help text
+    type: text
+  form_consent_headline:
+    type: headline
+    label: Consent & submit
+  form_consent_text:
+    label: Consent text
+    type: textarea
+    buttons: false
+    help: Shown beside the privacy / consent checkbox.
+  form_submit_label:
+    label: Submit button label
+    type: text
+    default: Send enquiry
+  form_messages_headline:
+    type: headline
+    label: Result messages
+  form_success_message:
+    label: Success message
+    type: textarea
+    buttons: false
+    default: Thanks — we'll be in touch shortly.
+  form_error_message:
+    label: Error message
+    type: textarea
+    buttons: false
+    default: Something went wrong. Please try again or email us directly.

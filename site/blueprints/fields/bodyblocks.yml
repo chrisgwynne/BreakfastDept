@@ -1,0 +1,34 @@
+##
+# Reusable "curated body" blocks field. Restricts the editor to the approved
+# block set only (docs/content-model.md). Referenced by `body` and
+# `introduction` fields via `extends: fields/bodyblocks`.
+# Each name maps to site/blueprints/blocks/<name>.yml + site/snippets/blocks/<name>.php
+##
+type: blocks
+fieldsets:
+  - hero
+  - intro
+  - text
+  - image
+  - image-text
+  - gallery
+  - project-grid
+  - service-grid
+  - testimonials
+  - logos
+  - stats
+  - process
+  - faq
+  - quote
+  - pullquote
+  - team
+  - journal-feed
+  - cta
+  - divider
+  - video
+  - embed
+  - comparison
+  - related
+  - callout
+  - code
+  - columns

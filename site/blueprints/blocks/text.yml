@@ -1,0 +1,17 @@
+# text block — rich body copy. Rendered via ->kt(); no raw HTML.
+# fields: text
+name: Text
+icon: text
+fields:
+  text:
+    label: Text
+    type: writer
+    nodes:
+      - heading
+      - bulletList
+      - orderedList
+    marks:
+      - bold
+      - italic
+      - link
+      - code

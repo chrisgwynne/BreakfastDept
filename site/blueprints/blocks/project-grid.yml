@@ -1,0 +1,33 @@
+# project-grid block — curated or automatic grid of projects.
+# fields: heading, intro, projects, count, layout
+name: Project grid
+icon: grid
+fields:
+  heading:
+    label: Heading
+    type: text
+  intro:
+    label: Intro
+    type: textarea
+    buttons: false
+  projects:
+    label: Projects
+    type: pages
+    query: site.index.filterBy("intendedTemplate", "project")
+    help: Leave empty to show the most recent projects automatically.
+  count:
+    label: Number to show (if automatic)
+    type: number
+    default: 6
+    min: 1
+    max: 24
+    width: 1/2
+  layout:
+    label: Layout
+    type: select
+    default: grid
+    width: 1/2
+    options:
+      grid: Grid
+      list: List
+      featured: Featured + grid

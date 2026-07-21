@@ -1,0 +1,93 @@
+Title: Foundry — a coffee roaster whose website finally tasted like the coffee
+
+----
+
+Client: Foundry Coffee Roasters
+
+----
+
+Summary: An Edinburgh coffee roaster with great beans and a website that undersold them. We rebuilt it so the story, the subscriptions and the wholesale side each have room to breathe.
+
+----
+
+Challenge: Foundry roast small batches in a railway arch in Edinburgh and sell to home drinkers, cafés and the odd restaurant. The old site tried to do all three jobs on one cramped page, so it did none of them well. The subscription — their steadiest income — was buried three clicks deep, and wholesale enquiries had nowhere obvious to go.
+
+----
+
+Approach: We separated the audiences instead of forcing them to share a page. Home drinkers, subscribers and wholesale buyers each want different things, so each got a clear path. Then we let the roasting actually take centre stage, because that's the reason anyone's there.
+
+----
+
+Strategy: The subscription became the hero of the homepage — it's the thing that turns a one-off buyer into a regular, so it earns the top spot. Wholesale got its own honest page that qualifies enquiries before they arrive. We wrote about the coffee like people who care about it, without tipping into jargon only baristas understand.
+
+----
+
+Design_explanation: Warm, tactile, a bit industrial — nodding to the arch it's roasted in. Photography of the actual process, tasting notes that read like a human wrote them, and a shop that's calm rather than cluttered. On mobile, buying a bag takes moments.
+
+----
+
+Build_explanation: Built on a shop platform Foundry could run themselves, with the subscription handled by tooling they already trusted. Product pages are quick to add when a new coffee lands, and the wholesale form routes enquiries to the right person.
+
+----
+
+Outcome: The subscription is front and centre where it belongs, wholesale enquiries arrive with enough detail to be useful, and the site finally reads like the people who roast the coffee. Customers can find the coffee they want without a treasure hunt.
+
+----
+
+Metrics:
+
+-
+  value: Front and centre
+  label: subscription visibility
+  context: Moved from three clicks deep to the homepage hero
+  note:
+-
+  value: Clearer
+  label: wholesale enquiries
+  context: A dedicated page that qualifies leads before they land
+  note:
+-
+  value: Self-managed
+  label: shop updates
+  context: New coffees added by the roastery, not by us
+  note:
+
+----
+
+Testimonial_quote: It finally reads like us. People find the coffee they want without hunting, and the subscription isn't a secret any more.
+
+----
+
+Testimonial_name: Placeholder client
+
+----
+
+Testimonial_role: Founder, illustrative coffee roastery
+
+----
+
+Services:
+
+----
+
+Industries: Coffee, Edinburgh, Retail
+
+----
+
+Technology: Shopify, Subscription tooling
+
+----
+
+Featured: false
+
+----
+
+Confidential: false
+
+----
+
+Date: 2025-07-20
+
+----
+
+Uuid: project-foundry

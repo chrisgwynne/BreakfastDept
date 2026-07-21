@@ -1,0 +1,99 @@
+Title: Ongoing support
+
+----
+
+Short_name: Ongoing support
+
+----
+
+Summary: Someone to keep an eye on your site after launch — small changes, updates, and the quiet maintenance that stops problems before you notice them.
+
+----
+
+Introduction:
+
+[{"id":"g1a2","type":"text","content":{"text":"<p>Launch is the start, not the end. A website is a living thing: prices change, seasons change, things occasionally break. Ongoing support means you've got someone who knows your site and can sort the small stuff without you having to explain it from scratch every time.</p>"}},{"id":"g2b3","type":"text","content":{"text":"<p>It's deliberately low-key. No lock-in, no jargon, no monthly report full of numbers that don't mean anything. Just a dependable pair of hands when you need them.</p>"}}]
+
+----
+
+Suitable_for: Anyone who'd rather not think about their website day to day but wants to know it's being looked after — whether we built it or not. Busy owners who don't have time to become a webmaster.
+
+----
+
+Problems:
+
+-
+  text: Small changes pile up because you don't have anyone to make them.
+-
+  text: You worry the site is quietly out of date or insecure.
+-
+  text: When something breaks, you don't know who to call.
+
+----
+
+Deliverables:
+
+-
+  text: A set amount of small changes and edits each month.
+-
+  text: Behind-the-scenes updates and backups so nothing rots.
+-
+  text: A real person who already knows your site and your business.
+-
+  text: Priority when something actually goes wrong.
+
+----
+
+Process:
+
+-
+  title: We get to know your site
+  text: If we didn't build it, we spend a little time understanding how it works first.
+-
+  title: You send the small stuff our way
+  text: Hours, prices, a new photo, a wording tweak — you ask, we handle it.
+-
+  title: We keep the boring bits ticking
+  text: Updates, backups and checks happen quietly in the background so problems don't creep up.
+
+----
+
+Pricing_guidance: A simple monthly arrangement, scoped to how much help you actually need — there's no point paying for hours you won't use. No long lock-in: it's meant to be reassuring, not a trap. We'll right-size it with you and adjust as your needs change.
+
+----
+
+Timescale: Ongoing, month to month. Small changes are usually turned around within a few working days.
+
+----
+
+Faqs:
+
+-
+  question: Do you only support sites you built?
+  answer: No. As long as it's built on something sensible, we're happy to look after a site someone else made.
+-
+  question: Am I tied in for a year?
+  answer: No. It's month to month. If it's not useful, you stop — no drama.
+-
+  question: What counts as a small change?
+  answer: Edits, swaps and tweaks — updating hours, prices, photos, or wording. Bigger pieces of work we'd scope separately so it's fair to everyone.
+
+----
+
+Cta_heading: Want someone keeping an eye on things?
+
+----
+
+Cta_text: Tell us about your site and how hands-on you'd like us to be, and we'll suggest a sensible level of support.
+
+----
+
+Cta_label: Get in touch
+
+----
+
+Cta_link: /contact
+
+----
+
+Uuid: service-ongoing-support

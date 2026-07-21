@@ -1,0 +1,31 @@
+##
+# Error page — 404. No SEO tab (not indexed).
+##
+title: Error
+icon: alert
+preview: true
+options:
+  changeStatus: false
+  delete: false
+  changeSlug: false
+
+fields:
+  title:
+    label: Title
+    type: text
+    required: true
+  heading:
+    label: Heading
+    type: text
+  text:
+    label: Text
+    type: textarea
+    buttons: false
+  cta_label:
+    label: Button label
+    type: text
+    width: 1/2
+  cta_link:
+    label: Button link
+    type: link
+    width: 1/2

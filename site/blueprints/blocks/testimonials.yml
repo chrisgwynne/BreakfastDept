@@ -1,0 +1,29 @@
+# testimonials block — one or more client quotes.
+# fields: heading, items(structure: quote, name, role, company)
+name: Testimonials
+icon: quote
+fields:
+  heading:
+    label: Heading
+    type: text
+  items:
+    label: Testimonials
+    type: structure
+    fields:
+      quote:
+        label: Quote
+        type: textarea
+        buttons: false
+        required: true
+      name:
+        label: Name
+        type: text
+        width: 1/2
+      role:
+        label: Role
+        type: text
+        width: 1/2
+      company:
+        label: Company
+        type: text
+        width: 1/2

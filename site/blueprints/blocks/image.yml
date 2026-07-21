@@ -1,0 +1,29 @@
+# image block — single image with accessibility fields.
+# fields: image, alt, caption, decorative
+name: Image
+icon: image
+fields:
+  image:
+    label: Image
+    type: files
+    max: 1
+    query: page.images
+    uploads: images
+    required: true
+  decorative:
+    label: Decorative
+    type: toggle
+    default: false
+    text:
+      - Meaningful (needs alt)
+      - Decorative
+  alt:
+    label: Alt text
+    type: text
+    help: Required unless the image is decorative.
+    when:
+      decorative: false
+    required: true
+  caption:
+    label: Caption
+    type: text

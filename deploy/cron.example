@@ -1,0 +1,26 @@
+# Breakfast — cron entries. Install with `crontab -e` for the web user.
+# Adjust the project path and PHP binary to your host.
+
+# Process the durable queue (emails, webhooks) once a minute. Cron-safe: each
+# run reserves and processes a bounded batch under a lease, so overlapping runs
+# never double-process a job.
+* * * * * cd /var/www/breakfast && /usr/bin/php bin/console queue:run 25 >> storage/logs/queue-cron.log 2>&1
+
+# (Alternative to the cron above: run a supervised long-lived worker instead —
+# see deploy/queue-worker.service.example. Use ONE of the two, not both.)
+
+# Retention cleanup (nightly): apply configurable data-retention windows across
+# CRM activities, preview analytics, queue/webhook/email/audit history and
+# orphaned files. Configure windows via RETENTION_*_DAYS (0 = keep forever).
+0 3 * * * cd /var/www/breakfast && /usr/bin/php bin/console retention:cleanup --confirm >> storage/logs/retention-cron.log 2>&1
+
+# GDPR housekeeping (nightly): anonymisation + nonce/IP-hash/fingerprint pruning
+# (data-protection concerns retention:cleanup does not cover).
+30 3 * * * cd /var/www/breakfast && /usr/bin/php bin/console privacy:cleanup --confirm >> storage/logs/cleanup-cron.log 2>&1
+
+# Client Previews housekeeping (nightly): expire past-expiry previews, prune
+# abandoned upload scratch dirs, trim access-event history to its retention
+# window, and enforce the on-disk version cap. The queue worker also expires
+# previews opportunistically, but this guarantees temp/version cleanup even if
+# the queue is idle.
+15 3 * * * cd /var/www/breakfast && /usr/bin/php bin/console previews:cleanup --confirm >> storage/logs/previews-cron.log 2>&1

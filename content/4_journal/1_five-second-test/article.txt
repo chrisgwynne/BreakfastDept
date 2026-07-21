@@ -1,0 +1,35 @@
+Title: Why your homepage should pass the five-second test
+
+----
+
+Excerpt: If someone lands on your homepage and can't tell what you do within five seconds, they leave. Here's how to pass the only test that really matters.
+
+----
+
+Body:
+
+[{"id":"f01","type":"text","content":{"text":"<p>Here's an uncomfortable exercise. Show your homepage to someone who's never seen it, for five seconds, then hide it. Ask them: what does this business do, and what were you meant to do next? If they can't answer, you've got a problem — and it's almost certainly costing you customers.</p>"}},{"id":"f02","type":"heading","content":{"level":"h2","text":"Why five seconds?"}},{"id":"f03","type":"text","content":{"text":"<p>Because that's roughly how long a real person gives an unfamiliar website before deciding whether to stay. They're on a phone, half-distracted, with four other tabs open. They are not going to study your homepage like a poem. They glance, they judge, and they go.</p>"}},{"id":"f04","type":"heading","content":{"level":"h2","text":"The three questions every homepage must answer"}},{"id":"f05","type":"text","content":{"text":"<p>A visitor is silently asking three things: What is this? Is it for me? What do I do next? Your homepage should answer all three above the fold, in plain language, before anyone has to scroll or think.</p>"}},{"id":"f06","type":"faq","content":{"heading":"Quick gut-check for your own homepage","items":[{"question":"Can a stranger say what you sell in one sentence?","answer":"If not, your headline is doing brand poetry when it should be doing plain English."},{"question":"Is the main action obvious?","answer":"Book, call, buy — whatever it is, it should be the most obvious thing on the page, not hidden three folds down."},{"question":"Does it work at a glance on a phone?","answer":"Most people see you on mobile first. If the test fails on a phone, it fails."}]}},{"id":"f07","type":"heading","content":{"level":"h2","text":"The most common way to fail"}},{"id":"f08","type":"text","content":{"text":"<p>A big, beautiful photo, a vague slogan like <em>Crafting moments that matter</em>, and no clue what's actually on offer. It looks lovely. It says nothing. The fix is almost always words: say what you do, plainly, at the top.</p>"}},{"id":"f09","type":"quote","content":{"text":"If somebody lands on your website and still can't tell what you do, the design has failed — however nice it looks.","citation":"The Breakfast house rule"}},{"id":"f10","type":"text","content":{"text":"<p>None of this needs a redesign. Most homepages pass the five-second test after nothing more than an honest rewrite of the top of the page. Start there.</p>"}}]
+
+----
+
+Date: 2025-10-15 09:00:00
+
+----
+
+Author: Breakfast
+
+----
+
+Categories: Strategy
+
+----
+
+Tags: homepage, copywriting, first impressions
+
+----
+
+Toc_enabled: true
+
+----
+
+Uuid: article-five-second-test

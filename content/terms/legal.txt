@@ -1,0 +1,15 @@
+Title: Terms
+
+----
+
+Body:
+
+[{"id":"t01","type":"text","content":{"text":"<p>These terms cover using this website and, in outline, working with Breakfast. They're written plainly. This is a sensible placeholder and not legal advice — proper project terms are agreed in writing before any work begins.</p>"}},{"id":"t02","type":"heading","content":{"level":"h2","text":"Using this website"}},{"id":"t03","type":"text","content":{"text":"<p>You're welcome to browse and use this site. The content, design and words here belong to Breakfast unless stated otherwise, so please don't copy them wholesale for your own use. We do our best to keep everything accurate and up to date, but we can't promise it's always perfect.</p>"}},{"id":"t04","type":"heading","content":{"level":"h2","text":"Enquiries are not contracts"}},{"id":"t05","type":"text","content":{"text":"<p>Sending us an enquiry, and us replying, doesn't create a binding agreement to do work. Any project only goes ahead once we've both agreed the scope, the price and the terms in writing.</p>"}},{"id":"t06","type":"heading","content":{"level":"h2","text":"Working together"}},{"id":"t07","type":"text","content":{"text":"<p>When we take on a project, we'll give you a written proposal setting out what we'll do, what it costs, and what we each need to provide. That document, once agreed, is what governs the work — not this page.</p>"}},{"id":"t08","type":"callout","content":{"variant":"info","title":"No unrealistic promises","text":"<p>We won't promise specific business results we can't control — like a guaranteed number of sales. We will promise to do careful, honest work and to be straight with you throughout.</p>"}},{"id":"t09","type":"heading","content":{"level":"h2","text":"Links to other sites"}},{"id":"t10","type":"text","content":{"text":"<p>Where we link to other websites, we're not responsible for their content or their handling of your data. Have a look at their own policies.</p>"}},{"id":"t11","type":"heading","content":{"level":"h2","text":"Questions"}},{"id":"t12","type":"text","content":{"text":"<p>Anything unclear? Email hello@breakfastdept.com and we'll explain in plain English.</p>"}}]
+
+----
+
+Updated: 2026-01-15
+
+----
+
+Uuid: legal-terms

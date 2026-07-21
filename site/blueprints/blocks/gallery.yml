@@ -1,0 +1,27 @@
+# gallery block — grid of images.
+# fields: heading, images, columns, captions
+name: Gallery
+icon: grid
+fields:
+  heading:
+    label: Heading
+    type: text
+  images:
+    label: Images
+    type: files
+    query: page.images
+    uploads: images
+  columns:
+    label: Columns
+    type: select
+    default: "3"
+    width: 1/2
+    options:
+      "2": Two
+      "3": Three
+      "4": Four
+  captions:
+    label: Show captions
+    type: toggle
+    default: false
+    width: 1/2

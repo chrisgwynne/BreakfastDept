@@ -1,0 +1,9 @@
+Title: Services
+
+----
+
+Intro: Most people start by sending a few lines about what they need, and we work out the rest together. Sometimes the answer is "less than you think". Here's the shape of what we do — from a whole new website to just keeping an eye on the one you've got.
+
+----
+
+Uuid: services

@@ -1,0 +1,9 @@
+Title: Journal
+
+----
+
+Intro: Occasional, opinionated notes on websites for small businesses — what works, what wastes your money, and why nobody will give you a straight answer about what it all costs. No jargon, no filler.
+
+----
+
+Uuid: journal

@@ -1,0 +1,15 @@
+Title: Cookies
+
+----
+
+Body:
+
+[{"id":"k01","type":"text","content":{"text":"<p>The short version: this site sets no non-essential cookies by default, and we don't track you across the web. Here's the slightly longer version. This is a sensible placeholder and not legal advice.</p>"}},{"id":"k02","type":"heading","content":{"level":"h2","text":"What a cookie is"}},{"id":"k03","type":"text","content":{"text":"<p>A cookie is a small file a website can store in your browser. Some are essential for a site to work; others exist to track and profile visitors. We keep well away from the second kind.</p>"}},{"id":"k04","type":"heading","content":{"level":"h2","text":"What we do and don't set"}},{"id":"k05","type":"text","content":{"text":"<p>By default this site sets no non-essential cookies. We use privacy-respecting analytics that measure how the site is used without tracking individuals or following you around the internet. If a strictly necessary cookie is ever needed — for example to remember a choice you've made — it will only be one required for the site to function.</p>"}},{"id":"k06","type":"callout","content":{"variant":"info","title":"No advertising trackers","text":"<p>We don't run advertising cookies, cross-site trackers, or third-party profiling scripts. We'd rather respect your visit than harvest it.</p>"}},{"id":"k07","type":"heading","content":{"level":"h2","text":"Managing cookies"}},{"id":"k08","type":"text","content":{"text":"<p>You can clear or block cookies in your browser settings at any time. Because we don't rely on non-essential cookies, doing so won't break anything here.</p>"}},{"id":"k09","type":"text","content":{"text":"<p>Questions? Email hello@breakfastdept.com.</p>"}}]
+
+----
+
+Updated: 2026-01-15
+
+----
+
+Uuid: legal-cookies

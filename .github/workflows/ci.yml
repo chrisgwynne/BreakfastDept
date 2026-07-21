@@ -1,0 +1,102 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  php:
+    name: PHP quality + tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: pdo_sqlite, mbstring, gd, dom, curl, zip, fileinfo
+          coverage: none
+
+      - name: Validate composer.json / lock
+        run: composer validate --strict --no-check-publish
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Dependency security audit
+        run: composer audit --no-dev
+
+      - name: Coding standards (PHP-CS-Fixer) — blocking
+        run: composer cs-check
+
+      - name: Static analysis (PHPStan) — blocking
+        run: composer stan
+
+      - name: Unit + integration tests (PHPUnit) — blocking
+        run: composer test
+
+      - name: Migrations from an empty database
+        run: |
+          rm -f storage/database/*.sqlite*
+          php bin/console migrate
+          php bin/console migrate:status
+          # Idempotent re-run (upgrade path) must be a no-op.
+          php bin/console migrate
+
+      - name: Mail configuration check
+        run: php bin/console mail:check
+
+      - name: Real Kirby boot + route render check
+        run: php bin/console app:check
+
+      - name: Production install (no dev) + boot
+        run: |
+          composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader
+          php bin/console app:check
+
+  e2e:
+    name: Browser tests (Playwright)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: pdo_sqlite, mbstring, gd, zip, fileinfo
+
+      - run: composer install --no-interaction --prefer-dist
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - run: npm ci
+
+      - name: Lint JavaScript — blocking
+        run: npm run lint
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright tests (desktop + mobile) — blocking
+        run: npx playwright test
+        env:
+          CI: "true"
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+          if-no-files-found: ignore

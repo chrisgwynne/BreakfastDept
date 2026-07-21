@@ -1,0 +1,143 @@
+##
+# Service — a single service offering.
+##
+title: Service
+icon: box
+preview: true
+
+tabs:
+  content:
+    label: Content
+    icon: text
+    fields:
+      title:
+        label: Service title
+        type: text
+        required: true
+        maxlength: 70
+        counter: true
+      short_name:
+        label: Short name
+        type: text
+        width: 1/2
+        help: Compact label used in menus / grids.
+      summary:
+        label: Summary
+        type: textarea
+        buttons: false
+        maxlength: 300
+        counter: true
+      introduction:
+        label: Introduction
+        type: blocks
+        extends: fields/bodyblocks
+      suitable_for:
+        label: Suitable for
+        type: textarea
+        buttons: false
+      problemsheadline:
+        type: headline
+        label: Problems solved
+      problems:
+        label: Problems
+        type: structure
+        fields:
+          text:
+            label: Text
+            type: textarea
+            buttons: false
+      deliverablesheadline:
+        type: headline
+        label: Deliverables
+      deliverables:
+        label: Deliverables
+        type: structure
+        fields:
+          text:
+            label: Text
+            type: text
+      processheadline:
+        type: headline
+        label: Process
+      process:
+        label: Process
+        type: structure
+        fields:
+          title:
+            label: Title
+            type: text
+          text:
+            label: Text
+            type: textarea
+            buttons: false
+      outcomesheadline:
+        type: headline
+        label: Outcomes
+      outcomes:
+        label: Outcomes
+        type: structure
+        fields:
+          text:
+            label: Text
+            type: text
+      pricing_guidance:
+        label: Pricing guidance
+        type: textarea
+        buttons: false
+      timescale:
+        label: Timescale
+        type: text
+      faqsheadline:
+        type: headline
+        label: FAQs
+      faqs:
+        label: FAQs
+        type: structure
+        fields:
+          question:
+            label: Question
+            type: text
+          answer:
+            label: Answer
+            type: textarea
+            buttons: false
+
+  relationships:
+    label: Relationships
+    icon: merge
+    fields:
+      featured_projects:
+        label: Featured projects
+        type: pages
+        query: site.index.filterBy("intendedTemplate", "project")
+      related_articles:
+        label: Related articles
+        type: pages
+        query: site.index.filterBy("intendedTemplate", "article")
+
+  cta:
+    label: CTA
+    icon: bolt
+    fields:
+      cta_heading:
+        label: CTA heading
+        type: text
+      cta_text:
+        label: CTA text
+        type: textarea
+        buttons: false
+      cta_label:
+        label: Button label
+        type: text
+        width: 1/2
+      cta_link:
+        label: Button link
+        type: link
+        width: 1/2
+
+  seo:
+    label: SEO & sharing
+    icon: search
+    fields:
+      seo:
+        extends: fields/seogroup

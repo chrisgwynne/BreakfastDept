@@ -1,0 +1,21 @@
+{
+    "name": "breakfast/platform",
+    "description": "Breakfast operational platform: CRM, forms, queue/outbox, mail, Hermes integration, SEO and analytics for Kirby 5.",
+    "type": "kirby-plugin",
+    "license": "proprietary",
+    "version": "1.0.0",
+    "require": {
+        "php": "^8.3",
+        "ext-pdo": "*",
+        "ext-pdo_sqlite": "*",
+        "ext-mbstring": "*"
+    },
+    "autoload": {
+        "psr-4": {
+            "Breakfast\\Platform\\": "src/"
+        }
+    },
+    "extra": {
+        "kirby-cms-path": false
+    }
+}

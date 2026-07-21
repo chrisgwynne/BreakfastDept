@@ -1,0 +1,38 @@
+##
+# Image file blueprint. Used for all uploaded images.
+# `decorative` toggles whether alt text is required: purely decorative images
+# take an empty alt (alt="") so the field is only required when decorative=false.
+##
+title: Image
+accept:
+  mime: image/jpeg, image/png, image/webp, image/avif, image/gif, image/svg+xml
+tabs:
+  content:
+    label: Details
+    icon: image
+    fields:
+      decorative:
+        label: Decorative image
+        type: toggle
+        default: false
+        help: Turn on only if this image is purely decorative and adds no meaning. Screen readers will skip it.
+        text:
+          - Meaningful (needs alt text)
+          - Decorative (alt text optional)
+      alt:
+        label: Alt text
+        type: text
+        maxlength: 160
+        counter: true
+        help: Describe the image for screen readers and search engines. Leave blank only for decorative images.
+        when:
+          decorative: false
+        required: true
+      caption:
+        label: Caption
+        type: text
+        help: Optional visible caption shown beneath the image.
+      credit:
+        label: Credit
+        type: text
+        help: Optional photographer / source attribution.

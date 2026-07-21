@@ -1,0 +1,24 @@
+# callout block — highlighted note / aside.
+# fields: variant, heading, text
+name: Callout
+icon: alert
+fields:
+  variant:
+    label: Variant
+    type: select
+    default: note
+    options:
+      note: Note
+      info: Info
+      success: Success
+      warning: Warning
+  heading:
+    label: Heading
+    type: text
+  text:
+    label: Text
+    type: writer
+    marks:
+      - bold
+      - italic
+      - link

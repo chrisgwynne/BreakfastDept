@@ -1,0 +1,80 @@
+##
+# Reusable SEO field group. Included as a tab on every public page type via:
+#   tabs:
+#     seo:
+#       fields:
+#         seo: fields/seo    (spread) — or reference individual fields.
+#
+# Every field is optional; the Meta resolver applies sensible fallbacks and the
+# Panel surfaces indicators when the title/description are missing or too long.
+##
+label: SEO & sharing
+icon: search
+fields:
+  seo_headline:
+    type: headline
+    label: Search engine listing
+  seo_title:
+    label: SEO title
+    type: text
+    maxlength: 60
+    counter: true
+    help: Overrides the page title in search results and the browser tab. Aim for ≤ 60 characters.
+  meta_description:
+    label: Meta description
+    type: textarea
+    maxlength: 160
+    counter: true
+    buttons: false
+    help: The snippet shown under the title in search results. Aim for 120–160 characters.
+  canonical_url:
+    label: Canonical URL
+    type: url
+    help: Only set this if this content is a duplicate of another page.
+  no_index:
+    label: Hide from search engines
+    type: toggle
+    default: false
+    text:
+      - Indexable
+      - Hidden (noindex)
+  social_headline:
+    type: headline
+    label: Social sharing
+  og_image:
+    label: Social sharing image
+    type: files
+    max: 1
+    query: page.images
+    uploads: images
+    help: Shown when the page is shared. Falls back to the site default. Ideal 1200×630.
+  social_title:
+    label: Social title
+    type: text
+    width: 1/2
+    help: Falls back to the SEO title.
+  social_description:
+    label: Social description
+    type: textarea
+    buttons: false
+    help: Falls back to the meta description.
+  structured_data_type:
+    label: Structured data type
+    type: select
+    width: 1/2
+    default: auto
+    options:
+      auto: Automatic (recommended)
+      WebPage: WebPage
+      Article: Article
+      CreativeWork: CreativeWork
+      Service: Service
+      AboutPage: AboutPage
+      ContactPage: ContactPage
+  sitemap_include:
+    label: Include in sitemap
+    type: toggle
+    default: true
+    text:
+      - "No"
+      - "Yes"

@@ -1,0 +1,93 @@
+Title: Brightside — an electrician who wanted the phone to ring for the right reasons
+
+----
+
+Client: Brightside Electrical
+
+----
+
+Summary: A Leeds electrician with a full order book of the wrong jobs. We built a site that says what they do, where they work, and how to get a quote — so the calls that come in are ones worth taking.
+
+----
+
+Challenge: Brightside is a two-van electrical firm covering Leeds and the surrounding towns. They were busy, but with the wrong work — small call-outs miles away, price-shoppers, and the occasional job they don't even do. Their old site was a free template with a stock photo of a lightbulb and no mention of what areas they cover or what kind of work they take on. People couldn't tell whether Brightside was for them, so they called anyway, and everyone's time got wasted.
+
+----
+
+Approach: We treated the website like a good tradesperson treats a first phone call: answer the obvious questions before they're asked. What do you do? Where do you work? Are you the sort of outfit I can trust in my house? We put that front and centre and gave people a simple way to describe their job and get a callback.
+
+----
+
+Strategy: We narrowed the message on purpose. Rather than "we do everything electrical", the site leads with the work Brightside actually wants — rewires, consumer units, EV chargers, landlord certificates — and the area they cover. Being specific means the right people recognise themselves and the wrong ones move on, which is exactly the point.
+
+----
+
+Design_explanation: Clean, calm and reassuring. Real photos of the vans and the team, their registration numbers and accreditations shown plainly, and a quote form that asks for just enough to start a conversation. Trust signals do a lot of the heavy lifting for a trade.
+
+----
+
+Build_explanation: A straightforward, fast site that's trivial to update when they add a service or a coverage area. The quote form lands straight in their inbox and a simple CRM, so nothing gets lost between the van and the office.
+
+----
+
+Outcome: The enquiries that come through now tend to be the right shape — the right area, the right kind of job. For the first time the phone rings because people found Brightside and liked what they saw, not because they gave up trying to work out whether it was the right firm.
+
+----
+
+Metrics:
+
+-
+  value: Right jobs
+  label: better-matched enquiries
+  context: Being specific about services and area filters out mismatches
+  note:
+-
+  value: Clear
+  label: coverage area
+  context: Visitors can tell at a glance if they're in the patch
+  note:
+-
+  value: Straight to inbox
+  label: quote requests
+  context: Enquiries land in email and a simple CRM
+  note:
+
+----
+
+Testimonial_quote: For the first time the phone rings because people found us and liked what they saw, not because they gave up and called to check.
+
+----
+
+Testimonial_name: Placeholder client
+
+----
+
+Testimonial_role: Director, illustrative electrical firm
+
+----
+
+Services:
+
+----
+
+Industries: Electrician, Leeds, Trades
+
+----
+
+Technology: Kirby, Form-to-CRM
+
+----
+
+Featured: true
+
+----
+
+Confidential: false
+
+----
+
+Date: 2025-09-15
+
+----
+
+Uuid: project-brightside

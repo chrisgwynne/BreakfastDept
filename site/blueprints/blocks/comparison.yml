@@ -1,0 +1,34 @@
+# comparison block — before/after image comparison.
+# fields: before_image, after_image, before_label, after_label, caption
+name: Comparison
+icon: sliders
+fields:
+  before_image:
+    label: Before image
+    type: files
+    max: 1
+    query: page.images
+    uploads: images
+    required: true
+    width: 1/2
+  after_image:
+    label: After image
+    type: files
+    max: 1
+    query: page.images
+    uploads: images
+    required: true
+    width: 1/2
+  before_label:
+    label: Before label
+    type: text
+    default: Before
+    width: 1/2
+  after_label:
+    label: After label
+    type: text
+    default: After
+    width: 1/2
+  caption:
+    label: Caption
+    type: text

@@ -1,0 +1,45 @@
+##
+# Thank you page — shown after form submission. Excluded from search (no_index).
+##
+title: Thank you
+icon: check
+preview: true
+options:
+  delete: false
+
+tabs:
+  content:
+    label: Content
+    icon: text
+    fields:
+      title:
+        label: Title
+        type: text
+        required: true
+      heading:
+        label: Heading
+        type: text
+      text:
+        label: Text
+        type: blocks
+        extends: fields/bodyblocks
+      back_label:
+        label: Back link label
+        type: text
+        width: 1/2
+        default: Back to home
+      back_link:
+        label: Back link
+        type: link
+        width: 1/2
+
+  seo:
+    label: SEO & sharing
+    icon: search
+    fields:
+      seo_note:
+        type: info
+        label: Search visibility
+        text: This page should be hidden from search engines. Set "Hide from search engines" below.
+      seo:
+        extends: fields/seogroup

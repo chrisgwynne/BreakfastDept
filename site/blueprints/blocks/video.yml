@@ -1,0 +1,29 @@
+# video block — embedded video from a constrained provider.
+# fields: url, provider, caption, poster
+name: Video
+icon: video
+fields:
+  url:
+    label: Video URL
+    type: url
+    required: true
+    help: YouTube, Vimeo, or a direct MP4 URL.
+  provider:
+    label: Provider
+    type: select
+    default: youtube
+    width: 1/2
+    options:
+      youtube: YouTube
+      vimeo: Vimeo
+      file: Self-hosted (MP4)
+  poster:
+    label: Poster image
+    type: files
+    max: 1
+    query: page.images
+    uploads: images
+    width: 1/2
+  caption:
+    label: Caption
+    type: text

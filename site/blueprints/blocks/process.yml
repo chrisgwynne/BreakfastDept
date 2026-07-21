@@ -1,0 +1,20 @@
+# process block — numbered steps.
+# fields: heading, steps(structure: title, text)
+name: Process
+icon: list-numbers
+fields:
+  heading:
+    label: Heading
+    type: text
+  steps:
+    label: Steps
+    type: structure
+    fields:
+      title:
+        label: Title
+        type: text
+        required: true
+      text:
+        label: Text
+        type: textarea
+        buttons: false

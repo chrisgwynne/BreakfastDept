@@ -1,0 +1,14 @@
+{
+  "name": "breakfast-web",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Breakfast — Kirby 5 website. Front-end tooling: Playwright browser tests, ESLint.",
+  "scripts": {
+    "test:e2e": "playwright test",
+    "lint": "eslint public/assets/js site/plugins/breakfast-platform/index.js"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0",
+    "eslint": "^9.17.0"
+  }
+}
