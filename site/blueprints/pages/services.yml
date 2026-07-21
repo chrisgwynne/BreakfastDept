@@ -1,0 +1,50 @@
+##
+# Services index — lists service children.
+##
+title: Services
+icon: grid
+preview: true
+status:
+  draft: false
+  listed: true
+options:
+  changeStatus: false
+  delete: false
+num: default
+
+tabs:
+  content:
+    label: Content
+    icon: text
+    fields:
+      title:
+        label: Title
+        type: text
+        required: true
+        maxlength: 70
+        counter: true
+      intro:
+        label: Intro
+        type: textarea
+        buttons: false
+        maxlength: 320
+        counter: true
+
+  services:
+    label: Services
+    icon: grid
+    sections:
+      services:
+        label: Services
+        type: pages
+        template: service
+        create: service
+        layout: cards
+        info: "{{ page.short_name }}"
+
+  seo:
+    label: SEO & sharing
+    icon: search
+    fields:
+      seo:
+        extends: fields/seogroup

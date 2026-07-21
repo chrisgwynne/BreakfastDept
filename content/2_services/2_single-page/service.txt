@@ -1,0 +1,96 @@
+Title: A single landing page
+
+----
+
+Short_name: Single page
+
+----
+
+Summary: One well-made page that does one job — launch a thing, promote an offer, or give you a proper home online without the cost of a whole site.
+
+----
+
+Introduction:
+
+[{"id":"s1a2","type":"text","content":{"text":"<p>Sometimes you don't need a website. You need one good page. Launching a new product, running a campaign, or simply want somewhere credible to send people while you figure out the bigger picture — a single, focused page can do all of that.</p>"}},{"id":"s2b3","type":"text","content":{"text":"<p>Because it has one job, we can be ruthless about it. Every word and every element earns its place, or it's gone.</p>"}}]
+
+----
+
+Suitable_for: Anyone with a single, clear thing to say — a launch, an event, an offer, or a stopgap while a full site comes later. Businesses testing an idea before committing to more.
+
+----
+
+Problems:
+
+-
+  text: You need to promote one thing now and a full website would take too long.
+-
+  text: You're sending people to a social profile that doesn't convince anyone.
+-
+  text: You want to test an idea before investing in a bigger site.
+
+----
+
+Deliverables:
+
+-
+  text: One focused page built around a single clear action.
+-
+  text: Copy written to do that one job well.
+-
+  text: Fast loading and tidy on a phone.
+-
+  text: A form or button that sends enquiries straight to you.
+
+----
+
+Process:
+
+-
+  title: Pin down the one job
+  text: We agree the single thing this page must achieve before we write a word.
+-
+  title: Write it tight
+  text: One page means no room for waffle. We keep only what helps.
+-
+  title: Build and launch
+  text: Quick to build, quick to load, easy to point a domain at.
+
+----
+
+Pricing_guidance: A single page is our smallest piece of work, and priced accordingly — scoped per project once we know what the page needs to do. It's often the sensible first step, and it can grow into a full site later without starting over.
+
+----
+
+Timescale: Typically one to three weeks, depending on how ready the words and images are.
+
+----
+
+Faqs:
+
+-
+  question: Can it grow into a full website later?
+  answer: Yes. We build it so it can become the first page of something bigger without throwing anything away.
+-
+  question: Can I use my own domain?
+  answer: Of course. We'll help you point your domain at it so it lives at your own address.
+
+----
+
+Cta_heading: Just need one good page?
+
+----
+
+Cta_text: Tell us what it's for and who it's aimed at, and we'll tell you honestly whether a single page is the right call.
+
+----
+
+Cta_label: Start a project
+
+----
+
+Cta_link: /start-a-project
+
+----
+
+Uuid: service-single-page

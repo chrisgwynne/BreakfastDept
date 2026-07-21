@@ -1,0 +1,24 @@
+# service-grid block — grid of services.
+# fields: heading, intro, services, columns
+name: Service grid
+icon: grid
+fields:
+  heading:
+    label: Heading
+    type: text
+  intro:
+    label: Intro
+    type: textarea
+    buttons: false
+  services:
+    label: Services
+    type: pages
+    query: site.index.filterBy("intendedTemplate", "service")
+    help: Leave empty to show all services.
+  columns:
+    label: Columns
+    type: select
+    default: "3"
+    options:
+      "2": Two
+      "3": Three

@@ -1,0 +1,32 @@
+# image-text block — image beside rich text.
+# fields: image, alt, heading, text, layout
+name: Image + text
+icon: layout
+fields:
+  layout:
+    label: Layout
+    type: select
+    default: image-left
+    width: 1/2
+    options:
+      image-left: Image left
+      image-right: Image right
+  image:
+    label: Image
+    type: files
+    max: 1
+    query: page.images
+    uploads: images
+  alt:
+    label: Alt text
+    type: text
+  heading:
+    label: Heading
+    type: text
+  text:
+    label: Text
+    type: writer
+    marks:
+      - bold
+      - italic
+      - link

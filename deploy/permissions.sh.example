@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Breakfast — least-privilege file permissions for a production deploy.
+# Run from the project root as the deploy user. Review before running.
+set -euo pipefail
+
+WEBUSER="${WEBUSER:-www-data}"
+
+# App code: readable, not writable by the web server.
+find . -path ./storage -prune -o -type f -name '*.php' -exec chmod 0644 {} +
+
+# Writable runtime areas ONLY.
+chmod -R 0770 storage
+chown -R "$WEBUSER":"$WEBUSER" storage
+
+# Secrets: readable by the web user only.
+[ -f .env ] && chmod 0640 .env && chown "$WEBUSER":"$WEBUSER" .env
+
+# The SQLite database and uploads must never be world-readable.
+chmod -R 0770 storage/database storage/uploads 2>/dev/null || true
+
+echo "Permissions applied. storage/ is writable; code is read-only; .env is 0640."

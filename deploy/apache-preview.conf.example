@@ -1,0 +1,71 @@
+# Breakfast — example Apache vhost for the CLIENT PREVIEW ORIGIN.
+#
+# Previews are served on their own origin so no admin/main-site cookie is in
+# scope. The PREFERRED production layout gives EACH preview its own subdomain
+# (<slug>.preview.breakfastdept.com) via a wildcard host + wildcard certificate,
+# so the browser same-origin policy separates previews outright. This one vhost
+# serves the apex preview host AND every per-preview subdomain (ServerAlias *.).
+#
+# The host runs the SAME Kirby app; the platform detects the preview host,
+# resolves the slug from the Host header (301-redirecting an old slug to its
+# canonical host), and routes every request through the preview responder, which
+# streams ONLY validated, allow-listed files (from storage above the docroot)
+# and never executes preview content.
+
+<VirtualHost *:443>
+    ServerName preview.breakfastdept.com
+    # Every per-preview subdomain resolves here through the wildcard.
+    ServerAlias *.preview.breakfastdept.com
+
+    SSLEngine on
+    # Wildcard cert covering the apex host and all *.preview subdomains. A
+    # wildcard cert requires a DNS-01 challenge:
+    #   certbot certonly --preferred-challenges dns \
+    #     -d preview.breakfastdept.com -d '*.preview.breakfastdept.com'
+    SSLCertificateFile      /etc/letsencrypt/live/preview.breakfastdept.com/fullchain.pem
+    SSLCertificateKeyFile   /etc/letsencrypt/live/preview.breakfastdept.com/privkey.pem
+
+    # Same app; docroot is public/. Preview bytes live ABOVE it.
+    DocumentRoot /var/www/breakfast/public
+
+    ServerSignature Off
+    TraceEnable Off
+
+    <Directory /var/www/breakfast/public>
+        Options -Indexes -ExecCGI -Includes
+        AllowOverride None
+        Require all granted
+
+        # Never allow PHP/CGI from uploaded content (there is none in the docroot;
+        # this is defence in depth).
+        <FilesMatch "\.(php|phar|cgi|pl|py|rb|sh)$">
+            Require all denied
+        </FilesMatch>
+
+        # Route everything to Kirby's front controller.
+        RewriteEngine On
+        RewriteCond %{REQUEST_FILENAME} !-f
+        RewriteRule ^ index.php [L]
+    </Directory>
+
+    # Never serve dotfiles, configs, source maps or archives.
+    <FilesMatch "^\.|\.(sqlite|env|log|map|zip|htaccess|user\.ini)$">
+        Require all denied
+    </FilesMatch>
+
+    # Conservative fallback headers (the app also sets the full preview set).
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Robots-Tag "noindex, nofollow, noarchive, nosnippet"
+    Header always set Referrer-Policy "no-referrer"
+
+    LimitRequestBody 1048576
+</VirtualHost>
+
+<VirtualHost *:80>
+    ServerName preview.breakfastdept.com
+    Redirect permanent / https://preview.breakfastdept.com/
+</VirtualHost>
+
+# DNS + TLS: add a record for preview.breakfastdept.com, issue a certificate,
+# then set CLIENT_PREVIEW_BASE_URL / CLIENT_PREVIEW_HOST in the environment.
+# See docs/client-preview-deployment.md.

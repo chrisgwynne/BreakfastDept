@@ -1,0 +1,204 @@
+##
+# Global site settings for the Breakfast studio website.
+# Field names follow docs/content-model.md exactly.
+##
+title: Breakfast
+tabs:
+  general:
+    label: General
+    icon: home
+    fields:
+      title:
+        label: Studio name
+        type: text
+        required: true
+      legal_name:
+        label: Legal name
+        type: text
+        help: Registered/legal entity name. Used in structured data and the footer.
+      tagline:
+        label: Tagline
+        type: text
+        help: Short strapline shown in the header / meta.
+      availability_text:
+        label: Availability
+        type: text
+        help: e.g. "Taking projects for Q3".
+
+  contact:
+    label: Contact
+    icon: email
+    fields:
+      email:
+        label: Main email
+        type: email
+        width: 1/2
+      enquiry_email:
+        label: Enquiry email
+        type: email
+        width: 1/2
+        help: Where enquiries are delivered. Mirrors MAIL_ENQUIRIES_TO.
+      phone:
+        label: Phone
+        type: tel
+        width: 1/2
+      address:
+        label: Postal address
+        type: textarea
+        buttons: false
+      socialheadline:
+        type: headline
+        label: Social profiles
+      social:
+        label: Social links
+        type: structure
+        fields:
+          platform:
+            label: Platform
+            type: text
+            width: 1/2
+          url:
+            label: URL
+            type: url
+            width: 1/2
+
+  navigation:
+    label: Navigation
+    icon: menu
+    fields:
+      nav:
+        label: Primary navigation
+        type: structure
+        fields:
+          label:
+            label: Label
+            type: text
+            width: 1/2
+          link:
+            label: Link
+            type: link
+            width: 1/2
+      footernavheadline:
+        type: headline
+        label: Footer
+      footer_nav:
+        label: Footer navigation
+        type: structure
+        fields:
+          label:
+            label: Label
+            type: text
+            width: 1/2
+          link:
+            label: Link
+            type: link
+            width: 1/2
+      footer_copy:
+        label: Footer sign-off copy
+        type: textarea
+        buttons: false
+
+  cta:
+    label: CTA
+    icon: bolt
+    fields:
+      cta_heading:
+        label: CTA heading
+        type: text
+      cta_text:
+        label: CTA body
+        type: textarea
+        buttons: false
+      cta_primary_label:
+        label: Primary button label
+        type: text
+        width: 1/2
+      cta_primary_link:
+        label: Primary button link
+        type: text
+        width: 1/2
+      cta_secondary_label:
+        label: Secondary button label
+        type: text
+        width: 1/2
+      cta_secondary_link:
+        label: Secondary button link
+        type: text
+        width: 1/2
+
+  seo:
+    label: SEO defaults
+    icon: search
+    fields:
+      meta_description:
+        label: Default meta description
+        type: textarea
+        maxlength: 160
+        counter: true
+        buttons: false
+        help: Used when a page has no meta description of its own.
+      default_social_image:
+        label: Default social image
+        type: files
+        max: 1
+        query: site.images
+        uploads: images
+        help: Default Open Graph image. Ideal 1200×630.
+
+  analytics:
+    label: Analytics & cookies
+    icon: chart
+    fields:
+      analytics_provider:
+        label: Analytics provider
+        type: select
+        default: none
+        help: Display only — the active provider is set via environment config.
+        options:
+          none: None
+          plausible: Plausible
+          ga4: Google Analytics 4
+      cookie_message:
+        label: Cookie consent message
+        type: textarea
+        buttons: false
+        help: Shown in the consent banner when the provider requires consent.
+
+  notices:
+    label: Announcement & maintenance
+    icon: alert
+    fields:
+      announcement_enabled:
+        label: Show announcement banner
+        type: toggle
+        default: false
+      announcement_text:
+        label: Announcement text
+        type: text
+        when:
+          announcement_enabled: true
+      maintenancenheadline:
+        type: headline
+        label: Maintenance mode
+      maintenance_enabled:
+        label: Enable maintenance mode
+        type: toggle
+        default: false
+      maintenance_text:
+        label: Maintenance message
+        type: textarea
+        buttons: false
+        when:
+          maintenance_enabled: true
+
+  files:
+    label: Media
+    icon: image
+    sections:
+      images:
+        label: Images
+        type: files
+        template: image
+        accept: image/*
+        layout: cards
+        info: "{{ file.dimensions }}"

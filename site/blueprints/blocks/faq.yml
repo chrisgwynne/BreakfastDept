@@ -1,0 +1,21 @@
+# faq block — question/answer accordion.
+# fields: heading, items(structure: question, answer)
+name: FAQ
+icon: help
+fields:
+  heading:
+    label: Heading
+    type: text
+  items:
+    label: Questions
+    type: structure
+    fields:
+      question:
+        label: Question
+        type: text
+        required: true
+      answer:
+        label: Answer
+        type: textarea
+        buttons: false
+        required: true

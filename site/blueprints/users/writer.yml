@@ -1,0 +1,37 @@
+##
+# Writer — creates and edits page drafts, but does not publish.
+# Kirby has no granular "publish-only" permission; publishing (changeStatus to
+# listed) is restricted by editorial workflow. This role can create + update
+# pages and upload media, but must not change status to listed.
+##
+name: Writer
+title: Writer
+description: Drafts and edits content. Publishing is handled by editors via workflow.
+permissions:
+  access:
+    panel: true
+    site: true
+    system: false
+    users: false
+    account: true
+  pages:
+    access: true
+    list: true
+    read: true
+    create: true
+    update: true
+    changeTitle: true
+    changeSlug: true
+    changeTemplate: false
+    changeStatus: false
+    duplicate: true
+    preview: true
+    sort: false
+    move: false
+    delete: false
+  files: true
+  site: false
+  languages: false
+  user: true
+  users: false
+  breakfast.platform: false

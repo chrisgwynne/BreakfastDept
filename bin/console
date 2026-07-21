@@ -1,0 +1,560 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Breakfast platform CLI.
+ *
+ * Usage: php bin/console <command> [args] [--flags]
+ *
+ * Migrations / queue
+ *   migrate | migrate:status
+ *   queue:run [max] | queue:work [sleep]
+ *
+ * Mail
+ *   mail:check [--connect]                 Validate mail configuration (no secrets)
+ *   mail:test --to=<addr> --confirm        Queue + send a real test email
+ *
+ * Brevo
+ *   brevo:webhook:status
+ *   brevo:webhook:register --confirm
+ *   brevo:webhook:remove --id=<n> --confirm
+ *   brevo:templates:check
+ *   brevo:events:reconcile --since="24 hours ago"
+ *   brevo:contacts:check
+ *   brevo:contacts:sync --dry-run [--contact=<uuid>]
+ *
+ * Privacy
+ *   privacy:export-contact <uuid>
+ *   privacy:anonymise-contact <uuid> --confirm
+ *   privacy:cleanup [--dry-run|--confirm]
+ *
+ * Retention
+ *   retention:check                        Show what retention would remove
+ *   retention:cleanup --dry-run            Preview (deletes nothing)
+ *   retention:cleanup --confirm            Apply retention (deletes)
+ *
+ * Client Previews
+ *   previews:expire                        Expire previews past their expiry
+ *   previews:cleanup [--confirm]           Expire + prune temp/events/versions
+ *   previews:validate <uuid>               Re-scan the live version's files
+ *   previews:scan-all                      Re-scan every preview's files
+ *   previews:storage                       Storage usage summary
+ *   previews:quarantine <uuid> --confirm   Emergency disable one preview
+ *   previews:disable-all --confirm         Emergency disable ALL active previews
+ *   previews:enable-all --confirm          Re-enable all disabled previews
+ *
+ * Diagnostics
+ *   app:check                              Boot + route + config verification
+ *   health | hermes:keys <id> <scopes> | seed:crm
+ *
+ * Destructive migrations are NEVER run during a public web request — only here.
+ */
+
+use Breakfast\Platform\Hermes\Scopes;
+use Breakfast\Platform\Mail\BrevoAdmin;
+use Breakfast\Platform\Mail\EmailAddress;
+use Breakfast\Platform\Mail\HttpClient;
+use Breakfast\Platform\Mail\MailMessage;
+use Breakfast\Platform\Queue\Worker;
+use Breakfast\Platform\Support\Clock;
+use Breakfast\Platform\Support\Env;
+use Breakfast\Platform\Support\Platform;
+use Breakfast\Platform\Support\PrivacyService;
+use Kirby\Cms\App as Kirby;
+
+$base = dirname(__DIR__);
+require $base . '/vendor/autoload.php';
+Env::load($base);
+
+$kirby = new Kirby([
+    'roots' => [
+        'index'    => $base . '/public',
+        'base'     => $base,
+        'site'     => $base . '/site',
+        'content'  => $base . '/content',
+        'storage'  => $base . '/storage',
+        'accounts' => $base . '/storage/accounts',
+        'sessions' => $base . '/storage/sessions',
+        'cache'    => $base . '/storage/cache',
+        'logs'     => $base . '/storage/logs',
+        'media'    => $base . '/public/media',
+    ],
+]);
+
+$platform = function_exists('breakfast') ? breakfast() : Platform::instance();
+
+$argv    = $_SERVER['argv'];
+$command = $argv[1] ?? 'help';
+$rest    = array_slice($argv, 2);
+
+// Split positionals from --flags / --key=value.
+$args  = [];
+$flags = [];
+foreach ($rest as $token) {
+    if (str_starts_with($token, '--')) {
+        $token = substr($token, 2);
+        if (str_contains($token, '=')) {
+            [$k, $v]     = explode('=', $token, 2);
+            $flags[$k]   = $v;
+        } else {
+            $flags[$token] = true;
+        }
+    } else {
+        $args[] = $token;
+    }
+}
+
+function out(string $line = ''): void
+{
+    fwrite(STDOUT, $line . "\n");
+}
+function fail(string $line): never
+{
+    fwrite(STDERR, $line . "\n");
+    exit(1);
+}
+/** @param array<string,mixed> $flags */
+function flag(array $flags, string $name): bool
+{
+    return ($flags[$name] ?? false) !== false;
+}
+
+$mailConfig = $platform->mailConfig();
+$brevo      = is_array($mailConfig['brevo'] ?? null) ? $mailConfig['brevo'] : [];
+
+switch ($command) {
+    case 'migrate':
+        $applied = $platform->migrator()->migrate();
+        out($applied === [] ? 'Nothing to migrate.' : 'Applied: ' . implode(', ', $applied));
+        break;
+
+    case 'migrate:status':
+        foreach ($platform->migrator()->status() as $id => $done) {
+            out(($done ? '[x] ' : '[ ] ') . $id);
+        }
+        break;
+
+    case 'queue:run':
+        $max = (int) ($args[0] ?? 25);
+        out('Processed ' . (new Worker($platform))->runOnce($max) . ' job(s).');
+        break;
+
+    case 'queue:work':
+        $sleep = (int) ($args[0] ?? 5);
+        out('Worker started (sleep ' . $sleep . 's). Ctrl-C to stop.');
+        (new Worker($platform))->work($sleep);
+        break;
+
+    // ----- Mail ------------------------------------------------------------
+    case 'mail:check':
+        $provider = (string) ($mailConfig['provider'] ?? 'smtp');
+        $ok       = true;
+        out('Provider:        ' . $provider);
+
+        $senderOk = EmailAddress::isValid((string) ($mailConfig['senderEmail'] ?? ''));
+        $ok       = $ok && $senderOk;
+        out('Sender email:    ' . ($senderOk ? 'valid' : 'INVALID'));
+
+        $inboxOk = EmailAddress::isValid((string) ($mailConfig['enquiriesTo'] ?? ''));
+        $ok      = $ok && $inboxOk;
+        out('Enquiries inbox: ' . ($inboxOk ? 'valid' : 'INVALID'));
+
+        if ($provider === 'brevo') {
+            $hasKey = ($brevo['apiKey'] ?? '') !== '';
+            $ok     = $ok && $hasKey;
+            out('Brevo API key:   ' . ($hasKey ? 'present' : 'MISSING'));
+            $ids = is_array($mailConfig['templateIds'] ?? null) ? $mailConfig['templateIds'] : [];
+            out('Template IDs:    ' . count(array_filter($ids)) . ' of ' . count($ids) . ' configured (blank = app-rendered)');
+        }
+
+        try {
+            $platform->queue()->pendingCount();
+            out('Queue database:  accessible');
+        } catch (Throwable) {
+            $ok = false;
+            out('Queue database:  NOT ACCESSIBLE');
+        }
+        if (flag($flags, 'connect')) {
+            if ($provider === 'brevo' && ($brevo['apiKey'] ?? '') !== '') {
+                $health = $platform->mailProvider()->healthCheck();
+                out('Connectivity:    ' . ($health['ok'] ? 'ok' : 'FAILED') . ' (' . $health['detail'] . ')');
+                $ok = $ok && $health['ok'];
+            } else {
+                out('Connectivity:    skipped (provider not brevo or no key)');
+            }
+        }
+        $ok ? out('OK') : fail('Mail configuration has problems.');
+        break;
+
+    case 'mail:test':
+        $to = (string) ($flags['to'] ?? '');
+        if ($to === '' || flag($flags, 'confirm') === false) {
+            fail('Refusing to send. Usage: mail:test --to=<address> --confirm');
+        }
+        if (EmailAddress::isValid($to) === false) {
+            fail('Invalid recipient address.');
+        }
+        $msg = new MailMessage(
+            messageType: 'crm_reply',
+            sender: EmailAddress::create((string) ($mailConfig['senderEmail'] ?? 'studio@example.com'), (string) ($mailConfig['senderName'] ?? 'Breakfast')),
+            to: [EmailAddress::create($to)],
+            subject: 'Breakfast test email',
+            html: '<p>This is a Breakfast transactional test email.</p>',
+            text: 'This is a Breakfast transactional test email.',
+        );
+        $platform->mailService()->queue($msg);
+        (new Worker($platform))->runOnce(5);
+        $row = $platform->outbound()->find($msg->uuid);
+        out('Test email status: ' . ($row['status'] ?? 'unknown'));
+        ($row['status'] ?? '') === 'accepted' ? out('OK') : fail('Test email was not accepted (' . ($row['status'] ?? '') . ').');
+        break;
+
+    // ----- Brevo -----------------------------------------------------------
+    case 'brevo:webhook:status':
+        $admin = new BrevoAdmin(['apiKey' => (string) ($brevo['apiKey'] ?? ''), 'baseUrl' => (string) ($brevo['baseUrl'] ?? '')]);
+        if ($admin->configured() === false) {
+            fail('Brevo API key not configured.');
+        }
+        $status = $admin->webhookStatus();
+        out($status['detail']);
+        foreach ($status['webhooks'] as $h) {
+            out('  #' . ($h['id'] ?? '?') . '  ' . ($h['url'] ?? ''));
+        }
+        $status['ok'] ? out('OK') : fail('Could not list webhooks.');
+        break;
+
+    case 'brevo:webhook:register':
+        if (flag($flags, 'confirm') === false) {
+            fail('Refusing to register. Add --confirm.');
+        }
+        $admin = new BrevoAdmin(['apiKey' => (string) ($brevo['apiKey'] ?? ''), 'baseUrl' => (string) ($brevo['baseUrl'] ?? '')]);
+        if ($admin->configured() === false) {
+            fail('Brevo API key not configured.');
+        }
+        $url = rtrim((string) Env::get('APP_URL', ''), '/') . '/api/breakfast/v1/webhooks/brevo';
+        $res = $admin->webhookRegister($url, ['delivered', 'hardBounce', 'softBounce', 'blocked', 'spam', 'invalid', 'unsubscribed', 'error', 'deferred']);
+        out($res['detail'] . ($res['id'] ? ' (id ' . $res['id'] . ')' : ''));
+        $res['ok'] ? out('OK') : fail('Registration failed.');
+        break;
+
+    case 'brevo:webhook:remove':
+        if (flag($flags, 'confirm') === false || ($flags['id'] ?? '') === '') {
+            fail('Usage: brevo:webhook:remove --id=<n> --confirm');
+        }
+        $admin = new BrevoAdmin(['apiKey' => (string) ($brevo['apiKey'] ?? ''), 'baseUrl' => (string) ($brevo['baseUrl'] ?? '')]);
+        $res   = $admin->webhookRemove((int) $flags['id']);
+        $res['ok'] ? out('Removed. OK') : fail('Removal failed (' . $res['detail'] . ').');
+        break;
+
+    case 'brevo:templates:check':
+        foreach ($platform->templates()->all() as $key => $t) {
+            out(sprintf('%-18s %-8s brevo:%s', $key, $t['enabled'] ? 'enabled' : 'disabled', $t['brevo_set'] ? 'set' : 'app-rendered'));
+        }
+        out('OK');
+        break;
+
+    case 'brevo:events:reconcile':
+        $since = (string) ($flags['since'] ?? '24 hours ago');
+        out('Reconcile since: ' . $since);
+        out('Local delivery events: ' . $platform->db()->scalar('SELECT COUNT(*) FROM email_events'));
+        out('Note: a full provider reconcile requires live Brevo credentials and is paginated + bounded.');
+        out('OK');
+        break;
+
+    case 'brevo:contacts:check':
+        out('Contact sync: ' . ((($mailConfig['contactSync']['enabled'] ?? false)) ? 'ENABLED' : 'disabled (default)'));
+        $admin = new BrevoAdmin(['apiKey' => (string) ($brevo['apiKey'] ?? ''), 'baseUrl' => (string) ($brevo['baseUrl'] ?? '')]);
+        if ($admin->configured()) {
+            $check = $admin->accountCheck();
+            out('Brevo account: ' . $check['detail']);
+        } else {
+            out('Brevo API key not configured.');
+        }
+        out('OK');
+        break;
+
+    case 'brevo:contacts:sync':
+        $dryRun = flag($flags, 'dry-run');
+        if ($dryRun === false && flag($flags, 'confirm') === false) {
+            fail('Refusing a real sync. Use --dry-run, or --confirm for a single --contact.');
+        }
+        if (($mailConfig['contactSync']['enabled'] ?? false) === false && $dryRun === false) {
+            fail('Contact sync is disabled (BREVO_CONTACT_SYNC_ENABLED=false).');
+        }
+        $uuid = (string) ($flags['contact'] ?? '');
+        if ($uuid === '') {
+            fail('A single --contact=<uuid> is required (no unbounded full-database sync).');
+        }
+        $contact = $platform->contacts()->find($uuid);
+        if ($contact === null) {
+            fail('Contact not found.');
+        }
+        if (($contact['marketing_consent'] ?? '') !== 'granted' && ($mailConfig['contactSync']['marketingList'] ?? '') !== '') {
+            out('Note: contact has no marketing consent — list membership will be skipped.');
+        }
+        $admin = new BrevoAdmin(['apiKey' => (string) ($brevo['apiKey'] ?? ''), 'baseUrl' => (string) ($brevo['baseUrl'] ?? '')]);
+        $listId = ($contact['marketing_consent'] ?? '') === 'granted' ? (string) ($mailConfig['contactSync']['marketingList'] ?? '') : null;
+        $res   = $admin->syncContact($contact, $listId, $dryRun);
+        out(json_encode($res['payload'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) ?: '{}');
+        out($dryRun ? 'Dry run. OK' : ($res['ok'] ? 'Synced. OK' : 'Sync failed (' . $res['detail'] . ').'));
+        break;
+
+    // ----- Privacy ---------------------------------------------------------
+    case 'privacy:export-contact':
+        $uuid = $args[0] ?? fail('Usage: privacy:export-contact <uuid>');
+        $data = (new PrivacyService($platform))->exportContact($uuid);
+        out(json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '{}');
+        break;
+
+    case 'privacy:anonymise-contact':
+        $uuid = $args[0] ?? fail('Usage: privacy:anonymise-contact <uuid> --confirm');
+        if (flag($flags, 'confirm') === false) {
+            fail('Refusing to anonymise without --confirm.');
+        }
+        (new PrivacyService($platform))->anonymiseContact($uuid) ? out('Anonymised. OK') : fail('Contact not found.');
+        break;
+
+    case 'privacy:cleanup':
+        $apply  = flag($flags, 'confirm');
+        $counts = (new PrivacyService($platform))->cleanup($apply);
+        foreach ($counts as $k => $v) {
+            out(sprintf('%-20s %d', $k, $v));
+        }
+        out($apply ? 'Cleaned up. OK' : 'Dry run (pass --confirm to apply). OK');
+        break;
+
+    // ----- Client Previews -------------------------------------------------
+    case 'previews:expire':
+        $r = $platform->previewExpiry()->expireDue();
+        out('Expired: ' . $r['expired']);
+        foreach ($r['uuids'] as $uuid) {
+            out('  ' . $uuid);
+        }
+        out('OK');
+        break;
+
+    case 'previews:cleanup':
+        $apply   = flag($flags, 'confirm');
+        $summary = $platform->previewCleanup()->run($apply === false);
+        foreach ($summary as $k => $v) {
+            out(sprintf('%-16s %s', $k, is_bool($v) ? ($v ? 'yes' : 'no') : (string) $v));
+        }
+        out($apply ? 'Cleaned up. OK' : 'Dry run (pass --confirm to apply). OK');
+        break;
+
+    case 'previews:validate':
+        $uuid = $args[0] ?? fail('Usage: previews:validate <uuid>');
+        $preview = $platform->previews()->find($uuid) ?? fail('Preview not found');
+        $vUuid   = (string) ($preview['current_version_uuid'] ?? '');
+        $version = $vUuid !== '' ? $platform->previewVersions()->find($vUuid) : null;
+        if ($version === null) {
+            fail('Preview has no published version to validate.');
+        }
+        $bad = [];
+        foreach ($platform->previewFileBrowser()->listFiles($version) as $f) {
+            if (\Breakfast\Platform\ClientPreviews\PreviewPathGuard::isAllowedFile((string) $f['path'], true) === false) {
+                $bad[] = (string) $f['path'];
+            }
+        }
+        out('Files: ' . count($platform->previewFileBrowser()->listFiles($version)));
+        out('Disallowed under current rules: ' . count($bad));
+        foreach ($bad as $p) {
+            out('  ! ' . $p);
+        }
+        out($bad === [] ? 'OK' : 'REVIEW NEEDED');
+        break;
+
+    case 'previews:scan-all':
+        $violations = 0;
+        foreach ($platform->previews()->all(['limit' => 5000]) as $preview) {
+            $vUuid   = (string) ($preview['current_version_uuid'] ?? '');
+            $version = $vUuid !== '' ? $platform->previewVersions()->find($vUuid) : null;
+            if ($version === null) {
+                continue;
+            }
+            foreach ($platform->previewFileBrowser()->listFiles($version) as $f) {
+                if (\Breakfast\Platform\ClientPreviews\PreviewPathGuard::isAllowedFile((string) $f['path'], true) === false) {
+                    $violations++;
+                    out('  ! ' . $preview['public_slug'] . ' :: ' . $f['path']);
+                }
+            }
+        }
+        out('Violations: ' . $violations);
+        out($violations === 0 ? 'OK' : 'REVIEW NEEDED');
+        break;
+
+    case 'previews:quarantine':
+        $uuid = $args[0] ?? fail('Usage: previews:quarantine <uuid> --confirm');
+        if (flag($flags, 'confirm') === false) {
+            fail('Pass --confirm to quarantine (disable) this preview.');
+        }
+        $platform->previews()->update($uuid, ['status' => \Breakfast\Platform\ClientPreviews\PreviewStatus::DISABLED, 'disabled_at' => Clock::nowIso(), 'note' => 'Quarantined via CLI']);
+        $platform->audit()->event('preview.quarantine', 'preview', $uuid, 'cli', []);
+        out('Quarantined ' . $uuid . '. OK');
+        break;
+
+    case 'previews:disable-all':
+        if (flag($flags, 'confirm') === false) {
+            fail('Pass --confirm to disable ALL active previews (emergency switch).');
+        }
+        $n = 0;
+        foreach ($platform->previews()->all(['status' => 'active', 'limit' => 5000]) as $preview) {
+            $platform->previews()->update((string) $preview['uuid'], ['status' => \Breakfast\Platform\ClientPreviews\PreviewStatus::DISABLED, 'disabled_at' => Clock::nowIso()]);
+            $n++;
+        }
+        $platform->audit()->event('preview.disable_all', 'system', null, 'cli', ['count' => $n]);
+        out('Disabled ' . $n . ' preview(s). OK');
+        break;
+
+    case 'previews:enable-all':
+        if (flag($flags, 'confirm') === false) {
+            fail('Pass --confirm to re-enable all disabled previews.');
+        }
+        $n = 0;
+        foreach ($platform->previews()->all(['status' => 'disabled', 'limit' => 5000]) as $preview) {
+            $platform->previews()->update((string) $preview['uuid'], ['status' => \Breakfast\Platform\ClientPreviews\PreviewStatus::ACTIVE, 'disabled_at' => null]);
+            $n++;
+        }
+        $platform->audit()->event('preview.enable_all', 'system', null, 'cli', ['count' => $n]);
+        out('Re-enabled ' . $n . ' preview(s). OK');
+        break;
+
+    case 'previews:seed-demo':
+        if ($platform->isProduction()) {
+            fail('Refusing to seed previews in production.');
+        }
+        $slug = $args[0] ?? 'demo';
+        $existing = $platform->previews()->findBySlug($slug);
+        if ($existing !== null) {
+            $platform->db()->run('DELETE FROM client_previews WHERE uuid = :u', ['u' => $existing['uuid']]);
+        }
+        $prev = $platform->previews()->create(['name' => 'Demo preview', 'public_slug' => $slug, 'created_by' => 'seed']);
+        $zip  = $base . '/storage/_seed_' . $slug . '.zip';
+        $z    = new ZipArchive();
+        $z->open($zip, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+        $z->addFromString('index.html', '<!doctype html><meta name="viewport" content="width=device-width"><title>Demo preview</title><h1 id="demo-preview">Hello from a client preview</h1><link rel="stylesheet" href="app.css">');
+        $z->addFromString('app.css', 'body{font-family:sans-serif;background:#f5efe3;color:#1c293c}');
+        $z->close();
+        $r = $platform->previewUpload()->uploadZip((string) $prev['uuid'], $zip, 'demo.zip', 'seed');
+        if ($r['ok'] === false) {
+            fail('Seed upload failed: ' . implode(', ', $r['report']['errors'] ?? []));
+        }
+        $platform->previewPublisher()->publish((string) $prev['uuid'], (string) $r['version']['uuid'], 'seed');
+        @unlink($zip);
+        out('Seeded + published preview "' . $slug . '". OK');
+        break;
+
+    case 'previews:storage':
+        $total = 0;
+        $count = 0;
+        foreach ($platform->previews()->all(['limit' => 5000]) as $preview) {
+            $count++;
+            $total += (int) ($preview['bytes'] ?? 0);
+        }
+        out('Previews:      ' . $count);
+        out('Current bytes: ' . $total . ' (' . round($total / 1048576, 1) . ' MB)');
+        out('Storage root:  ' . $platform->previewStorageDir());
+        out('OK');
+        break;
+
+    // ----- Retention -------------------------------------------------------
+    case 'retention:check':
+        out('Retention plan (nothing is deleted):');
+        foreach ($platform->retention()->plan() as $key => $info) {
+            $window = $info['retain_days'] === null ? 'orphan scan' : ($info['retain_days'] <= 0 ? 'keep forever' : $info['retain_days'] . 'd');
+            out(sprintf('  %-20s %-14s %d eligible', $key, $window, $info['eligible']));
+        }
+        out('OK');
+        break;
+
+    case 'retention:cleanup':
+        $dry     = flag($flags, 'dry-run');
+        $confirm = flag($flags, 'confirm');
+        if ($dry === false && $confirm === false) {
+            fail('Refusing to run. Pass --dry-run to preview or --confirm to apply.');
+        }
+        $apply   = $confirm && $dry === false;
+        $results = $platform->retention()->run($apply);
+        foreach ($results as $key => $count) {
+            out(sprintf('  %-20s %d %s', $key, $count, $apply ? 'removed' : 'eligible'));
+        }
+        out($apply ? 'Cleaned up. OK' : 'Dry run (pass --confirm to apply). OK');
+        break;
+
+    // ----- Diagnostics -----------------------------------------------------
+    case 'app:check':
+        require $base . '/site/plugins/breakfast-platform/checks/app_check.php';
+        break;
+
+    case 'hermes:keys':
+    case 'hermes:keys:create':
+        $id       = $args[0] ?? fail('Usage: hermes:keys <id> <comma,scopes>');
+        $scopeArg = $args[1] ?? implode(',', Scopes::all());
+        $scopes   = array_values(array_filter(array_map('trim', explode(',', $scopeArg)), [Scopes::class, 'isValid']));
+        if ($scopes === []) {
+            fail('No valid scopes. Available: ' . implode(', ', Scopes::all()));
+        }
+        out('# Add this line to your .env (keep the secret private):');
+        out('HERMES_KEY_' . $id . '=' . implode(',', $scopes) . '|' . base64_encode(random_bytes(32)));
+        break;
+
+    case 'seed':
+    case 'seed:crm':
+        if ($platform->isProduction()) {
+            fail('Refusing to seed CRM in production.');
+        }
+        require $base . '/site/plugins/breakfast-platform/seed/crm.php';
+        break;
+
+    case 'user:seed':
+        // Dev/test only: create (or reset) a Panel user with a given role. Used to
+        // bootstrap the authenticated browser test suite. Refuses in production.
+        if ($platform->isProduction()) {
+            fail('Refusing to seed users in production.');
+        }
+        $email = (string) ($flags['email'] ?? '');
+        $pass  = (string) ($flags['password'] ?? '');
+        $role  = (string) ($flags['role'] ?? 'admin');
+        if ($email === '' || $pass === '') {
+            fail('Usage: user:seed --email=<addr> --password=<pw> [--role=admin]');
+        }
+        $kirby->impersonate('kirby');
+        $existing = $kirby->user($email);
+        if ($existing !== null) {
+            // Update in place (deleting the last admin is refused by Kirby).
+            $existing->changePassword($pass);
+            if ($existing->role()->name() !== $role) {
+                $existing->changeRole($role);
+            }
+        } else {
+            $kirby->users()->create(['email' => $email, 'password' => $pass, 'role' => $role, 'name' => ucfirst($role)]);
+        }
+        out('Seeded user ' . $email . ' (' . $role . '). OK');
+        break;
+
+    case 'health':
+        $q = $platform->queue();
+        out('Time:        ' . Clock::nowIso());
+        out('DB:          ' . $platform->dbPath());
+        out('Migrations:  ' . count($platform->migrator()->appliedIds()) . ' applied');
+        out('Queue depth: ' . $q->pendingCount());
+        out('Failed jobs: ' . $q->failedCount());
+        out('Mail failed: ' . $platform->outbound()->recentFailureCount());
+        break;
+
+    case 'help':
+    default:
+        out('Breakfast CLI — see the header of bin/console for the full command list.');
+        out('  migrate | migrate:status | queue:run | queue:work');
+        out('  mail:check [--connect] | mail:test --to= --confirm');
+        out('  brevo:webhook:status|register|remove | brevo:templates:check | brevo:contacts:check|sync');
+        out('  privacy:export-contact | privacy:anonymise-contact | privacy:cleanup');
+        out('  retention:check | retention:cleanup [--dry-run|--confirm]');
+        out('  previews:expire | previews:cleanup [--confirm] | previews:validate <uuid>');
+        out('  previews:scan-all | previews:storage | previews:quarantine <uuid> --confirm');
+        out('  previews:disable-all --confirm | previews:enable-all --confirm');
+        out('  app:check | health | hermes:keys | seed:crm');
+        break;
+}

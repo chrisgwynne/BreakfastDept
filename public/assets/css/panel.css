@@ -1,0 +1,85 @@
+/* Breakfast — small Panel refinements for the custom CRM area.
+   Kept minimal; relies on Kirby's own Panel design system. */
+
+.k-crm-stat {
+  border: 1px solid var(--color-border, #e5e5e5);
+  border-radius: var(--rounded, 6px);
+  padding: 1rem 1.25rem;
+  background: var(--color-white, #fff);
+}
+.k-crm-stat__value { font-size: 1.9rem; font-weight: 700; line-height: 1.1; }
+.k-crm-stat__label { color: var(--color-text-dimmed, #777); font-size: 0.85rem; margin-top: 0.25rem; }
+
+.k-crm-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+.k-crm-pipeline { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+.k-crm-column { background: var(--color-light, #f7f7f7); border-radius: 6px; padding: 0.75rem; }
+.k-crm-column h3 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.5rem; }
+.k-crm-card { background: #fff; border: 1px solid #e5e5e5; border-radius: 5px; padding: 0.6rem 0.75rem; margin-bottom: 0.5rem; }
+.k-crm-badge { display: inline-block; font-size: 0.7rem; padding: 0.1rem 0.45rem; border-radius: 999px; background: #eef; font-weight: 600; }
+.k-crm-badge--new { background: #fde68a; }
+.k-crm-badge--spam { background: #fecaca; }
+
+/* ------------------------------------------------------------------ *
+ * Breakfast Admin — brand skin over Kirby's Panel.
+ * Editorial-neobrutalist: cream canvas, yellow/purple accents, hard
+ * borders and offset shadows, no SaaS gradients or dark-navy chrome.
+ * ------------------------------------------------------------------ */
+:root {
+  --bf-cream: #f5efe3;
+  --bf-yellow: #fdc800;
+  --bf-purple: #432dd7;
+  --bf-ink: #1c293c;
+  --bf-border: #1c293c;
+}
+
+/* Brand the shell: cream canvas + purple menu rail. */
+.k-panel { background: var(--bf-cream); }
+.k-panel-menu,
+.k-panel .k-panel-menu {
+  background: var(--bf-purple);
+  color: #fff;
+}
+.k-panel-menu .k-button,
+.k-panel-menu .k-link { color: rgba(255, 255, 255, 0.86); }
+.k-panel-menu .k-button:hover,
+.k-panel-menu [aria-current="true"] .k-button {
+  color: var(--bf-ink);
+  background: var(--bf-yellow);
+  border-radius: 6px;
+}
+
+/* Branded dashboard/ops surfaces. */
+.k-breakfast .k-header { font-family: inherit; }
+.k-breakfast-header { letter-spacing: -0.01em; }
+
+.k-breakfast-stat {
+  border: 2px solid var(--bf-border);
+  border-radius: 8px;
+  padding: 1rem 1.1rem;
+  background: #fff;
+  box-shadow: 4px 4px 0 var(--bf-ink);
+  cursor: default;
+  transition: transform 0.08s ease, box-shadow 0.08s ease;
+}
+.k-breakfast-stat[onclick],
+.k-breakfast-metrics .k-breakfast-stat { cursor: pointer; }
+.k-breakfast-stat:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0 var(--bf-ink);
+}
+.k-breakfast-stat__value { font-size: 2rem; font-weight: 800; line-height: 1.05; color: var(--bf-ink); }
+.k-breakfast-stat__label { color: #55607a; font-size: 0.82rem; margin-top: 0.35rem; text-transform: uppercase; letter-spacing: 0.05em; }
+
+.k-breakfast-pipeline { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.k-breakfast-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 2px solid var(--bf-border);
+  border-radius: 999px;
+  padding: 0.3rem 0.8rem;
+  background: var(--bf-yellow);
+  font-size: 0.85rem;
+  text-transform: capitalize;
+}
+.k-breakfast-pill strong { font-weight: 800; }

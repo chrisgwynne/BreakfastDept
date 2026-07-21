@@ -1,0 +1,23 @@
+Title: Thank you
+
+----
+
+Heading: Thanks — that's landed with us.
+
+----
+
+Text:
+
+[{"id":"ty1","type":"text","content":{"text":"<p>We've got your message and we'll read it properly. Expect an honest reply from a real person, usually within a couple of working days. If it's urgent, you can always email us directly at hello@breakfastdept.com.</p>"}}]
+
+----
+
+Back_label: Back to home
+
+----
+
+Back_link: /
+
+----
+
+Uuid: thank-you

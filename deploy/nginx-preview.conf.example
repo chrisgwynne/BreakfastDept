@@ -1,0 +1,95 @@
+# Breakfast — example Nginx server block for the CLIENT PREVIEW ORIGIN.
+#
+# Previews are served on their OWN origin so that no admin/main-site cookie is
+# ever in scope. The PREFERRED production layout gives EACH preview its own
+# subdomain (<slug>.preview.breakfastdept.com) via a wildcard host + wildcard
+# certificate, so the browser same-origin policy separates previews outright.
+# This one vhost serves the apex preview host AND every per-preview subdomain.
+#
+# The host runs the SAME Kirby app: the platform detects the preview host and
+# routes every request through the preview responder, which streams ONLY
+# validated, allow-listed files from storage (outside the docroot) and never
+# executes preview content. PHP resolves the slug from the Host header, then the
+# current version / password / status from the database, and 301-redirects an
+# old slug to its canonical host.
+#
+# Do NOT place this host under a wildcard cookie domain (e.g. *.breakfastdept.com
+# with Domain=.breakfastdept.com cookies). Admin/Kirby cookies must be host-only
+# on the main host; the only cookie set here is a host-only per-preview password
+# session, issued by the app.
+
+server {
+    listen 443 ssl http2;
+    # Apex preview host + every per-preview subdomain (wildcard).
+    server_name preview.breakfastdept.com *.preview.breakfastdept.com;
+
+    # --- Wildcard TLS for the whole preview zone (one cert covers the apex and
+    # all *.preview subdomains). A wildcard cert requires a DNS-01 challenge:
+    #   certbot certonly --preferred-challenges dns \
+    #     -d preview.breakfastdept.com -d '*.preview.breakfastdept.com'
+    ssl_certificate     /etc/letsencrypt/live/preview.breakfastdept.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/preview.breakfastdept.com/privkey.pem;
+
+    # Same app; docroot is public/. Preview bytes live ABOVE it in
+    # storage/client-previews and are only ever streamed by the app.
+    root /var/www/breakfast/public;
+    index index.php;
+
+    server_tokens off;
+    autoindex off;                 # never list directories
+    client_max_body_size 1m;       # uploads happen on the ADMIN host, not here
+
+    # Defence in depth: never serve dotfiles, configs, source maps or archives.
+    location ~ /\.(?!well-known) { deny all; }
+    location ~* \.(sqlite|sqlite-wal|sqlite-shm|env|log|map|zip|htaccess|user\.ini)$ { deny all; }
+
+    # A conservative fallback header set (the app also sets the full set,
+    # including the preview CSP, per response).
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Robots-Tag "noindex, nofollow, noarchive, nosnippet" always;
+    add_header Referrer-Policy "no-referrer" always;
+
+    # Route EVERYTHING to the Kirby front controller. There is no static file
+    # mapping to preview storage here: the app streams validated bytes itself,
+    # so no uploaded file is ever executed or served directly.
+    location / {
+        try_files /index.php =404;
+    }
+
+    location = /index.php {
+        include fastcgi_params;
+        fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+        fastcgi_param SCRIPT_FILENAME $document_root/index.php;
+        fastcgi_hide_header X-Powered-By;
+    }
+
+    # Absolutely no PHP/CGI execution from anywhere else.
+    location ~ \.php$ { return 404; }
+}
+
+# Redirect HTTP → HTTPS across the whole preview zone.
+server {
+    listen 80;
+    server_name preview.breakfastdept.com *.preview.breakfastdept.com;
+    return 301 https://$host$request_uri;
+}
+
+# ---------------------------------------------------------------------------
+# DNS + TLS (per-preview subdomains — preferred)
+#   1. Add a WILDCARD A/AAAA record: *.preview.breakfastdept.com -> <server ip>
+#      plus preview.breakfastdept.com for the apex/canonical host.
+#   2. Issue a WILDCARD certificate via DNS-01:
+#        certbot certonly --preferred-challenges dns \
+#          -d preview.breakfastdept.com -d '*.preview.breakfastdept.com'
+#      (use a certbot DNS plugin so renewals are automatic).
+#   3. Set CLIENT_PREVIEW_WILDCARD_BASE=preview.breakfastdept.com
+#      and CLIENT_PREVIEW_SCHEME=https in the environment.
+#
+# Each preview is then reachable at <slug>.preview.breakfastdept.com with its own
+# browser origin, so previews are isolated by the same-origin policy. Hostnames
+# derive from the slug — no per-preview DNS, cert or DB change is ever needed.
+#
+# Fallback (weaker): a single shared host with CLIENT_PREVIEW_BASE_URL/HOST puts
+# every preview on one origin (a preview's JS can read another's same-origin
+# responses). See docs/client-preview-security.md.
+# ---------------------------------------------------------------------------

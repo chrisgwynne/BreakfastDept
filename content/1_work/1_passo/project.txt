@@ -1,0 +1,99 @@
+Title: Passo — a neighbourhood Italian that stopped taking bookings in DMs
+
+----
+
+Client: Passo
+
+----
+
+Summary: A small Italian restaurant in Manchester whose food was never the problem — the website was. We built a site where booking a table is the obvious next thing to do.
+
+----
+
+Challenge: Passo had built a loyal following on the strength of the food and word of mouth. The website, though, was an afterthought: a single page with a PDF menu, opening hours that were three months out of date, and no clear way to book. Bookings came through Instagram DMs, which meant someone had to sit on their phone during service. New customers couldn't tell whether Passo was open, where it was, or how to get a table.
+
+----
+
+Approach: We started with the one thing a hungry visitor actually wants to do — book a table — and built the page around it. Everything that didn't help that decision got cut. The menu went live as proper web pages rather than a PDF you have to pinch-to-zoom, so it reads well on a phone at a bus stop.
+
+----
+
+Strategy: The whole site is organised around a single question: "Can I eat here tonight?" Opening hours, location and a booking button sit above the fold. The story and the wine list come after, for the people who scroll. We wrote the copy in Passo's own voice — warm, unfussy, a bit funny — so the site sounds like the room feels.
+
+----
+
+Design_explanation: Plenty of white space, big appetising photography of actual dishes rather than stock, and a type choice that feels like a hand-lettered menu without being hard to read. The booking button follows you down the page on mobile so it's never more than a thumb away.
+
+----
+
+Build_explanation: A fast, static-feeling site with the booking widget embedded from the tool Passo already used, so no one had to learn a new system. The kitchen updates the menu themselves through a simple editor. It loads quickly on a mid-range phone on patchy signal, which is where most people were looking anyway.
+
+----
+
+Outcome: Bookings now happen on the site rather than in the DMs, so the front-of-house team isn't refereeing Instagram during service. New customers can see at a glance what Passo is, where it is, and how to get a table. The owner tells us the phone rings less — in a good way.
+
+----
+
+Metrics:
+
+-
+  value: Fewer
+  label: bookings lost in DMs
+  context: Table requests now come through the site, not social messages
+  note:
+-
+  value: One tap
+  label: to book on mobile
+  context: A sticky booking button that follows the page
+  note:
+-
+  value: Self-serve
+  label: menu updates
+  context: The kitchen edits the menu without ringing us
+  note:
+
+----
+
+Testimonial_quote: The food was never the problem — the website was. Now the bookings come through the site instead of our DMs, and we can actually get on with cooking.
+
+----
+
+Testimonial_name: Placeholder client
+
+----
+
+Testimonial_role: Owner, illustrative Italian restaurant
+
+----
+
+Services:
+
+----
+
+Industries: Restaurant, Manchester, Hospitality
+
+----
+
+Technology: Kirby, Embedded booking widget
+
+----
+
+Featured: true
+
+----
+
+Confidential: false
+
+----
+
+Date: 2025-11-01
+
+----
+
+Body:
+
+[{"id":"a1f3","type":"text","content":{"text":"<p>Passo is illustrative of a very common situation: a business that's genuinely good at the thing it does, held back by a website that doesn't do it justice. Here's how the job actually went.</p>"}},{"id":"b2c4","type":"heading","content":{"level":"h2","text":"Words before colours"}},{"id":"c3d5","type":"text","content":{"text":"<p>We spent the first session not talking about design at all. What do you sell, who buys it, and why do they choose you over the place two doors down? Only once we had honest answers did we start planning the page.</p>"}},{"id":"d4e6","type":"heading","content":{"level":"h2","text":"One job per page"}},{"id":"e5f7","type":"text","content":{"text":"<p>The homepage has exactly one job: get someone to book a table. Everything else is in service of that, or it isn't on the page.</p>"}},{"id":"f6a8","type":"quote","content":{"text":"A booking button below three folds of text may as well not exist.","citation":"Something we say a lot"}}]
+
+----
+
+Uuid: project-passo

@@ -1,0 +1,105 @@
+Title: About
+
+----
+
+Intro:
+
+[{"id":"ab1a","type":"text","content":{"text":"<p>Breakfast is a small British web studio. We design and build websites for businesses that want to look more professional, communicate more clearly, and make a stronger first impression — whether it's a first site or a long-overdue redesign.</p>"}},{"id":"ab2b","type":"text","content":{"text":"<p>We're deliberately small. You talk to the people doing the work — no account managers, no handoffs, nothing lost in translation. We care whether a real customer can actually use the thing, which turns out to be rarer than it should be.</p>"}}]
+
+----
+
+Principles:
+
+-
+  title: Words before colours
+  text: If a visitor can't tell what you do, the design has failed however nice it looks. We start with what you sell and who buys it, then design around that.
+-
+  title: One job per page
+  text: Every page should help a visitor do one clear thing. Everything that doesn't help that gets cut, however much we like it.
+-
+  title: It has to work on a phone
+  text: Most people will see your site on a phone, often on patchy signal. If it's awkward there, it isn't working, full stop.
+-
+  title: Honesty over upselling
+  text: If you need less than you think, we'll tell you. We'd rather do a smaller job well than sell you one you don't need.
+
+----
+
+Working_style: You brief the person who builds the thing. We work in the open, share progress early, and would always rather ask an awkward question now than guess and get it wrong later. We're still around after launch.
+
+----
+
+Location: Made by people, in Britain.
+
+----
+
+Timeline:
+
+-
+  year: The start
+  title: Breakfast opens for business
+  text: Two people who'd grown tired of watching good small businesses saddled with websites that didn't work for them.
+-
+  year: Since then
+  title: A steady stream of small businesses
+  text: Restaurants, trades, makers and shops — mostly first sites and long-overdue rebuilds. We've kept the studio small on purpose.
+-
+  year: Now
+  title: Taking on a handful of projects at a time
+  text: We take a small number of projects each quarter so every one gets proper attention rather than being run through a factory.
+
+----
+
+Tools: Kirby, Shopify, Plain HTML, Privacy-friendly analytics
+
+----
+
+Client_fit:
+
+-
+  text: You run a small or independent business and want a site that works, not just one that looks nice in a portfolio.
+-
+  text: You're happy to answer some annoying questions about what you actually sell and who buys it.
+-
+  text: You value an honest opinion over being told what you want to hear.
+
+----
+
+Not_a_fit:
+
+-
+  text: You want the cheapest possible site and don't much mind whether it works.
+-
+  text: You need a big brand campaign, an app, or a full-time in-house team — that's not us.
+-
+  text: You'd rather not be involved at all. We need a bit of your time to get it right.
+
+----
+
+Team:
+
+-
+  name: Placeholder founder
+  role: Design & words
+  bio: One half of Breakfast. Spends more time on the words than the colours, and thinks that's the right way round. Illustrative bio for a placeholder founder — no invented awards here.
+-
+  name: Placeholder founder
+  role: Build & the boring-but-essential bits
+  bio: The other half of Breakfast. Cares deeply about whether a site loads quickly on a cheap phone and whether you can update it yourself. Illustrative placeholder bio.
+
+----
+
+Testimonials:
+
+-
+  quote: They talked me out of the expensive thing I asked for and built the cheaper thing I actually needed. Not many people do that.
+  name: Placeholder client
+  role: Illustrative small-business owner
+-
+  quote: The best bit was talking to the person actually building it. Nothing got lost in translation.
+  name: Placeholder client
+  role: Illustrative shop owner
+
+----
+
+Uuid: about

@@ -1,0 +1,13 @@
+# pullquote block — emphasised inline pull quote.
+# fields: text, attribution
+name: Pull quote
+icon: quote
+fields:
+  text:
+    label: Text
+    type: textarea
+    buttons: false
+    required: true
+  attribution:
+    label: Attribution
+    type: text

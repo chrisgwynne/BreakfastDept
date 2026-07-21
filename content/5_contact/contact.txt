@@ -1,0 +1,63 @@
+Title: Contact
+
+----
+
+Intro:
+
+[{"id":"ct1","type":"text","content":{"text":"<p>Got a question, or want to talk something through before committing to anything? Drop us a line. We read every message ourselves and come back with an honest view — including if we think we're not the right fit for you.</p>"}}]
+
+----
+
+Form_name_label: Your name
+
+----
+
+Form_name_placeholder: e.g. Sam Okafor
+
+----
+
+Form_email_label: Email address
+
+----
+
+Form_email_placeholder: you@yourbusiness.co.uk
+
+----
+
+Form_company_label: Business name
+
+----
+
+Form_company_placeholder: The name above your door
+
+----
+
+Form_message_label: How can we help?
+
+----
+
+Form_message_placeholder: Tell us a bit about your business and what's on your mind.
+
+----
+
+Form_message_help: A few lines is plenty to get started. No need to write an essay.
+
+----
+
+Form_consent_text: I'm happy for Breakfast to store what I've sent so they can reply. We'll only use it to answer your enquiry — nothing else.
+
+----
+
+Form_submit_label: Send message
+
+----
+
+Form_success_message: Thanks — that's landed with us. We'll come back to you shortly, usually within a couple of working days.
+
+----
+
+Form_error_message: Hmm, that didn't send. Please try again, or email us directly at hello@breakfastdept.com.
+
+----
+
+Uuid: contact

@@ -1,0 +1,57 @@
+##
+# Journal index — lists article children.
+##
+title: Journal
+icon: text
+preview: true
+status:
+  draft: false
+  listed: true
+options:
+  changeStatus: false
+  delete: false
+num: default
+
+tabs:
+  content:
+    label: Content
+    icon: text
+    fields:
+      title:
+        label: Title
+        type: text
+        required: true
+        maxlength: 70
+        counter: true
+      intro:
+        label: Intro
+        type: textarea
+        buttons: false
+        maxlength: 320
+        counter: true
+      featured_article:
+        label: Featured article
+        type: pages
+        max: 1
+        query: site.index.filterBy("intendedTemplate", "article")
+
+  articles:
+    label: Articles
+    icon: text
+    sections:
+      articles:
+        label: Articles
+        type: pages
+        template: article
+        create: article
+        sortBy: date desc
+        status: all
+        layout: list
+        info: "{{ page.date.toDate('j M Y') }}"
+
+  seo:
+    label: SEO & sharing
+    icon: search
+    fields:
+      seo:
+        extends: fields/seogroup

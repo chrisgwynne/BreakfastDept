@@ -1,0 +1,33 @@
+##
+# Legal page — privacy, cookies, terms, accessibility, etc.
+##
+title: Legal page
+icon: file-text
+preview: true
+
+tabs:
+  content:
+    label: Content
+    icon: text
+    fields:
+      title:
+        label: Title
+        type: text
+        required: true
+        maxlength: 70
+        counter: true
+      body:
+        label: Body
+        type: blocks
+        extends: fields/bodyblocks
+      updated:
+        label: Last updated
+        type: date
+        default: today
+
+  seo:
+    label: SEO & sharing
+    icon: search
+    fields:
+      seo:
+        extends: fields/seogroup

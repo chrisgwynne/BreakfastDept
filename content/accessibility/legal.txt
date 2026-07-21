@@ -1,0 +1,15 @@
+Title: Accessibility
+
+----
+
+Body:
+
+[{"id":"y01","type":"text","content":{"text":"<p>We think a website that some people can't use isn't finished. This page sets out what we aim for and how to tell us when we fall short. This is a sensible placeholder statement, not a legal guarantee.</p>"}},{"id":"y02","type":"heading","content":{"level":"h2","text":"What we aim for"}},{"id":"y03","type":"text","content":{"text":"<p>We aim to meet the Web Content Accessibility Guidelines (WCAG) 2.2 at AA level across this site. In practice that means readable text and sensible contrast, content that works with a keyboard and a screen reader, clear focus states, meaningful alt text on images, and pages that make sense when you increase the text size or turn off styling.</p>"}},{"id":"y04","type":"heading","content":{"level":"h2","text":"How we build with access in mind"}},{"id":"y05","type":"text","content":{"text":"<p>We use plain, semantic markup, test with a keyboard as well as a mouse, and check that the site holds up on a phone and at larger text sizes. Accessibility isn't a box we tick at the end — it's part of how the thing gets built.</p>"}},{"id":"y06","type":"callout","content":{"variant":"info","title":"We know we won't be perfect","text":"<p>No site is flawless, and standards move on. If something here is hard to use, that's a bug we want to hear about — not a bother.</p>"}},{"id":"y07","type":"heading","content":{"level":"h2","text":"Reporting a problem"}},{"id":"y08","type":"text","content":{"text":"<p>If you hit an accessibility barrier on this site, please email hello@breakfastdept.com. Tell us the page and what went wrong — as much or as little detail as you can. We'll come back to you, and we'll fix genuine issues as quickly as we reasonably can.</p>"}}]
+
+----
+
+Updated: 2026-01-15
+
+----
+
+Uuid: legal-accessibility

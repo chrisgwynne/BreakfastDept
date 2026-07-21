@@ -1,0 +1,29 @@
+# embed block — constrained third-party embed (no arbitrary iframe/HTML).
+# The snippet whitelists providers server-side; url + provider drive rendering.
+# fields: url, provider, title, caption
+name: Embed
+icon: code
+fields:
+  url:
+    label: Embed URL
+    type: url
+    required: true
+  provider:
+    label: Provider
+    type: select
+    default: figma
+    help: Only whitelisted providers are rendered.
+    options:
+      figma: Figma
+      codepen: CodePen
+      codesandbox: CodeSandbox
+      loom: Loom
+      spotify: Spotify
+      map: Map
+  title:
+    label: Title
+    type: text
+    help: Accessible title for the embedded frame.
+  caption:
+    label: Caption
+    type: text

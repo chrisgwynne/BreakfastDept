@@ -1,0 +1,27 @@
+# logos block — client / partner logo wall.
+# fields: heading, items(structure: name, category, logo)
+name: Logos
+icon: image
+fields:
+  heading:
+    label: Heading
+    type: text
+  items:
+    label: Logos
+    type: structure
+    fields:
+      name:
+        label: Name
+        type: text
+        required: true
+        width: 1/2
+      category:
+        label: Category
+        type: text
+        width: 1/2
+      logo:
+        label: Logo
+        type: files
+        max: 1
+        query: page.images
+        uploads: images

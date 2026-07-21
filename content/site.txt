@@ -1,0 +1,134 @@
+Title: Breakfast
+
+----
+
+Legal_name: Breakfast Studio
+
+----
+
+Tagline: A small studio that cares whether websites actually work.
+
+----
+
+Email: hello@breakfastdept.com
+
+----
+
+Enquiry_email: hello@breakfastdept.com
+
+----
+
+Phone:
+
+----
+
+Address:
+
+Made by people, in Britain.
+
+----
+
+Availability_text: Taking on a small number of projects this quarter.
+
+----
+
+Social:
+
+-
+  platform: Email
+  url: mailto:hello@breakfastdept.com
+
+----
+
+Nav:
+
+-
+  label: Work
+  link: /work
+-
+  label: Services
+  link: /services
+-
+  label: About
+  link: /about
+-
+  label: Journal
+  link: /journal
+-
+  label: Contact
+  link: /contact
+
+----
+
+Footer_nav:
+
+-
+  label: Work
+  link: /work
+-
+  label: Services
+  link: /services
+-
+  label: About
+  link: /about
+-
+  label: Journal
+  link: /journal
+-
+  label: Privacy
+  link: /privacy
+-
+  label: Accessibility
+  link: /accessibility
+
+----
+
+Footer_copy: © Breakfast. Made by people, in Britain.
+
+----
+
+Cta_heading: Thinking about a new website?
+
+----
+
+Cta_text: Tell us a little about your business and what you're hoping to achieve. Whether you're starting from scratch or replacing something that's holding you back, we'll come back with an honest view on whether we're the right fit.
+
+----
+
+Cta_primary_label: Start a project
+
+----
+
+Cta_primary_link: /start-a-project
+
+----
+
+Cta_secondary_label: Get in touch
+
+----
+
+Cta_secondary_link: /contact
+
+----
+
+Meta_description: Breakfast is a small British web studio. We design and build websites for businesses that want to look more professional, communicate more clearly, and make a stronger first impression.
+
+----
+
+Analytics_provider: none
+
+----
+
+Cookie_message: We use privacy-respecting analytics that don't track you across the web. Is that OK?
+
+----
+
+Announcement_enabled: false
+
+----
+
+Announcement_text:
+
+----
+
+Maintenance_enabled: false

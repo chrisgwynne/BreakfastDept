@@ -1,0 +1,72 @@
+##
+# Start a project — richer enquiry form. Reuses the shared form strings and
+# adds labels for the extra qualifying fields (budget, timeline, services).
+##
+title: Start a project
+icon: bolt
+preview: true
+status:
+  draft: false
+  listed: true
+options:
+  delete: false
+
+tabs:
+  content:
+    label: Content
+    icon: text
+    fields:
+      title:
+        label: Title
+        type: text
+        required: true
+        maxlength: 70
+        counter: true
+      intro:
+        label: Intro
+        type: blocks
+        extends: fields/bodyblocks
+
+  form:
+    label: Form copy
+    icon: edit
+    fields:
+      form:
+        extends: fields/contactform
+      extra_headline:
+        type: headline
+        label: Extra qualifying fields
+      form_budget_label:
+        label: Budget — label
+        type: text
+        width: 1/2
+        default: Budget
+      form_budget_help:
+        label: Budget — help text
+        type: text
+        width: 1/2
+      form_timeline_label:
+        label: Timeline — label
+        type: text
+        width: 1/2
+        default: Timeline
+      form_timeline_help:
+        label: Timeline — help text
+        type: text
+        width: 1/2
+      form_services_label:
+        label: Services — label
+        type: text
+        width: 1/2
+        default: Services you're interested in
+      form_services_help:
+        label: Services — help text
+        type: text
+        width: 1/2
+
+  seo:
+    label: SEO & sharing
+    icon: search
+    fields:
+      seo:
+        extends: fields/seogroup

@@ -1,0 +1,22 @@
+# Breakfast — systemd unit for a supervised queue worker.
+# Install to /etc/systemd/system/breakfast-queue.service then:
+#   systemctl enable --now breakfast-queue
+# Use this OR the per-minute cron (deploy/cron.example), not both.
+
+[Unit]
+Description=Breakfast queue worker
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/var/www/breakfast
+ExecStart=/usr/bin/php bin/console queue:work 5
+Restart=always
+RestartSec=5
+# Harden a little.
+NoNewPrivileges=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target

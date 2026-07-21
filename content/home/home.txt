@@ -1,0 +1,227 @@
+Title: Home
+
+----
+
+Hero_eyebrow: A small web design studio
+
+----
+
+Hero_headline: Websites you'll be proud to
+
+----
+
+Hero_highlight: send people to.
+
+----
+
+Hero_text: We design and build websites for businesses that want to look more professional, communicate more clearly, and make a stronger first impression — whether it's your first site or a long-overdue redesign.
+
+----
+
+Hero_primary_label: Start a project
+
+----
+
+Hero_primary_link: /start-a-project
+
+----
+
+Hero_secondary_label: See the work
+
+----
+
+Hero_secondary_link: /work
+
+----
+
+Hero_availability: Taking on a small number of projects this quarter.
+
+----
+
+Proposition_enabled: true
+
+----
+
+Proposition_heading: We spend more time on words than colours.
+
+----
+
+Proposition_text: If somebody lands on your website and still can't tell what you do, the design has failed — however nice it looks. So we start with what you sell and who buys it, then design around that.
+
+----
+
+Proposition_points:
+
+-
+  title: What we do
+  text: Design and build clear, fast websites for small and independent businesses — usually a first site or a long-overdue rebuild.
+-
+  title: Who it's for
+  text: Independents tired of explaining their own website over the phone. Restaurants, trades, makers, shops.
+-
+  title: What's different
+  text: You talk to the people doing the work, and we care whether a real customer can actually use the thing.
+
+----
+
+Work_enabled: true
+
+----
+
+Work_heading: Why people come to Breakfast.
+
+----
+
+Work_intro: Some need their first website. Some need a better one. Some have simply outgrown what they've got. Here are a few of the businesses we've helped along the way.
+
+----
+
+Work_count: 3
+
+----
+
+Services_enabled: true
+
+----
+
+Services_heading: What's on the menu.
+
+----
+
+Services_intro: Most people start by sending a few lines about what they need, and we figure out the rest together. Sometimes the answer is "less than you think".
+
+----
+
+Problems_enabled: true
+
+----
+
+Problems_heading: The quiet things losing you customers.
+
+----
+
+Problems_items:
+
+-
+  title: Nobody can tell what you do
+  text: If the homepage doesn't say it in a sentence, most visitors leave before they scroll.
+-
+  title: The thing you want them to do is hidden
+  text: A booking button below three folds of text may as well not exist.
+-
+  title: It falls apart on a phone
+  text: Most people will see your site on a phone at a bus stop. If it's awkward there, it's not working.
+-
+  title: It doesn't sound like you
+  text: Brochure language makes a real business feel like a template. Words are the fix.
+
+----
+
+Process_enabled: true
+
+----
+
+Process_heading: Four steps. No drama.
+
+----
+
+Process_steps:
+
+-
+  title: We ask annoying questions
+  text: What do you actually sell, who buys it, and why. The least glamorous part of the job and easily the most important.
+-
+  title: We decide what goes where
+  text: We plan the page around the one thing a visitor needs to do. Everything that doesn't help that gets cut.
+-
+  title: We write it, then build it
+  text: Words first, design around them. Fast, clear, and it works properly on a phone.
+-
+  title: We don't disappear
+  text: We launch, watch what people actually do, and fix what's confusing. Launch is the start, not the end.
+
+----
+
+Proof_enabled: true
+
+----
+
+Proof_heading: A few of the businesses we've helped explain themselves.
+
+----
+
+Testimonials:
+
+-
+  quote: The food was never the problem. The website was. Now the bookings come through the site instead of our DMs.
+  name: Placeholder client
+  role: Owner
+  company: Example restaurant
+-
+  quote: For the first time the phone rings because people found us, not because they gave up and called.
+  name: Placeholder client
+  role: Director
+  company: Example trade business
+
+----
+
+Logos:
+
+-
+  name: Passo
+  category: Restaurant
+-
+  name: Brightside
+  category: Electrician
+-
+  name: Foundry
+  category: Coffee
+-
+  name: Studio Bloom
+  category: Handmade
+-
+  name: NorthPeak
+  category: Joinery
+-
+  name: Harbour & Co
+  category: Florist
+
+----
+
+Statement_enabled: true
+
+----
+
+Statement_heading: A studio, not a factory
+
+----
+
+Statement_text: You talk to the people doing the work. No account managers, no handoffs, nothing lost in translation. The person you brief is the person building the thing — and we're still around after launch.
+
+----
+
+Journal_enabled: true
+
+----
+
+Journal_heading: From the journal
+
+----
+
+Journal_count: 3
+
+----
+
+Final_cta_enabled: true
+
+----
+
+Final_cta_heading: Thinking about a new website?
+
+----
+
+Final_cta_text: Tell us a little about your business and what you're hoping to achieve. We'll come back with an honest view on whether we're the right fit.
+
+----
+
+Uuid: home
