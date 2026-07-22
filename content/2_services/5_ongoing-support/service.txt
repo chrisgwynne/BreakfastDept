@@ -16,7 +16,7 @@ Introduction:
 
 ----
 
-Suitable_for: Anyone who'd rather not think about their website day to day but wants to know it's being looked after — whether we built it or not. Busy owners who don't have time to become a webmaster.
+Suitable_for: Anyone who'd rather not think about their website day to day but wants to know it's being looked after — whether I built it or not. Busy owners who don't have time to become a webmaster.
 
 ----
 
@@ -47,18 +47,18 @@ Deliverables:
 Process:
 
 -
-  title: We get to know your site
-  text: If we didn't build it, we spend a little time understanding how it works first.
+  title: I get to know your site
+  text: If I didn't build it, I spend a little time understanding how it works first.
 -
-  title: You send the small stuff our way
-  text: Hours, prices, a new photo, a wording tweak — you ask, we handle it.
+  title: You send the small stuff my way
+  text: Hours, prices, a new photo, a wording tweak — you ask, I handle it.
 -
-  title: We keep the boring bits ticking
+  title: I keep the boring bits ticking
   text: Updates, backups and checks happen quietly in the background so problems don't creep up.
 
 ----
 
-Pricing_guidance: A simple monthly arrangement, scoped to how much help you actually need — there's no point paying for hours you won't use. No long lock-in: it's meant to be reassuring, not a trap. We'll right-size it with you and adjust as your needs change.
+Pricing_guidance: A simple monthly arrangement, scoped to how much help you actually need — there's no point paying for hours you won't use. No long lock-in: it's meant to be reassuring, not a trap. I'll right-size it with you and adjust as your needs change.
 
 ----
 
@@ -70,13 +70,13 @@ Faqs:
 
 -
   question: Do you only support sites you built?
-  answer: No. As long as it's built on something sensible, we're happy to look after a site someone else made.
+  answer: No. As long as it's built on something sensible, I'm happy to look after a site someone else made.
 -
   question: Am I tied in for a year?
   answer: No. It's month to month. If it's not useful, you stop — no drama.
 -
   question: What counts as a small change?
-  answer: Edits, swaps and tweaks — updating hours, prices, photos, or wording. Bigger pieces of work we'd scope separately so it's fair to everyone.
+  answer: Edits, swaps and tweaks — updating hours, prices, photos, or wording. Bigger pieces of work I'd scope separately so it's fair to everyone.
 
 ----
 
@@ -84,7 +84,7 @@ Cta_heading: Want someone keeping an eye on things?
 
 ----
 
-Cta_text: Tell us about your site and how hands-on you'd like us to be, and we'll suggest a sensible level of support.
+Cta_text: Tell me about your site and how hands-on you'd like me to be, and I'll suggest a sensible level of support.
 
 ----
 

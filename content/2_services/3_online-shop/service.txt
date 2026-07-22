@@ -12,7 +12,7 @@ Summary: A shop you can actually run yourself, built on Shopify so payments, pos
 
 Introduction:
 
-[{"id":"o1a2","type":"text","content":{"text":"<p>Selling online shouldn't mean signing up for a second full-time job. We build shops on Shopify because it takes care of the fiddly, risky bits — payments, security, tax, postage — so you can get on with making and selling.</p>"}},{"id":"o2b3","type":"text","content":{"text":"<p>The design is yours, not a stock theme everyone else is using. The admin, though, is the standard, well-trodden Shopify one, so there's plenty of help out there and nothing weird to learn.</p>"}}]
+[{"id":"o1a2","type":"text","content":{"text":"<p>Selling online shouldn't mean signing up for a second full-time job. I build shops on Shopify because it takes care of the fiddly, risky bits — payments, security, tax, postage — so you can get on with making and selling.</p>"}},{"id":"o2b3","type":"text","content":{"text":"<p>The design is yours, not a stock theme everyone else is using. The admin, though, is the standard, well-trodden Shopify one, so there's plenty of help out there and nothing weird to learn.</p>"}}]
 
 ----
 
@@ -51,14 +51,14 @@ Process:
   text: How your products are grouped, how you restock, and how people decide to buy.
 -
   title: Design the shopping, not just the shop
-  text: We design the whole path from landing to checkout, because that's where sales are won or lost.
+  text: I design the whole path from landing to checkout, because that's where sales are won or lost.
 -
   title: Build, load your products, launch
-  text: We set it up, help you get your first products in, and make sure checkout works before anyone relies on it.
+  text: I set it up, help you get your first products in, and make sure checkout works before anyone relies on it.
 
 ----
 
-Pricing_guidance: Scoped per project, because a ten-product shop and a hundred-product shop are different animals. Shopify charges its own monthly fee and payment fees on top, which we'll always be upfront about so there are no surprises in your first month.
+Pricing_guidance: Scoped per project, because a ten-product shop and a hundred-product shop are different animals. Shopify charges its own monthly fee and payment fees on top, which I'll always be upfront about so there are no surprises in your first month.
 
 ----
 
@@ -70,13 +70,13 @@ Faqs:
 
 -
   question: Why Shopify and not something cheaper?
-  answer: Because it handles the risky, boring, essential things — payments, security, tax — better than we could bolt together, and it won't fall over on your busiest day.
+  answer: Because it handles the risky, boring, essential things — payments, security, tax — better than I could bolt together, and it won't fall over on your busiest day.
 -
   question: Can I add products myself?
-  answer: Yes, that's the whole point. Adding and editing products takes minutes, and we show you how.
+  answer: Yes, that's the whole point. Adding and editing products takes minutes, and I show you how.
 -
   question: Will you help me move off a marketplace?
-  answer: We can help you plan the move and set the shop up so you keep your customers rather than losing them in the switch.
+  answer: I can help you plan the move and set the shop up so you keep your customers rather than losing them in the switch.
 
 ----
 
@@ -84,7 +84,7 @@ Cta_heading: Ready to sell on your own terms?
 
 ----
 
-Cta_text: Tell us what you sell and roughly how much of it, and we'll come back with an honest view of what a shop would take.
+Cta_text: Tell me what you sell and roughly how much of it, and I'll come back with an honest view of what a shop would take.
 
 ----
 

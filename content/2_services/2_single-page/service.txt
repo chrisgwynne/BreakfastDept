@@ -12,7 +12,7 @@ Summary: One well-made page that does one job — launch a thing, promote an off
 
 Introduction:
 
-[{"id":"s1a2","type":"text","content":{"text":"<p>Sometimes you don't need a website. You need one good page. Launching a new product, running a campaign, or simply want somewhere credible to send people while you figure out the bigger picture — a single, focused page can do all of that.</p>"}},{"id":"s2b3","type":"text","content":{"text":"<p>Because it has one job, we can be ruthless about it. Every word and every element earns its place, or it's gone.</p>"}}]
+[{"id":"s1a2","type":"text","content":{"text":"<p>Sometimes you don't need a website. You need one good page. Launching a new product, running a campaign, or simply want somewhere credible to send people while you figure out the bigger picture — a single, focused page can do all of that.</p>"}},{"id":"s2b3","type":"text","content":{"text":"<p>Because it has one job, I can be ruthless about it. Every word and every element earns its place, or it's gone.</p>"}}]
 
 ----
 
@@ -48,17 +48,17 @@ Process:
 
 -
   title: Pin down the one job
-  text: We agree the single thing this page must achieve before we write a word.
+  text: I agree the single thing this page must achieve before I write a word.
 -
   title: Write it tight
-  text: One page means no room for waffle. We keep only what helps.
+  text: One page means no room for waffle. I keep only what helps.
 -
   title: Build and launch
   text: Quick to build, quick to load, easy to point a domain at.
 
 ----
 
-Pricing_guidance: A single page is our smallest piece of work, and priced accordingly — scoped per project once we know what the page needs to do. It's often the sensible first step, and it can grow into a full site later without starting over.
+Pricing_guidance: A single page is my smallest piece of work, and priced accordingly — scoped per project once I know what the page needs to do. It's often the sensible first step, and it can grow into a full site later without starting over.
 
 ----
 
@@ -70,10 +70,10 @@ Faqs:
 
 -
   question: Can it grow into a full website later?
-  answer: Yes. We build it so it can become the first page of something bigger without throwing anything away.
+  answer: Yes. I build it so it can become the first page of something bigger without throwing anything away.
 -
   question: Can I use my own domain?
-  answer: Of course. We'll help you point your domain at it so it lives at your own address.
+  answer: Of course. I'll help you point your domain at it so it lives at your own address.
 
 ----
 
@@ -81,7 +81,7 @@ Cta_heading: Just need one good page?
 
 ----
 
-Cta_text: Tell us what it's for and who it's aimed at, and we'll tell you honestly whether a single page is the right call.
+Cta_text: Tell me what it's for and who it's aimed at, and I'll tell you honestly whether a single page is the right call.
 
 ----
 

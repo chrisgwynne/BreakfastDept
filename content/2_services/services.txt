@@ -2,7 +2,7 @@ Title: Services
 
 ----
 
-Intro: Most people start by sending a few lines about what they need, and we work out the rest together. Sometimes the answer is "less than you think". Here's the shape of what we do — from a whole new website to just keeping an eye on the one you've got.
+Intro: Most people start by sending a few lines about what they need, and I work out the rest together. Sometimes the answer is "less than you think". Here's the shape of what I do — from a whole new website to just keeping an eye on the one you've got.
 
 ----
 
@@ -10,8 +10,8 @@ Uuid: services
 
 ----
 
-Seo_title: Website Design & Build for Local Businesses
+Seo_title: Website Design & Build in North Wales
 
 ----
 
-Meta_description: What I do: fresh business websites, thoughtful redesigns and ongoing care for independent businesses across Wales.
+Meta_description: Web design services for local businesses in North Wales: new business websites, redesigns, online shops and ongoing care.
