@@ -6,7 +6,7 @@ Legal_name: Breakfast Studio
 
 ----
 
-Tagline: A small studio that cares whether websites actually work.
+Tagline: Fresh websites for local businesses in Wales.
 
 ----
 
@@ -24,11 +24,9 @@ Phone:
 
 Address:
 
-Made by people, in Britain.
-
 ----
 
-Availability_text: Taking on a small number of projects this quarter.
+Availability_text: Currently booking new projects.
 
 ----
 
@@ -83,7 +81,7 @@ Footer_nav:
 
 ----
 
-Footer_copy: © Breakfast. Made by people, in Britain.
+Footer_copy: © Breakfast. Independent web design in Wales.
 
 ----
 
@@ -91,7 +89,7 @@ Cta_heading: Thinking about a new website?
 
 ----
 
-Cta_text: Tell us a little about your business and what you're hoping to achieve. Whether you're starting from scratch or replacing something that's holding you back, we'll come back with an honest view on whether we're the right fit.
+Cta_text: Tell me a bit about your business and what you need. Whether you're starting from scratch or replacing a site that's holding you back, I'll come back with an honest view on whether I'm the right fit.
 
 ----
 
@@ -111,7 +109,7 @@ Cta_secondary_link: /contact
 
 ----
 
-Meta_description: Breakfast is a small British web studio. We design and build websites for businesses that want to look more professional, communicate more clearly, and make a stronger first impression.
+Meta_description: Independent web design in Wales. I design and build fresh, professional websites for local businesses that have outgrown the one they've got.
 
 ----
 
@@ -132,3 +130,59 @@ Announcement_text:
 ----
 
 Maintenance_enabled: false
+
+----
+
+Owner_name:
+
+----
+
+Voice: singular
+
+----
+
+Base_town:
+
+----
+
+County:
+
+----
+
+Country: Wales
+
+----
+
+Geo_wording:
+
+----
+
+Areas_served:
+
+----
+
+Service_radius:
+
+----
+
+Remote_wording: Happy to work with businesses further afield, too.
+
+----
+
+Business_hours:
+
+----
+
+Google_business_url:
+
+----
+
+Latitude:
+
+----
+
+Longitude:
+
+----
+
+Availability_enabled: false
