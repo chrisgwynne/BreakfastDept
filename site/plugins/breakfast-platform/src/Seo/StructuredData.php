@@ -39,17 +39,198 @@ final class StructuredData
             $data['telephone'] = $phone;
         }
 
-        $sameAs = [];
-        foreach ($content->get('social')->toStructure() as $item) {
-            if ($url = $item->url()->value()) {
-                $sameAs[] = $url;
-            }
-        }
+        $sameAs = $this->socialProfiles();
         if ($sameAs !== []) {
             $data['sameAs'] = $sameAs;
         }
 
         return $data;
+    }
+
+    /**
+     * The primary business entity — a ProfessionalService (a LocalBusiness
+     * subtype). Only honest data is emitted: no postal address, telephone or
+     * coordinates are output unless real values are configured in Kirby.
+     *
+     * @return array<string,mixed>
+     */
+    public function business(): array
+    {
+        $content = $this->site->content();
+
+        $data = [
+            '@context' => 'https://schema.org',
+            '@type'    => 'ProfessionalService',
+            '@id'      => $this->site->url() . '#business',
+            'name'     => $content->get('legal_name')->value() ?: $this->site->title()->value(),
+            'url'      => $this->site->url(),
+        ];
+
+        if ($desc = $content->get('meta_description')->value()) {
+            $data['description'] = $desc;
+        }
+
+        if ($email = $content->get('email')->value()) {
+            $data['email'] = $email;
+        }
+
+        if ($phone = $content->get('phone')->value()) {
+            $data['telephone'] = $phone;
+        }
+
+        if ($owner = $content->get('owner_name')->value()) {
+            $data['founder'] = ['@type' => 'Person', 'name' => $owner];
+        }
+
+        $areas = $this->areasServed();
+        if ($areas !== []) {
+            $data['areaServed'] = array_map(
+                static fn (string $name): array => ['@type' => 'AdministrativeArea', 'name' => $name],
+                $areas
+            );
+        }
+
+        $address = $this->postalAddress();
+        if ($address !== null) {
+            $data['address'] = $address;
+        }
+
+        $lat = $content->get('latitude')->value();
+        $lng = $content->get('longitude')->value();
+        if (is_numeric($lat) && is_numeric($lng)) {
+            $data['geo'] = [
+                '@type'     => 'GeoCoordinates',
+                'latitude'  => (float) $lat,
+                'longitude' => (float) $lng,
+            ];
+        }
+
+        $hours = $this->openingHours();
+        if ($hours !== []) {
+            $data['openingHours'] = $hours;
+        }
+
+        $sameAs = $this->socialProfiles();
+        if ($sameAs !== []) {
+            $data['sameAs'] = $sameAs;
+        }
+
+        return $data;
+    }
+
+    /**
+     * The WebSite entity, linked to the business as its publisher.
+     *
+     * @return array<string,mixed>
+     */
+    public function website(): array
+    {
+        return [
+            '@context'   => 'https://schema.org',
+            '@type'      => 'WebSite',
+            '@id'        => $this->site->url() . '#website',
+            'url'        => $this->site->url(),
+            'name'       => $this->site->title()->value(),
+            'inLanguage' => 'en-GB',
+            'publisher'  => ['@id' => $this->site->url() . '#business'],
+        ];
+    }
+
+    /**
+     * Real profile URLs only (http/https) — never a mailto: or tel:, which are
+     * invalid targets for schema.org sameAs.
+     *
+     * @return list<string>
+     */
+    private function socialProfiles(): array
+    {
+        $content = $this->site->content();
+        $out = [];
+
+        foreach ($content->get('social')->toStructure() as $item) {
+            $url = (string) $item->url()->value();
+            if (preg_match('#^https?://#i', $url) === 1) {
+                $out[] = $url;
+            }
+        }
+
+        $gbp = (string) $content->get('google_business_url')->value();
+        if (preg_match('#^https?://#i', $gbp) === 1) {
+            $out[] = $gbp;
+        }
+
+        return $out;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function areasServed(): array
+    {
+        $content = $this->site->content();
+        $areas = [];
+
+        if ($country = $content->get('country')->value()) {
+            $areas[] = (string) $country;
+        }
+
+        foreach ($content->get('areas_served')->split() as $area) {
+            $area = trim((string) $area);
+            if ($area !== '' && ! in_array($area, $areas, true)) {
+                $areas[] = $area;
+            }
+        }
+
+        return $areas;
+    }
+
+    /**
+     * A PostalAddress only when a real locality/region is configured. A fake
+     * street address is never emitted.
+     *
+     * @return array<string,string>|null
+     */
+    private function postalAddress(): ?array
+    {
+        $content = $this->site->content();
+        $locality = (string) $content->get('base_town')->value();
+        $region = (string) $content->get('county')->value();
+        $country = (string) $content->get('country')->value();
+
+        if ($locality === '' && $region === '') {
+            return null;
+        }
+
+        $address = ['@type' => 'PostalAddress'];
+        if ($locality !== '') {
+            $address['addressLocality'] = $locality;
+        }
+        if ($region !== '') {
+            $address['addressRegion'] = $region;
+        }
+        if ($country !== '') {
+            $address['addressCountry'] = $country;
+        }
+
+        return $address;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function openingHours(): array
+    {
+        $out = [];
+
+        foreach ($this->site->content()->get('business_hours')->toStructure() as $row) {
+            $days = trim((string) $row->days()->value());
+            $hours = trim((string) $row->hours()->value());
+            if ($days !== '' && $hours !== '') {
+                $out[] = $days . ' ' . $hours;
+            }
+        }
+
+        return $out;
     }
 
     /**
@@ -102,10 +283,7 @@ final class StructuredData
             $data['image'] = $cover->url();
         }
 
-        $data['publisher'] = [
-            '@type' => 'Organization',
-            'name'  => $this->site->title()->value(),
-        ];
+        $data['publisher'] = ['@id' => $this->site->url() . '#business'];
 
         return $data;
     }
