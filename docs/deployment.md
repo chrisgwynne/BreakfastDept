@@ -30,9 +30,11 @@ schema keeps itself up to date. Requires an **Apache** host with `mod_rewrite`
    Actions*:
    - Secrets: `FTP_SERVER` (e.g. `ftp.yourhost.com`), `FTP_USERNAME`,
      `FTP_PASSWORD`.
-   - Variables (optional): `FTP_SERVER_DIR` — the remote web root, ending in `/`
-     (e.g. `public_html/`; default `./`); `FTP_PROTOCOL` — `ftps` (default),
-     `ftp`, or `ftps-legacy`.
+   - Variables (optional): `FTP_SERVER_DIR` — the remote web root, ending in `/`.
+     **Defaults to `public_html/`**, because most cPanel/shared hosts log FTP in
+     *above* the web root. Set it to `./` or `/` only if your FTP login lands you
+     directly inside the web root. `FTP_PROTOCOL` — `ftps` (default), `ftp`, or
+     `ftps-legacy`.
 
 2. **Create `.env` in the host web root** (e.g. `public_html/.env`) with your
    production values — at minimum:
