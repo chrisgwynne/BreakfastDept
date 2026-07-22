@@ -416,3 +416,64 @@ details[open] .faq__q::after { content: "–"; }
   box-shadow: var(--shadow-sm);
 }
 .tag--concept { background: var(--bg-alt); }
+
+/* ---------- Hero brand object (CSS-only "good website" in a browser) ---------- */
+.hero__object { position: relative; align-self: center; }
+.browser {
+  background: var(--surface);
+  border: var(--border-3);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  transform: rotate(-1.2deg);
+}
+.browser__bar {
+  display: flex; align-items: center; gap: var(--s-3);
+  padding: 10px var(--s-4);
+  background: var(--bg-alt);
+  border-bottom: var(--border);
+}
+.browser__dots { display: inline-flex; gap: 6px; }
+.browser__dots i { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--text); }
+.browser__dots i:nth-child(1) { background: var(--primary); }
+.browser__dots i:nth-child(2) { background: var(--surface); }
+.browser__dots i:nth-child(3) { background: var(--secondary); }
+.browser__url {
+  flex: 1; text-align: center; font-family: var(--mono); font-size: 0.8rem;
+  color: var(--muted); background: var(--surface);
+  border: var(--border); border-radius: var(--radius-pill); padding: 3px 14px;
+}
+.browser__url b { color: var(--secondary); font-weight: 700; }
+.browser__screen { padding: var(--s-6); display: grid; gap: var(--s-6); background: var(--bg); }
+.mock__nav { display: flex; align-items: center; justify-content: space-between; }
+.mock__logo { width: 84px; height: 16px; background: var(--text); border-radius: var(--radius-pill); }
+.mock__menu { display: inline-flex; gap: 10px; }
+.mock__menu i { width: 26px; height: 8px; background: var(--muted); opacity: 0.5; border-radius: var(--radius-pill); }
+.mock__hero { display: grid; gap: 12px; }
+.mock__eyebrow { width: 120px; height: 14px; background: var(--primary); border: 2px solid var(--text); border-radius: var(--radius-pill); }
+.mock__line { height: 20px; background: var(--text); border-radius: 6px; }
+.mock__line--xl { width: 92%; height: 30px; }
+.mock__line--lg { width: 64%; }
+.mock__btn { width: 130px; height: 34px; background: var(--secondary); border: var(--border); border-radius: var(--radius-sm); box-shadow: var(--shadow-sm); }
+.mock__cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.mock__cards span { height: 60px; background: var(--surface); border: var(--border); border-radius: var(--radius-sm); }
+.mock__cards span:nth-child(2) { background: var(--bg-alt); }
+
+/* Egg/yolk brand accent floating over the window */
+.egg {
+  position: absolute; width: 92px; height: 92px; border-radius: 50%;
+  background: var(--surface); border: var(--border-3); box-shadow: var(--shadow);
+  display: grid; place-items: center; z-index: 2;
+}
+.egg::after {
+  content: ""; width: 42px; height: 42px; border-radius: 50%;
+  background: var(--primary); border: var(--border);
+}
+.egg--float { top: -34px; right: -18px; animation: eggbob 5s ease-in-out infinite; }
+@keyframes eggbob { 0%,100% { transform: translateY(0) rotate(4deg); } 50% { transform: translateY(-10px) rotate(-3deg); } }
+@media (prefers-reduced-motion: reduce) { .egg--float { animation: none; } }
+@media (max-width: 900px) {
+  .hero__object { margin-top: var(--s-8); }
+  .browser { transform: none; }
+  .egg--float { top: -28px; right: 8px; width: 72px; height: 72px; }
+}

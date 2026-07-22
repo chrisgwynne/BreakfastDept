@@ -20,12 +20,33 @@
           <a class="btn btn--ghost btn--lg" href="<?= esc($page->hero_secondary_link()->or(url('work'))) ?>"><?= esc($page->hero_secondary_label()) ?></a>
         <?php endif ?>
       </div>
-      <?php if ($page->hero_availability()->isNotEmpty()): ?>
+      <?php if ($site->availability_enabled()->toBool(false) && $page->hero_availability()->isNotEmpty()): ?>
         <p class="hero__availability eyebrow"><span class="eyebrow__dot" aria-hidden="true"></span> <?= esc($page->hero_availability()) ?></p>
       <?php endif ?>
     </div>
     <?php if ($img = $page->hero_image()->toFile()): ?>
       <div class="hero__media"><?= $img->crop(760, 620)->html(['alt' => esc($img->alt()->or($page->hero_headline())), 'fetchpriority' => 'high']) ?></div>
+    <?php else: ?>
+      <?php /* No hero image: a brand object built in CSS — the "good website" Breakfast makes, in a browser window. Decorative. */ ?>
+      <div class="hero__object" aria-hidden="true">
+        <div class="egg egg--float"></div>
+        <div class="browser">
+          <div class="browser__bar">
+            <span class="browser__dots"><i></i><i></i><i></i></span>
+            <span class="browser__url">yourbusiness<b>.cymru</b></span>
+          </div>
+          <div class="browser__screen">
+            <div class="mock__nav"><span class="mock__logo"></span><span class="mock__menu"><i></i><i></i><i></i></span></div>
+            <div class="mock__hero">
+              <span class="mock__eyebrow"></span>
+              <span class="mock__line mock__line--xl"></span>
+              <span class="mock__line mock__line--lg"></span>
+              <span class="mock__btn"></span>
+            </div>
+            <div class="mock__cards"><span></span><span></span><span></span></div>
+          </div>
+        </div>
+      </div>
     <?php endif ?>
   </div>
 </section>
