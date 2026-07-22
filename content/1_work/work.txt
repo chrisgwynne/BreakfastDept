@@ -14,8 +14,8 @@ Uuid: work
 
 ----
 
-Seo_title: Web Design Work & Concepts
+Seo_title: Web Design Work in North Wales — Concepts & Approach
 
 ----
 
-Meta_description: Concept pieces showing how I'd approach websites for different kinds of local business in Wales — honest examples of the work and the thinking behind it.
+Meta_description: See how I approach websites for local businesses in North Wales and across Wales — concept pieces and the thinking behind them.

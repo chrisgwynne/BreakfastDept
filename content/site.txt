@@ -67,6 +67,9 @@ Footer_nav:
   label: Services
   link: /services
 -
+  label: Get a website review
+  link: /website-review
+-
   label: About
   link: /about
 -
@@ -109,7 +112,7 @@ Cta_secondary_link: /contact
 
 ----
 
-Meta_description: Independent web design in Wales. I design and build fresh, professional websites for local businesses that have outgrown the one they've got.
+Meta_description: Independent web designer in North Wales. I design and build fresh, professional websites for local businesses across North Wales and the rest of Wales.
 
 ----
 
@@ -145,7 +148,7 @@ Base_town:
 
 ----
 
-County:
+County: North Wales
 
 ----
 
@@ -153,19 +156,19 @@ Country: Wales
 
 ----
 
-Geo_wording:
+Geo_wording: Based in North Wales, working with businesses across Wales
 
 ----
 
-Areas_served:
+Areas_served: North Wales, Wrexham, Rhyl, Colwyn Bay, Llandudno, Conwy, Bangor, Denbigh, Mold, Flintshire, Anglesey
 
 ----
 
-Service_radius:
+Service_radius: North Wales and across Wales
 
 ----
 
-Remote_wording: Happy to work with businesses further afield, too.
+Remote_wording: Happy to work with businesses further afield across Wales and the UK, too.
 
 ----
 
@@ -186,3 +189,7 @@ Longitude:
 ----
 
 Availability_enabled: false
+
+----
+
+Review_mode: informal

@@ -122,6 +122,19 @@ tabs:
         type: toggle
         default: false
         help: Off by default. Turn on only when the availability text is genuinely true right now.
+      reviewheadline:
+        type: headline
+        label: Website review
+      review_mode:
+        label: Website review mode
+        type: select
+        default: informal
+        help: What the "Get a website review" page offers. Never promises a free audit unless you choose "Free short review".
+        options:
+          disabled: Disabled — hide the form, point to Contact
+          informal: Informal first look (no charge, no promise)
+          free: Free short review
+          paid: Paid in-depth audit
 
   contact:
     label: Contact

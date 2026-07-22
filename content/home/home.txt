@@ -2,7 +2,7 @@ Title: Home
 
 ----
 
-Hero_eyebrow: Web design in Wales
+Hero_eyebrow: Web design in North Wales
 
 ----
 
@@ -14,7 +14,7 @@ Hero_highlight: Has your website?
 
 ----
 
-Hero_text: I design and build fresh, professional websites for local businesses across Wales — the kind that finally match how good the business already is. First website or a long-overdue redesign, either way.
+Hero_text: I design and build fresh, professional websites for local businesses across North Wales and the rest of Wales — the kind that finally match how good the business already is. First website or a long-overdue redesign, either way.
 
 ----
 
@@ -54,7 +54,7 @@ Proposition_points:
 
 -
   title: What I do
-  text: Design and build clear, fast websites for local and independent businesses — usually a first site or a long-overdue rebuild.
+  text: Web design and build for local and independent businesses across North Wales — clear, fast sites, usually a first one or a long-overdue rebuild.
 -
   title: Who it's for
   text: Independents tired of explaining their own website over the phone. Cafés, trades, shops, makers, professional services.
@@ -198,8 +198,8 @@ Uuid: home
 
 ----
 
-Seo_title: Web Design in Wales for Local Businesses | Breakfast
+Seo_title: Web Design in North Wales | Websites for Local Businesses | Breakfast
 
 ----
 
-Meta_description: Independent web design in Wales. I design and build fresh, professional websites for local businesses — first sites and long-overdue redesigns.
+Meta_description: Web designer in North Wales. I design and build fresh, professional websites for local businesses across North Wales and Wales — first sites and long-overdue redesigns.

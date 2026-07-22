@@ -88,8 +88,8 @@ Uuid: start-project
 
 ----
 
-Seo_title: Start a Project
+Seo_title: Start a Web Design Project — North Wales
 
 ----
 
-Meta_description: Start a website project. Tell me about your business and what you need, and I'll come back with an honest next step.
+Meta_description: Start a website project with a North Wales web designer. Tell me about your business and I'll come back with an honest next step.

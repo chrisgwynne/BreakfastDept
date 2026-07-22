@@ -477,3 +477,8 @@ details[open] .faq__q::after { content: "–"; }
   .browser { transform: none; }
   .egg--float { top: -28px; right: 8px; width: 72px; height: 72px; }
 }
+
+/* Two-column form rows (collapse on mobile) + accent card. */
+.form__row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-4); }
+@media (max-width: 640px) { .form__row { grid-template-columns: 1fr; } }
+.card--accent { background: var(--bg-alt); border: var(--border); border-radius: var(--radius); padding: var(--s-6); box-shadow: var(--shadow-sm); }

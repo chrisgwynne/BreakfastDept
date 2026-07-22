@@ -11,7 +11,14 @@
         <div class="card" style="margin-top:var(--s-8)">
           <?php if ($site->email()->isNotEmpty()): ?><p><strong><?= esc(t('breakfast.email', 'Email')) ?>:</strong> <a href="mailto:<?= esc($site->email()) ?>"><?= esc($site->email()) ?></a></p><?php endif ?>
           <?php if ($site->phone()->isNotEmpty()): ?><p><strong><?= esc(t('breakfast.phone', 'Phone')) ?>:</strong> <a href="tel:<?= esc(preg_replace('/\s+/', '', $site->phone()->value())) ?>"><?= esc($site->phone()) ?></a></p><?php endif ?>
-          <?php if ($site->availability_text()->isNotEmpty()): ?><p><?= esc($site->availability_text()) ?></p><?php endif ?>
+          <?php if ($site->availability_enabled()->toBool(false) && $site->availability_text()->isNotEmpty()): ?><p><?= esc($site->availability_text()) ?></p><?php endif ?>
+          <?php
+            $geoLine = $site->geo_wording()->or('Based in ' . $site->county()->or($site->country())->value());
+          ?>
+          <?php if ($site->areas_served()->isNotEmpty()): ?>
+            <p style="margin-top:var(--s-4)"><strong><?= esc($geoLine) ?>.</strong><br>
+            <span class="muted">Working with businesses across <?= esc($site->areas_served()->value()) ?>.</span></p>
+          <?php endif ?>
         </div>
       </div>
       <div>

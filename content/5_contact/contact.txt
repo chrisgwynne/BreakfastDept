@@ -64,8 +64,8 @@ Uuid: contact
 
 ----
 
-Seo_title: Contact
+Seo_title: Contact a Web Designer in North Wales
 
 ----
 
-Meta_description: Tell me about your website. Independent web design in Wales — I'll come back with an honest view on whether I'm the right fit.
+Meta_description: Tell me about your website. Independent web design in North Wales — I'll come back with an honest view on whether I'm the right fit.
