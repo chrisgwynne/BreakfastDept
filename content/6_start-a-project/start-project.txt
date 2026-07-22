@@ -85,3 +85,11 @@ Form_services_help: A new website, a single page, an online shop, a rescue of wh
 ----
 
 Uuid: start-project
+
+----
+
+Seo_title: Start a Project
+
+----
+
+Meta_description: Start a website project. Tell me about your business and what you need, and I'll come back with an honest next step.

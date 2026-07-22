@@ -195,3 +195,11 @@ Final_cta_text: Tell me a bit about your business and what you're hoping to achi
 ----
 
 Uuid: home
+
+----
+
+Seo_title: Web Design in Wales for Local Businesses | Breakfast
+
+----
+
+Meta_description: Independent web design in Wales. I design and build fresh, professional websites for local businesses — first sites and long-overdue redesigns.

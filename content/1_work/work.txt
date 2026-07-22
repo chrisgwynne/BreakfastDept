@@ -11,3 +11,11 @@ Filters_enabled: true
 ----
 
 Uuid: work
+
+----
+
+Seo_title: Web Design Work & Concepts
+
+----
+
+Meta_description: Concept pieces showing how I'd approach websites for different kinds of local business in Wales — honest examples of the work and the thinking behind it.

@@ -61,3 +61,11 @@ Form_error_message: Hmm, that didn't send. Please try again, or email us directl
 ----
 
 Uuid: contact
+
+----
+
+Seo_title: Contact
+
+----
+
+Meta_description: Tell me about your website. Independent web design in Wales — I'll come back with an honest view on whether I'm the right fit.

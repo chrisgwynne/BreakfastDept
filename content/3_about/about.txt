@@ -72,3 +72,11 @@ Testimonials:
 ----
 
 Uuid: about
+
+----
+
+Seo_title: About — Independent Web Design in Wales
+
+----
+
+Meta_description: It's just me: an independent web designer in Wales, building honest, effective websites for local businesses. You deal with the person doing the work.
