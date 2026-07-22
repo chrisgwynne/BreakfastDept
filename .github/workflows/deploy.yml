@@ -1,0 +1,95 @@
+name: Deploy (FTP)
+
+# Builds a ready-to-serve copy of the site and uploads it to the host over FTP.
+# Composer runs HERE, in CI — never on your machine or the server. You never run
+# Composer; you just push.
+#
+# One-time setup (repository → Settings → Secrets and variables → Actions):
+#   Secrets:  FTP_SERVER      your host, e.g. ftp.example.com
+#             FTP_USERNAME    the FTP user
+#             FTP_PASSWORD    the FTP password
+#   Variables (optional):
+#             FTP_SERVER_DIR  remote web root, must end in /  (default: ./ )
+#                             e.g. public_html/  or  /  depending on the host
+#             FTP_PROTOCOL    ftps (default) | ftp | ftps-legacy
+#
+# The host must also have, ONE TIME (they persist across deploys and are never
+# touched by this workflow): a `.env` file in the web root, and the queue cron
+# (see docs/deployment.md). The database schema applies itself from that cron.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+# Never let two deploys race; cancel an in-flight one if a newer push lands.
+concurrency:
+  group: ftp-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build and upload
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check FTP secrets are configured
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+        run: |
+          if [ -z "$FTP_SERVER" ]; then
+            echo "::error::FTP secrets are not set. Add FTP_SERVER, FTP_USERNAME and FTP_PASSWORD under Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - name: Set up PHP + Composer
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: pdo_sqlite, curl, mbstring, dom, gd, intl, fileinfo, zip
+          tools: composer:v2
+          coverage: none
+
+      - name: Install production dependencies (no dev)
+        run: composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
+
+      - name: Assemble the web-root tree
+        run: |
+          set -euo pipefail
+          rm -rf dist
+          mkdir -p dist
+          # Flat front controller + hardening (web root IS the upload target).
+          cp deploy/webroot/index.php   dist/index.php
+          cp deploy/webroot/.htaccess   dist/.htaccess
+          # Public static assets (served directly).
+          cp -R public/assets           dist/assets
+          # Application code + content + dependencies + CLI (for the host cron).
+          cp -R site                    dist/site
+          cp -R content                 dist/content
+          cp -R vendor                  dist/vendor
+          cp -R bin                     dist/bin
+          # Strip anything that must never ship or be web-served.
+          rm -rf dist/site/sessions dist/site/accounts dist/site/cache
+          find dist -type d -name '.git' -prune -exec rm -rf {} +
+          echo "Assembled dist/ ($(du -sh dist | cut -f1)):"
+          ls -la dist
+
+      - name: Upload to host over FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ${{ vars.FTP_PROTOCOL || 'ftps' }}
+          local-dir: ./dist/
+          server-dir: ${{ vars.FTP_SERVER_DIR || './' }}
+          # Never create, overwrite or DELETE the host's runtime state:
+          # secrets, the database, uploads, Panel accounts, sessions/cache/logs
+          # and Kirby's generated media all live under these and are left alone.
+          exclude: |
+            **/.git*
+            **/.git*/**
+            .env
+            storage/**
+            media/**
