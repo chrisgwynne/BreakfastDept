@@ -9,8 +9,11 @@ name: Deploy (FTP)
 #             FTP_USERNAME    the FTP user
 #             FTP_PASSWORD    the FTP password
 #   Variables (optional):
-#             FTP_SERVER_DIR  remote web root, must end in /  (default: ./ )
-#                             e.g. public_html/  or  /  depending on the host
+#             FTP_SERVER_DIR  remote web root, must end in /  (default: public_html/ )
+#                             Most cPanel/shared hosts log FTP in ABOVE the web
+#                             root, so files must go into public_html/. Set this
+#                             to ./ or / only if your FTP login lands you
+#                             directly inside the web root.
 #             FTP_PROTOCOL    ftps (default) | ftp | ftps-legacy
 #
 # The host must also have, ONE TIME (they persist across deploys and are never
@@ -83,7 +86,7 @@ jobs:
           password: ${{ secrets.FTP_PASSWORD }}
           protocol: ${{ vars.FTP_PROTOCOL || 'ftps' }}
           local-dir: ./dist/
-          server-dir: ${{ vars.FTP_SERVER_DIR || './' }}
+          server-dir: ${{ vars.FTP_SERVER_DIR || 'public_html/' }}
           # Never create, overwrite or DELETE the host's runtime state:
           # secrets, the database, uploads, Panel accounts, sessions/cache/logs
           # and Kirby's generated media all live under these and are left alone.
