@@ -2,7 +2,11 @@ Title: Brightside — an electrician who wanted the phone to ring for the right 
 
 ----
 
-Client: Brightside Electrical
+Client: Electrician
+
+----
+
+Project_status: concept
 
 ----
 
@@ -36,33 +40,17 @@ Outcome: The enquiries that come through now tend to be the right shape — the 
 
 Metrics:
 
--
-  value: Right jobs
-  label: better-matched enquiries
-  context: Being specific about services and area filters out mismatches
-  note:
--
-  value: Clear
-  label: coverage area
-  context: Visitors can tell at a glance if they're in the patch
-  note:
--
-  value: Straight to inbox
-  label: quote requests
-  context: Enquiries land in email and a simple CRM
-  note:
+----
+
+Testimonial_quote:
 
 ----
 
-Testimonial_quote: For the first time the phone rings because people found us and liked what they saw, not because they gave up and called to check.
+Testimonial_name:
 
 ----
 
-Testimonial_name: Placeholder client
-
-----
-
-Testimonial_role: Director, illustrative electrical firm
+Testimonial_role:
 
 ----
 

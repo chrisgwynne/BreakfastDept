@@ -395,3 +395,24 @@ details[open] .faq__q::after { content: "–"; }
   * { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important; }
   .js .reveal { opacity: 1; transform: none; }
 }
+
+/* Concept-work labelling (honest: never presented as client work). */
+.pcard__media { position: relative; }
+.pcard__badge {
+  position: absolute;
+  top: var(--s-3);
+  left: var(--s-3);
+  z-index: 1;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: var(--primary);
+  color: var(--text);
+  border: var(--border);
+  border-radius: var(--radius-pill);
+  padding: 4px 12px;
+  box-shadow: var(--shadow-sm);
+}
+.tag--concept { background: var(--bg-alt); }

@@ -2,7 +2,11 @@ Title: Studio Bloom — a maker who wanted a shop, not a full-time job running o
 
 ----
 
-Client: Studio Bloom
+Client: Ceramics studio
+
+----
+
+Project_status: concept
 
 ----
 
@@ -36,33 +40,17 @@ Outcome: Studio Bloom now sells directly, keeps the customer relationship, and i
 
 Metrics:
 
--
-  value: Her own
-  label: customer relationship
-  context: Sales direct rather than through a marketplace middleman
-  note:
--
-  value: Five minutes
-  label: to restock
-  context: Adding a new batch fits between kiln loads
-  note:
--
-  value: No cut
-  label: taken by a marketplace
-  context: She keeps the margin she used to give away
-  note:
+----
+
+Testimonial_quote:
 
 ----
 
-Testimonial_quote: I was scared a website would become a second job. It didn't. I sell my own work now, and restocking takes five minutes.
+Testimonial_name:
 
 ----
 
-Testimonial_name: Placeholder client
-
-----
-
-Testimonial_role: Maker, illustrative ceramics studio
+Testimonial_role:
 
 ----
 

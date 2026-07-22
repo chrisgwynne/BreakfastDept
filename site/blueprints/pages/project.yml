@@ -17,10 +17,23 @@ tabs:
         required: true
         maxlength: 80
         counter: true
+      project_status:
+        label: Project status
+        type: select
+        required: true
+        default: concept
+        width: 1/2
+        help: Rendered honestly on the public page. Only "Real client work" is presented as a client with a name and testimonial.
+        options:
+          real: Real client work
+          concept: Concept project
+          internal: Internal project
+          draft: Draft (unpublished)
       client:
-        label: Client
+        label: Client / subject
         type: text
         width: 1/2
+        help: For concept work, describe the business type (e.g. "Italian restaurant") — not a real client name.
       summary:
         label: Summary
         type: textarea
