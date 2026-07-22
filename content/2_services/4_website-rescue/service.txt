@@ -6,13 +6,13 @@ Short_name: Website rescue
 
 ----
 
-Summary: Sometimes you don't need a new site, you need someone to fix the one you've got. We diagnose what's actually wrong and sort it, without talking you into a full rebuild you don't need.
+Summary: Sometimes you don't need a new site, you need someone to fix the one you've got. I diagnose what's actually wrong and sort it, without talking you into a full rebuild you don't need.
 
 ----
 
 Introduction:
 
-[{"id":"r1a2","type":"text","content":{"text":"<p>Plenty of sites don't need replacing — they need rescuing. Maybe it's slow, or broken on phones, or the person who built it has vanished, or you can no longer log in to change your own opening hours. We can usually help.</p>"}},{"id":"r2b3","type":"text","content":{"text":"<p>We start by finding out what's genuinely wrong, then tell you the truth: whether a few targeted fixes will do it, or whether you'd honestly be better off starting fresh. We'd rather lose the bigger job than sell you one you don't need.</p>"}}]
+[{"id":"r1a2","type":"text","content":{"text":"<p>Plenty of sites don't need replacing — they need rescuing. Maybe it's slow, or broken on phones, or the person who built it has vanished, or you can no longer log in to change your own opening hours. I can usually help.</p>"}},{"id":"r2b3","type":"text","content":{"text":"<p>I start by finding out what's genuinely wrong, then tell you the truth: whether a few targeted fixes will do it, or whether you'd honestly be better off starting fresh. I'd rather lose the bigger job than sell you one you don't need.</p>"}}]
 
 ----
 
@@ -48,21 +48,21 @@ Process:
 
 -
   title: Diagnose properly
-  text: We audit the site the way a visitor and a search engine actually experience it, and find the real problems.
+  text: I audit the site the way a visitor and a search engine actually experience it, and find the real problems.
 -
   title: Tell you the truth
   text: A short, jargon-free report on what's wrong and what's worth fixing — including if the answer is "not much".
 -
   title: Fix what matters
-  text: We do the work that'll make a real difference, and skip the busywork that won't.
+  text: I do the work that'll make a real difference, and skip the busywork that won't.
 
 ----
 
-Pricing_guidance: We usually start with a fixed-price audit so you know what you're getting into for a small, known amount. Any fixes after that are scoped and quoted separately, so you're never signing a blank cheque. If the honest answer is that a rebuild would cost less than endless patching, we'll say so.
+Pricing_guidance: I usually start with a fixed-price audit so you know what you're getting into for a small, known amount. Any fixes after that are scoped and quoted separately, so you're never signing a blank cheque. If the honest answer is that a rebuild would cost less than endless patching, I'll say so.
 
 ----
 
-Timescale: The audit is quick — usually within a week or two. How long fixes take depends entirely on what we find.
+Timescale: The audit is quick — usually within a week or two. How long fixes take depends entirely on what I find.
 
 ----
 
@@ -70,10 +70,10 @@ Faqs:
 
 -
   question: What if you find it needs a full rebuild?
-  answer: We'll tell you plainly, and why. You're free to walk away with the audit and no obligation to have us do the rebuild.
+  answer: I'll tell you plainly, and why. You're free to walk away with the audit and no obligation to have me do the rebuild.
 -
   question: I've lost access to my own site — can you help?
-  answer: Often, yes. Regaining control of your domain and hosting is one of the most common rescues we do.
+  answer: Often, yes. Regaining control of your domain and hosting is one of the most common rescues I do.
 
 ----
 
@@ -81,7 +81,7 @@ Cta_heading: Got a site that's letting you down?
 
 ----
 
-Cta_text: Send us the address and a line about what's bugging you. We'll take a look and tell you honestly whether it's worth rescuing.
+Cta_text: Send me the address and a line about what's bugging you. I'll take a look and tell you honestly whether it's worth rescuing.
 
 ----
 

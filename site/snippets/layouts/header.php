@@ -51,9 +51,12 @@ if ($page->isHomePage() === false) {
   <meta property="og:description" content="<?= esc($page->content()->get('social_description')->or($meta->description())) ?>">
   <meta property="og:url" content="<?= esc($page->url()) ?>">
   <meta property="og:site_name" content="<?= esc($site->title()) ?>">
+  <meta name="twitter:title" content="<?= esc($page->content()->get('social_title')->or($meta->title())) ?>">
+  <meta name="twitter:description" content="<?= esc($page->content()->get('social_description')->or($meta->description())) ?>">
   <?php if ($ogImage): ?>
   <meta property="og:image" content="<?= esc($ogImage) ?>">
   <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="<?= esc($ogImage) ?>">
   <?php else: ?>
   <meta name="twitter:card" content="summary">
   <?php endif ?>
@@ -62,7 +65,8 @@ if ($page->isHomePage() === false) {
   <link rel="alternate" type="application/rss+xml" title="<?= esc($site->title()) ?> — Journal" href="<?= esc($site->url()) ?>/journal/feed.rss">
   <link rel="stylesheet" href="<?= esc(url('assets/css/app.css')) ?>?v=<?= $assetVer ?>">
 
-  <?= StructuredData::toScript($structured->organisation()) ?>
+  <?= StructuredData::toScript($structured->business()) ?>
+  <?= StructuredData::toScript($structured->website()) ?>
   <?php if (count($crumbs) > 1): ?>
   <?= StructuredData::toScript($structured->breadcrumbs($crumbs)) ?>
   <?php endif ?>

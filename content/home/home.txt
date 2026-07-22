@@ -2,23 +2,23 @@ Title: Home
 
 ----
 
-Hero_eyebrow: A small web design studio
+Hero_eyebrow: Web design in North Wales
 
 ----
 
-Hero_headline: Websites you'll be proud to
+Hero_headline: Your business has moved on.
 
 ----
 
-Hero_highlight: send people to.
+Hero_highlight: Has your website?
 
 ----
 
-Hero_text: We design and build websites for businesses that want to look more professional, communicate more clearly, and make a stronger first impression — whether it's your first site or a long-overdue redesign.
+Hero_text: I design and build fresh, professional websites for local businesses across North Wales and the rest of Wales — the kind that finally match how good the business already is. First website or a long-overdue redesign, either way.
 
 ----
 
-Hero_primary_label: Start a project
+Hero_primary_label: Tell me about your website
 
 ----
 
@@ -34,7 +34,7 @@ Hero_secondary_link: /work
 
 ----
 
-Hero_availability: Taking on a small number of projects this quarter.
+Hero_availability: Booking new projects for the coming months.
 
 ----
 
@@ -42,25 +42,25 @@ Proposition_enabled: true
 
 ----
 
-Proposition_heading: We spend more time on words than colours.
+Proposition_heading: I spend more time on words than colours.
 
 ----
 
-Proposition_text: If somebody lands on your website and still can't tell what you do, the design has failed — however nice it looks. So we start with what you sell and who buys it, then design around that.
+Proposition_text: If someone lands on your website and still can't tell what you do, the design has failed — however nice it looks. So I start with what you sell and who buys it, then design around that.
 
 ----
 
 Proposition_points:
 
 -
-  title: What we do
-  text: Design and build clear, fast websites for small and independent businesses — usually a first site or a long-overdue rebuild.
+  title: What I do
+  text: Web design and build for local and independent businesses across North Wales — clear, fast sites, usually a first one or a long-overdue rebuild.
 -
   title: Who it's for
-  text: Independents tired of explaining their own website over the phone. Restaurants, trades, makers, shops.
+  text: Independents tired of explaining their own website over the phone. Cafés, trades, shops, makers, professional services.
 -
   title: What's different
-  text: You talk to the people doing the work, and we care whether a real customer can actually use the thing.
+  text: You deal with me directly, and I care whether a real customer can actually use the thing on their phone.
 
 ----
 
@@ -68,11 +68,11 @@ Work_enabled: true
 
 ----
 
-Work_heading: Why people come to Breakfast.
+Work_heading: The kind of work I do.
 
 ----
 
-Work_intro: Some need their first website. Some need a better one. Some have simply outgrown what they've got. Here are a few of the businesses we've helped along the way.
+Work_intro: Every business is a little different. Here's how I'd approach a few common ones — shown as concept pieces while I build up a portfolio of client sites.
 
 ----
 
@@ -88,7 +88,7 @@ Services_heading: What's on the menu.
 
 ----
 
-Services_intro: Most people start by sending a few lines about what they need, and we figure out the rest together. Sometimes the answer is "less than you think".
+Services_intro: Most people start by sending a few lines about what they need, and we work out the rest together. Sometimes the answer is "less than you think".
 
 ----
 
@@ -110,10 +110,10 @@ Problems_items:
   text: A booking button below three folds of text may as well not exist.
 -
   title: It falls apart on a phone
-  text: Most people will see your site on a phone at a bus stop. If it's awkward there, it's not working.
+  text: Most people will see your site on a phone. If it's awkward there, it's not working.
 -
   title: It doesn't sound like you
-  text: Brochure language makes a real business feel like a template. Words are the fix.
+  text: Brochure language makes a real business feel like a template. The words are the fix.
 
 ----
 
@@ -121,70 +121,40 @@ Process_enabled: true
 
 ----
 
-Process_heading: Four steps. No drama.
+Process_heading: How a project actually goes.
 
 ----
 
 Process_steps:
 
 -
-  title: We ask annoying questions
-  text: What do you actually sell, who buys it, and why. The least glamorous part of the job and easily the most important.
+  title: We have a proper chat
+  text: What you actually sell, who buys it, and why. The least glamorous part of the job and easily the most important.
 -
-  title: We decide what goes where
-  text: We plan the page around the one thing a visitor needs to do. Everything that doesn't help that gets cut.
+  title: I decide what goes where
+  text: I plan the site around the one thing a visitor needs to do. Everything that doesn't help that gets cut.
 -
-  title: We write it, then build it
+  title: I write it, then build it
   text: Words first, design around them. Fast, clear, and it works properly on a phone.
 -
-  title: We don't disappear
-  text: We launch, watch what people actually do, and fix what's confusing. Launch is the start, not the end.
+  title: I don't disappear
+  text: I launch, watch what people actually do, and fix what's confusing. Launch is the start, not the end.
 
 ----
 
-Proof_enabled: true
+Proof_enabled: false
 
 ----
 
-Proof_heading: A few of the businesses we've helped explain themselves.
+Proof_heading:
 
 ----
 
 Testimonials:
 
--
-  quote: The food was never the problem. The website was. Now the bookings come through the site instead of our DMs.
-  name: Placeholder client
-  role: Owner
-  company: Example restaurant
--
-  quote: For the first time the phone rings because people found us, not because they gave up and called.
-  name: Placeholder client
-  role: Director
-  company: Example trade business
-
 ----
 
 Logos:
-
--
-  name: Passo
-  category: Restaurant
--
-  name: Brightside
-  category: Electrician
--
-  name: Foundry
-  category: Coffee
--
-  name: Studio Bloom
-  category: Handmade
--
-  name: NorthPeak
-  category: Joinery
--
-  name: Harbour & Co
-  category: Florist
 
 ----
 
@@ -192,11 +162,11 @@ Statement_enabled: true
 
 ----
 
-Statement_heading: A studio, not a factory
+Statement_heading: You deal with me. That's the point.
 
 ----
 
-Statement_text: You talk to the people doing the work. No account managers, no handoffs, nothing lost in translation. The person you brief is the person building the thing — and we're still around after launch.
+Statement_text: No account managers, no sales handoff, nothing lost in translation. The person you talk to is the person designing and building your site — and I'm still around after it launches.
 
 ----
 
@@ -216,12 +186,20 @@ Final_cta_enabled: true
 
 ----
 
-Final_cta_heading: Thinking about a new website?
+Final_cta_heading: Is your website still doing your business justice?
 
 ----
 
-Final_cta_text: Tell us a little about your business and what you're hoping to achieve. We'll come back with an honest view on whether we're the right fit.
+Final_cta_text: Tell me a bit about your business and what you're hoping to achieve. I'll come back with an honest view on whether I'm the right fit.
 
 ----
 
 Uuid: home
+
+----
+
+Seo_title: Web Design in North Wales | Websites for Local Businesses | Breakfast
+
+----
+
+Meta_description: Web designer in North Wales. I design and build fresh, professional websites for local businesses across North Wales and Wales — first sites and long-overdue redesigns.

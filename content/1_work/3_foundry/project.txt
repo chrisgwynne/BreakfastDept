@@ -2,7 +2,11 @@ Title: Foundry — a coffee roaster whose website finally tasted like the coffee
 
 ----
 
-Client: Foundry Coffee Roasters
+Client: Coffee roaster
+
+----
+
+Project_status: concept
 
 ----
 
@@ -36,33 +40,17 @@ Outcome: The subscription is front and centre where it belongs, wholesale enquir
 
 Metrics:
 
--
-  value: Front and centre
-  label: subscription visibility
-  context: Moved from three clicks deep to the homepage hero
-  note:
--
-  value: Clearer
-  label: wholesale enquiries
-  context: A dedicated page that qualifies leads before they land
-  note:
--
-  value: Self-managed
-  label: shop updates
-  context: New coffees added by the roastery, not by us
-  note:
+----
+
+Testimonial_quote:
 
 ----
 
-Testimonial_quote: It finally reads like us. People find the coffee they want without hunting, and the subscription isn't a secret any more.
+Testimonial_name:
 
 ----
 
-Testimonial_name: Placeholder client
-
-----
-
-Testimonial_role: Founder, illustrative coffee roastery
+Testimonial_role:
 
 ----
 

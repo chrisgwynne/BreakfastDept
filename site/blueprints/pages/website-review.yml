@@ -1,0 +1,86 @@
+##
+# Website review — a lead-magnet page. All labels are editable; the offer type
+# is controlled by the site-level "Website review mode" setting.
+##
+title: Website review
+icon: search
+num: 0
+
+tabs:
+  content:
+    label: Content
+    icon: text
+    fields:
+      kicker:
+        label: Kicker
+        type: text
+      title:
+        label: Title
+        type: text
+        required: true
+      intro:
+        label: Intro
+        type: blocks
+        extends: fields/bodyblocks
+      closed_message:
+        label: "Closed message (shown when review mode is Disabled)"
+        type: textarea
+        buttons: false
+
+  form:
+    label: Form copy
+    icon: pencil
+    fields:
+      formhelp:
+        type: info
+        text: Labels for the review form. Leave blank to use sensible defaults.
+      form_name_label:
+        label: Name label
+        type: text
+        width: 1/2
+      form_email_label:
+        label: Email label
+        type: text
+        width: 1/2
+      form_business_label:
+        label: Business-name label
+        type: text
+        width: 1/2
+      form_location_label:
+        label: Location label
+        type: text
+        width: 1/2
+      form_website_label:
+        label: Current-website label
+        type: text
+        width: 1/2
+      form_phone_label:
+        label: Phone label
+        type: text
+        width: 1/2
+      form_issues_label:
+        label: "\"What's wrong\" label"
+        type: text
+      form_issues_placeholder:
+        label: "\"What's wrong\" placeholder"
+        type: text
+      form_submit_label:
+        label: Submit button label
+        type: text
+        width: 1/2
+      form_error_message:
+        label: General error message
+        type: text
+        width: 1/2
+      form_consent_text:
+        label: Consent checkbox text
+        type: textarea
+        buttons: false
+        help: Leave blank to omit the consent checkbox. Do not pre-tick or imply marketing consent.
+
+  seo:
+    label: SEO & sharing
+    icon: search
+    fields:
+      seo:
+        extends: fields/seogroup

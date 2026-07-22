@@ -488,6 +488,22 @@ switch ($command) {
         require $base . '/site/plugins/breakfast-platform/checks/app_check.php';
         break;
 
+    case 'content:audit':
+        // Audit public content for placeholder text, false claims, structural
+        // gaps and unconfigured business details. `--strict` fails on errors
+        // (a release gate); warnings never fail. See docs/testing.md.
+        $audit    = new \Breakfast\Platform\Support\ContentAudit($kirby);
+        $findings = $audit->run();
+        foreach ($findings as $f) {
+            out(sprintf('[%s] %s — %s', $f['severity'] === 'error' ? 'ERROR' : 'warn', $f['where'], $f['message']));
+        }
+        $counts = $audit->counts();
+        out(sprintf('%d error(s), %d warning(s).', $counts['errors'], $counts['warnings']));
+        if (isset($flags['strict']) && $audit->hasErrors()) {
+            fail('content:audit --strict: placeholder or structural errors present.');
+        }
+        break;
+
     case 'hermes:keys':
     case 'hermes:keys:create':
         $id       = $args[0] ?? fail('Usage: hermes:keys <id> <comma,scopes>');

@@ -2,11 +2,15 @@ Title: Passo — a neighbourhood Italian that stopped taking bookings in DMs
 
 ----
 
-Client: Passo
+Project_status: concept
 
 ----
 
-Summary: A small Italian restaurant in Manchester whose food was never the problem — the website was. We built a site where booking a table is the obvious next thing to do.
+Client: Italian restaurant
+
+----
+
+Summary: A concept for a neighbourhood Italian whose food was never the problem — the website was. It shows how I'd build a site where booking a table is the obvious next thing to do.
 
 ----
 
@@ -30,39 +34,23 @@ Build_explanation: A fast, static-feeling site with the booking widget embedded 
 
 ----
 
-Outcome: Bookings now happen on the site rather than in the DMs, so the front-of-house team isn't refereeing Instagram during service. New customers can see at a glance what Passo is, where it is, and how to get a table. The owner tells us the phone rings less — in a good way.
+Outcome: The site is built so bookings happen on the page rather than in the DMs, and a new customer can see at a glance what Passo is, where it is, and how to get a table — no scrolling required. That's the point of the concept: the good business was never in doubt, only the website.
 
 ----
 
 Metrics:
 
--
-  value: Fewer
-  label: bookings lost in DMs
-  context: Table requests now come through the site, not social messages
-  note:
--
-  value: One tap
-  label: to book on mobile
-  context: A sticky booking button that follows the page
-  note:
--
-  value: Self-serve
-  label: menu updates
-  context: The kitchen edits the menu without ringing us
-  note:
+----
+
+Testimonial_quote:
 
 ----
 
-Testimonial_quote: The food was never the problem — the website was. Now the bookings come through the site instead of our DMs, and we can actually get on with cooking.
+Testimonial_name:
 
 ----
 
-Testimonial_name: Placeholder client
-
-----
-
-Testimonial_role: Owner, illustrative Italian restaurant
+Testimonial_role:
 
 ----
 
@@ -70,7 +58,7 @@ Services:
 
 ----
 
-Industries: Restaurant, Manchester, Hospitality
+Industries: Restaurant, Hospitality
 
 ----
 
@@ -92,7 +80,7 @@ Date: 2025-11-01
 
 Body:
 
-[{"id":"a1f3","type":"text","content":{"text":"<p>Passo is illustrative of a very common situation: a business that's genuinely good at the thing it does, held back by a website that doesn't do it justice. Here's how the job actually went.</p>"}},{"id":"b2c4","type":"heading","content":{"level":"h2","text":"Words before colours"}},{"id":"c3d5","type":"text","content":{"text":"<p>We spent the first session not talking about design at all. What do you sell, who buys it, and why do they choose you over the place two doors down? Only once we had honest answers did we start planning the page.</p>"}},{"id":"d4e6","type":"heading","content":{"level":"h2","text":"One job per page"}},{"id":"e5f7","type":"text","content":{"text":"<p>The homepage has exactly one job: get someone to book a table. Everything else is in service of that, or it isn't on the page.</p>"}},{"id":"f6a8","type":"quote","content":{"text":"A booking button below three folds of text may as well not exist.","citation":"Something we say a lot"}}]
+[{"id":"a1f3","type":"text","content":{"text":"<p>Passo is a concept, but it's a very common situation: a business that's genuinely good at the thing it does, held back by a website that doesn't do it justice. Here's how I'd approach it.</p>"}},{"id":"b2c4","type":"heading","content":{"level":"h2","text":"Words before colours"}},{"id":"c3d5","type":"text","content":{"text":"<p>I'd spend the first session not talking about design at all. What do you sell, who buys it, and why do they choose you over the place two doors down? Only once there are honest answers would I start planning the page.</p>"}},{"id":"d4e6","type":"heading","content":{"level":"h2","text":"One job per page"}},{"id":"e5f7","type":"text","content":{"text":"<p>The homepage has exactly one job: get someone to book a table. Everything else is in service of that, or it isn't on the page.</p>"}},{"id":"f6a8","type":"quote","content":{"text":"A booking button below three folds of text may as well not exist.","citation":"Something I say a lot"}}]
 
 ----
 

@@ -68,9 +68,32 @@ final class FormDefinition
         );
     }
 
+    public static function websiteReview(): self
+    {
+        return new self(
+            'website-review',
+            [
+                'name'     => ['required' => true, 'max' => 120],
+                'email'    => ['required' => true, 'type' => 'email', 'max' => 254],
+                'company'  => ['max' => 160],
+                'website'  => ['type' => 'url', 'max' => 200],
+                'location' => ['max' => 120],
+                'issues'   => ['required' => true, 'min' => 10, 'max' => 5000],
+                'phone'    => ['type' => 'tel', 'max' => 30],
+                'consent'  => ['max' => 10],
+            ],
+            ['name', 'email', 'phone', 'company', 'website'],
+            ['website', 'location', 'issues']
+        );
+    }
+
     public static function for(string $type): self
     {
-        return $type === 'start-project' ? self::startProject() : self::contact();
+        return match ($type) {
+            'start-project'  => self::startProject(),
+            'website-review' => self::websiteReview(),
+            default          => self::contact(),
+        };
     }
 
     /** @return list<string> all known field names */

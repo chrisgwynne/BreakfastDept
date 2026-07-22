@@ -4,10 +4,12 @@
   <div class="container">
     <?php snippet('partials/breadcrumbs') ?>
 
+    <?php $isConcept = $page->project_status()->value() === 'concept'; ?>
     <header class="section__head" style="max-width:52rem">
-      <span class="kicker"><?= esc($page->client()) ?><?php if ($page->industries()->isNotEmpty()): ?> · <?= esc($page->industries()->split()[0] ?? '') ?><?php endif ?></span>
+      <span class="kicker"><?= $isConcept ? 'Concept · ' : '' ?><?= esc($page->client()) ?><?php if ($page->industries()->isNotEmpty()): ?> · <?= esc($page->industries()->split()[0] ?? '') ?><?php endif ?></span>
       <h1 class="section__title"><?= esc($page->title()) ?></h1>
       <?php if ($page->summary()->isNotEmpty()): ?><p class="section__lead"><?= esc($page->summary()) ?></p><?php endif ?>
+      <?php if ($isConcept): ?><p class="tag tag--concept">Concept website — a worked example, not a client project.</p><?php endif ?>
       <?php if ($page->confidential()->toBool(false)): ?><p class="tag"><?= esc(t('breakfast.confidential', 'Details anonymised at the client’s request')) ?></p><?php endif ?>
     </header>
 

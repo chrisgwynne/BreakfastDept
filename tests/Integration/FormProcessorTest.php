@@ -57,6 +57,39 @@ final class FormProcessorTest extends PlatformTestCase
         $this->assertSame(2, $p->queue()->pendingCount());
     }
 
+    public function testWebsiteReviewPersistsAsFlaggedLead(): void
+    {
+        $p = $this->platform;
+        $review = [
+            'name'     => 'Sam Owen',
+            'email'    => 'sam@example.co.uk',
+            'company'  => 'Owen Plumbing',
+            'website'  => 'https://old-owen-plumbing.example',
+            'location' => 'Rhyl',
+            'issues'   => 'It looks dated and I cannot book anything on a phone.',
+            'phone'    => '01745 000111',
+            'consent'  => '',
+        ];
+
+        $result = (new FormProcessor($p))->process(FormDefinition::websiteReview(), $review, $this->context());
+
+        $this->assertTrue($result->success);
+        $this->assertStringStartsWith('ENQ-', $result->reference);
+        $this->assertSame(1, $p->enquiries()->count());
+
+        // The enquiry is flagged by its form type, distinct from contact/project.
+        $enquiry = $p->enquiries()->search()[0];
+        $this->assertSame('website-review', $enquiry['form_type']);
+
+        // A CRM lead is created with the correct source and the site to review.
+        $contact = $p->contacts()->search()[0];
+        $this->assertSame('website-review-form', $contact['lead_source']);
+        $this->assertStringContainsString('old-owen-plumbing', (string) $contact['website']);
+
+        // Internal notification + acknowledgement queued, never sent inline.
+        $this->assertSame(2, $p->queue()->pendingCount());
+    }
+
     public function testCsrfFailureBlocksSubmission(): void
     {
         $p = $this->platform;
