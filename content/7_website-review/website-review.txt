@@ -1,0 +1,31 @@
+Title: Get a website review
+
+----
+
+Kicker: An honest second opinion
+
+----
+
+Intro:
+
+[{"id":"wr1","type":"text","content":{"text":"<p>Not sure whether your current website is doing you any favours? Send it over and I'll take a proper look.</p>"}},{"id":"wr2","type":"text","content":{"text":"<p>I'll go through it the way a real customer would — on a phone, in a hurry — and come back with a few honest thoughts on what's working, what isn't, and what I'd change first. No obligation, and no sales pitch.</p>"}}]
+
+----
+
+Form_consent_text: Email me the occasional note about web design. Optional — I'll reply about your review either way.
+
+----
+
+Closed_message: Website reviews aren't open right now. Drop me a line anyway and I'll take a look when I can.
+
+----
+
+Seo_title: Get a Website Review — North Wales Web Designer
+
+----
+
+Meta_description: Send me your current website and I'll take an honest look — what to fix first. Web design in North Wales and across Wales.
+
+----
+
+Uuid: website-review

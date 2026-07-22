@@ -149,7 +149,11 @@ final class FormProcessor
                 'company_uuid'      => $companyUuid,
                 'website'           => Sanitizer::text((string) ($input['website'] ?? ''), 200) ?: null,
                 'contact_type'      => 'lead',
-                'lead_source'       => $def->type === 'start-project' ? 'project-form' : 'contact-form',
+                'lead_source'       => match ($def->type) {
+                    'start-project'  => 'project-form',
+                    'website-review' => 'website-review-form',
+                    default          => 'contact-form',
+                },
                 'marketing_consent' => $consentGranted ? 'granted' : 'unknown',
                 'marketing_consent_at' => $consentGranted ? Clock::nowIso() : null,
                 'consent_source'    => $consentGranted ? $def->type . '-form' : null,
