@@ -37,11 +37,11 @@ return [
     // platform plugin, which makes the old `/panel` location return 404).
     'panel' => [
         'slug'    => $adminSlug,
-        // The Panel self-signup installer (create the first admin from the web)
-        // is on outside production. Set PANEL_INSTALL=true in the host .env to
-        // enable it in production JUST long enough to create your account, then
-        // set it back to false. It only ever appears while there are zero users.
-        'install' => Env::bool('PANEL_INSTALL', $isProduction === false),
+        // Panel self-signup installer. ON by default so the first admin can be
+        // created from the web with no config editing. It is self-securing:
+        // Kirby only shows it while there are ZERO users, so it closes itself the
+        // moment your account exists. Set PANEL_INSTALL=false to force it off.
+        'install' => Env::bool('PANEL_INSTALL', true),
         'css'     => '/assets/css/panel.css',
         // Branded dashboard is the first screen after login.
         'home'    => 'dashboard',
