@@ -57,6 +57,21 @@ jobs:
       - name: Install production dependencies (no dev)
         run: composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
 
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: admin/package-lock.json
+
+      - name: Build the standalone admin app
+        working-directory: admin
+        # Outputs to ../public/breakfast-admin (base=/breakfast-admin/). Types are
+        # checked in CI; here we just produce the bundle.
+        run: |
+          npm ci
+          npm run build:fast
+
       - name: Assemble the web-root tree
         run: |
           set -euo pipefail
@@ -67,6 +82,8 @@ jobs:
           cp deploy/webroot/.htaccess   dist/.htaccess
           # Public static assets (served directly).
           cp -R public/assets           dist/assets
+          # Standalone admin SPA bundle (built above; served at /breakfast-admin).
+          cp -R public/breakfast-admin  dist/breakfast-admin
           # Application code + content + dependencies + CLI (for the host cron).
           cp -R site                    dist/site
           cp -R content                 dist/content
