@@ -1,0 +1,101 @@
+/* ==========================================================================
+   Breakfast Admin — design tokens
+   A warm, editorial, luxurious light system. Deliberately NOT the public
+   site's neobrutalism and NOT Kirby Panel: soft layered elevation, hairline
+   warm borders, generous rhythm, a serif display face, restrained brand colour.
+   ========================================================================== */
+:root {
+  /* ---- Paper & surfaces (warm, light-first) ---- */
+  --paper: #f6f1e6;          /* app background */
+  --paper-2: #f1ead9;        /* recessed areas, rails */
+  --surface: #fffdf7;        /* cards, panels */
+  --surface-2: #fbf7ee;      /* subtle raised */
+  --surface-elevated: #ffffff;
+  --overlay: rgba(28, 26, 23, 0.42);
+
+  /* ---- Ink (warm near-black) ---- */
+  --ink: #1c1a17;
+  --ink-2: #4a453d;          /* secondary text */
+  --ink-3: #7c7566;          /* muted / meta */
+  --ink-4: #a89f8d;          /* faint / placeholder */
+  --on-accent: #ffffff;
+  --on-butter: #1c1a17;
+
+  /* ---- Brand ---- */
+  --butter: #fdc800;         /* yolk — accent, used sparingly */
+  --butter-soft: #fff2c2;
+  --purple: #4b32d6;         /* primary action */
+  --purple-hover: #3f28bd;
+  --purple-soft: #ece8ff;
+  --purple-ink: #2c1f7a;
+
+  /* ---- Borders / lines (warm hairlines) ---- */
+  --line: #e7dfcd;
+  --line-2: #ddd3bd;
+  --line-strong: #c9bda1;
+  --ring: rgba(75, 50, 214, 0.45);   /* focus ring */
+
+  /* ---- Semantic ---- */
+  --success: #2f8f5b; --success-soft: #e2f2e8; --success-ink: #1c6b40;
+  --warning: #c0831f; --warning-soft: #f7ecd4; --warning-ink: #8a5c11;
+  --danger:  #c0392b; --danger-soft: #f8e3e0; --danger-ink: #8f271c;
+  --info:    #3b6fd4; --info-soft: #e4ecfb; --info-ink: #274d99;
+  --neutral-soft: #eee8da; --neutral-ink: #6b6455;
+
+  /* ---- Typography ---- */
+  --font-display: "Fraunces", "Iowan Old Style", Georgia, "Times New Roman", serif;
+  --font-sans: "InterAdmin", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  --text-2xs: 0.6875rem;   /* 11 */
+  --text-xs: 0.75rem;      /* 12 */
+  --text-sm: 0.8125rem;    /* 13 */
+  --text-base: 0.9375rem;  /* 15 */
+  --text-md: 1rem;         /* 16 */
+  --text-lg: 1.125rem;     /* 18 */
+  --text-xl: 1.375rem;     /* 22 */
+  --text-2xl: 1.75rem;     /* 28 */
+  --text-3xl: 2.25rem;     /* 36 */
+  --text-display: clamp(2.4rem, 4vw, 3.25rem);
+
+  --leading-tight: 1.15;
+  --leading-snug: 1.35;
+  --leading-normal: 1.55;
+  --tracking-tight: -0.02em;
+  --tracking-wide: 0.04em;
+  --tracking-caps: 0.08em;
+
+  /* ---- Spacing (4px base) ---- */
+  --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px; --sp-4: 16px; --sp-5: 20px;
+  --sp-6: 24px; --sp-8: 32px; --sp-10: 40px; --sp-12: 48px; --sp-16: 64px;
+  --sp-20: 80px;
+
+  /* ---- Radius ---- */
+  --r-xs: 6px; --r-sm: 9px; --r-md: 12px; --r-lg: 16px; --r-xl: 22px; --r-2xl: 28px;
+  --r-pill: 999px;
+
+  /* ---- Elevation (soft, warm-tinted, multi-layer) ---- */
+  --sh-1: 0 1px 2px rgba(48, 40, 24, 0.06), 0 1px 1px rgba(48, 40, 24, 0.04);
+  --sh-2: 0 2px 6px rgba(48, 40, 24, 0.07), 0 4px 12px rgba(48, 40, 24, 0.05);
+  --sh-3: 0 6px 16px rgba(48, 40, 24, 0.09), 0 12px 30px rgba(48, 40, 24, 0.07);
+  --sh-4: 0 12px 34px rgba(48, 40, 24, 0.14), 0 24px 60px rgba(48, 40, 24, 0.10);
+  --sh-focus: 0 0 0 3px var(--ring);
+  --sh-inset: inset 0 1px 2px rgba(48, 40, 24, 0.05);
+
+  /* ---- Motion ---- */
+  --dur-1: 110ms; --dur-2: 190ms; --dur-3: 280ms; --dur-4: 420ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* ---- Layout ---- */
+  --rail-w: 248px;
+  --rail-w-collapsed: 72px;
+  --topbar-h: 60px;
+  --container: 1240px;
+  --z-rail: 40; --z-topbar: 45; --z-drawer: 60; --z-modal: 70; --z-toast: 80; --z-command: 90;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --dur-1: 0ms; --dur-2: 0ms; --dur-3: 0ms; --dur-4: 0ms; }
+}
