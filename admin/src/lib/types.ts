@@ -229,6 +229,77 @@ export interface WebsiteOverview {
   url: string
 }
 
+// -- Invoicing -----------------------------------------------------------
+
+export interface InvoiceItem {
+  description: string
+  quantity: number
+  unit_price: number
+  tax_rate: number
+  discount: number
+  line_total: number
+}
+
+export interface InvoicePayment {
+  amount: number
+  paid_on: string
+  method: string
+  reference: string
+}
+
+export interface InvoiceEvent {
+  type: string
+  detail: string
+  at: string
+}
+
+export interface InvoiceListItem {
+  id: string
+  number: string
+  status: string
+  client: string
+  project: string
+  currency: string
+  total: number
+  amount_due: number
+  issue_date: string
+  due_date: string
+  overdue: boolean
+  created_at: string
+}
+
+export interface Invoice extends InvoiceListItem {
+  contact_uuid: string
+  company_uuid: string
+  bill_to_email: string
+  bill_to_address: string
+  notes: string
+  terms: string
+  subtotal: number
+  tax_total: number
+  amount_paid: number
+  seller_name: string
+  payment_details: string
+  public_url: string
+  items: InvoiceItem[]
+  payments: InvoicePayment[]
+  events: InvoiceEvent[]
+}
+
+export interface InvoiceSettings {
+  company_legal_name: string
+  company_address: string
+  company_email: string
+  payment_details: string
+  vat_registered: boolean
+  vat_number: string
+  default_vat_rate: number
+  currency: string
+  invoice_prefix: string
+  default_terms_days: number
+  default_notes: string
+}
+
 // -- Hermes integration --------------------------------------------------
 
 export type HermesStatus = 'healthy' | 'attention' | 'degraded' | 'misconfigured' | 'disabled'

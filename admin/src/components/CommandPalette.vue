@@ -20,6 +20,7 @@ const commands: Command[] = [
   { label: 'Pipeline', hint: 'Opportunities board', icon: 'columns', to: '/pipeline' },
   { label: 'Tasks', hint: 'What needs doing', icon: 'check', to: '/tasks' },
   { label: 'Client Previews', hint: 'Shared work', icon: 'window', to: '/previews' },
+  { label: 'Invoices', hint: 'Billing & payments', icon: 'receipt', to: '/invoices', perm: 'invoices.view' },
   { label: 'Email', hint: 'Compose & delivery', icon: 'mail', to: '/email' },
   { label: 'Website', hint: 'Public site', icon: 'globe', to: '/website' },
   { label: 'Reports', hint: 'Numbers', icon: 'chart', to: '/reports' },

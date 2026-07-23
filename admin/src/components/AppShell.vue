@@ -21,6 +21,7 @@ const nav = [
   { to: '/pipeline', name: 'pipeline', label: 'Pipeline', icon: 'columns' },
   { to: '/tasks', name: 'tasks', label: 'Tasks', icon: 'check' },
   { to: '/previews', name: 'previews', label: 'Client Previews', icon: 'window' },
+  { to: '/invoices', name: 'invoices', label: 'Invoices', icon: 'receipt', perm: 'invoices.view' },
   { to: '/email', name: 'email', label: 'Email', icon: 'mail' },
   { to: '/website', name: 'website', label: 'Website', icon: 'globe' },
   { to: '/reports', name: 'reports', label: 'Reports', icon: 'chart' },
