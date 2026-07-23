@@ -135,6 +135,32 @@ final class AdminApi
             return $this->sessionPayload($user);
         }
 
+        // PATCH /session — update the signed-in user's own display name (the
+        // friendly name shown in the greeting). Auth + CSRF enforced here because
+        // the session branch runs before route()'s shared gate.
+        if ($method === 'PATCH') {
+            $user = $this->kirby->user();
+            if ($user === null || !PanelGate::canAccess($user)) {
+                throw new ApiException(401, 'Not signed in.', 'unauthenticated');
+            }
+            $this->requireCsrf();
+
+            $name = trim((string) ($this->body()['name'] ?? ''));
+            if (mb_strlen($name) > 80) {
+                $name = mb_substr($name, 0, 80);
+            }
+            $email = (string) $user->email();
+            // Elevate only to write the account file, then build the payload from
+            // the updated user. The session cookie still identifies the real user.
+            $this->kirby->impersonate('kirby');
+            $updated = $this->kirby->user($email)?->changeName($name);
+            if ($updated === null) {
+                throw new ApiException(500, 'Could not update your name.', 'update_failed');
+            }
+
+            return $this->sessionPayload($updated);
+        }
+
         if ($method === 'DELETE') {
             $this->kirby->auth()->logout();
 
@@ -506,11 +532,18 @@ final class AdminApi
             throw new ApiException(403, 'Admins only.', 'forbidden');
         }
         $q = $this->platform->queue();
+        $health = (new DashboardData($this->platform))->systemHealth();
 
         return [
             'queue'  => ['pending' => $q->pendingCount(), 'failed' => $q->failedCount()],
-            'mail'   => ['provider' => $this->platform->mailProvider()->name(), 'recent_failures' => $this->platform->outbound()->recentFailureCount()],
-            'health' => (new DashboardData($this->platform))->systemHealth(),
+            // Read the provider name from config (constructing it can throw in
+            // production when it isn't configured — that's what 'ready' reports).
+            'mail'   => [
+                'provider'        => (string) ($health['mail_provider'] ?? ''),
+                'ready'           => (bool) ($health['mail_ready'] ?? false),
+                'recent_failures' => $this->platform->outbound()->recentFailureCount(),
+            ],
+            'health' => $health,
         ];
     }
 
