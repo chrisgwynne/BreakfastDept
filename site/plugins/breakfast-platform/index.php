@@ -472,26 +472,23 @@ Kirby::plugin('breakfast/platform', [
         ],
     ],
 
-    // ------------------------------------------------------------------
-    // Panel API routes for the CRM area (Panel-authenticated + permission
-    // checked server-side; never trust the client to hide buttons).
-    // ------------------------------------------------------------------
+    // The business admin/CRM now lives entirely in the standalone Breakfast Admin
+    // application (a custom Vue SPA at /breakfast-admin, backed by the
+    // /breakfast-admin/api/v1 layer above). The former custom CRM / dashboard /
+    // operations Panel areas and their Panel API routes have been removed — that
+    // old admin UI no longer exists anywhere.
+    //
+    // The one exception is Client Previews *management* (upload, versioning,
+    // publish), which the standalone app currently surfaces read-only. Until that
+    // authoring flow is rebuilt in the SPA, it stays available in the undisclosed
+    // super-admin console so the capability is never lost. Everything here is
+    // Panel-authenticated and re-checked server-side on every request.
     'api' => [
-        'routes' => array_merge(
-            require __DIR__ . '/api/crm.php',
-            require __DIR__ . '/api/admin.php',
-            require __DIR__ . '/api/previews.php',
-        ),
+        'routes' => require __DIR__ . '/api/previews.php',
     ],
 
-    // ------------------------------------------------------------------
-    // Custom Breakfast Admin areas: branded dashboard, CRM, operations.
-    // ------------------------------------------------------------------
     'areas' => [
-        'dashboard' => require __DIR__ . '/areas/dashboard.php',
-        'crm'       => require __DIR__ . '/areas/crm.php',
-        'previews'  => require __DIR__ . '/areas/previews.php',
-        'ops'       => require __DIR__ . '/areas/ops.php',
+        'previews' => require __DIR__ . '/areas/previews.php',
     ],
 
     // ------------------------------------------------------------------

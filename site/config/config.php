@@ -53,13 +53,9 @@ return [
         // Kirby only shows it while there are ZERO users, so it closes itself the
         // moment your account exists. Set PANEL_INSTALL=false to force it off.
         'install' => Env::bool('PANEL_INSTALL', true),
-        'css'     => '/assets/css/panel.css',
-        // Branded dashboard is the first screen after login.
-        'home'    => 'dashboard',
-        // Replace Kirby's default Panel menu entirely with the Breakfast Admin
-        // navigation. Every entry is permission-gated server-side (see AdminMenu
-        // and each area's guard); hiding an entry is never the access control.
-        'menu'    => \Breakfast\Platform\Admin\AdminMenu::config(),
+        // No branded menu / home / CSS: the day-to-day admin is the standalone
+        // Breakfast Admin app at /breakfast-admin. The Kirby Panel here is the
+        // vanilla, undisclosed super-admin console only.
     ],
 
     // Secure session cookies. HTTPS-only in production.
