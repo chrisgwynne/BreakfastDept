@@ -78,18 +78,19 @@ final class CredentialStore
     /** @return array<string,string> */
     private function readEnv(): array
     {
+        // Merge every source env vars can arrive through: the real process
+        // environment (getenv() with no args returns them all — covers Docker/
+        // host-injected vars regardless of variables_order), plus $_ENV and
+        // $_SERVER (covers .env files loaded via Env::load). This is what makes a
+        // credential detectable however the deployment injects it.
+        $all = getenv();
+        $all = is_array($all) ? $all : [];
+        $all = array_merge($all, $_ENV, $_SERVER);
+
         $out = [];
-        foreach (array_merge($_ENV, $_SERVER) as $k => $v) {
+        foreach ($all as $k => $v) {
             if (is_string($k) && str_starts_with($k, 'HERMES_KEY_') && is_string($v)) {
                 $out[$k] = $v;
-            }
-        }
-
-        // getenv fallback for keys not surfaced in the superglobals.
-        foreach (array_keys($out) as $k) {
-            $env = getenv($k);
-            if ($env !== false) {
-                $out[$k] = $env;
             }
         }
 

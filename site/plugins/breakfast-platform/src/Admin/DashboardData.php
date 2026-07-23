@@ -128,10 +128,23 @@ final class DashboardData
     {
         $p = $this->platform;
 
+        // The provider NAME comes from config — never instantiate the provider just
+        // to read it. In production a selected-but-unconfigured provider (e.g. Brevo
+        // without an API key) throws on construction; a health readout must degrade
+        // to "not ready", not take the whole dashboard down with a 500.
+        $mailProvider = (string) ($p->mailConfig()['provider'] ?? 'smtp');
+        $mailReady    = true;
+        try {
+            $p->mailProvider();
+        } catch (\Throwable) {
+            $mailReady = false;
+        }
+
         return [
             'queue_depth'     => $p->queue()->pendingCount(),
             'failed_jobs'     => $p->queue()->failedCount(),
-            'mail_provider'   => $p->mailProvider()->name(),
+            'mail_provider'   => $mailProvider,
+            'mail_ready'      => $mailReady,
             'production'      => $p->isProduction(),
             'version'         => (string) $p->config('version', 'dev'),
         ];

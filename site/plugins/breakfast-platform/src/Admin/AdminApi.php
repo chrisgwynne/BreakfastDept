@@ -83,6 +83,7 @@ final class AdminApi
             'previews'      => $this->previews($seg),
             'email'         => $this->email($user),
             'website'       => $this->website(),
+            'hermes'        => $this->hermes($method, $seg, $user),
             'reports'       => $this->reports(),
             'operations'    => $this->operations($user),
             default         => throw new ApiException(404, 'Unknown endpoint.', 'not_found'),
@@ -135,6 +136,32 @@ final class AdminApi
             return $this->sessionPayload($user);
         }
 
+        // PATCH /session — update the signed-in user's own display name (the
+        // friendly name shown in the greeting). Auth + CSRF enforced here because
+        // the session branch runs before route()'s shared gate.
+        if ($method === 'PATCH') {
+            $user = $this->kirby->user();
+            if ($user === null || !PanelGate::canAccess($user)) {
+                throw new ApiException(401, 'Not signed in.', 'unauthenticated');
+            }
+            $this->requireCsrf();
+
+            $name = trim((string) ($this->body()['name'] ?? ''));
+            if (mb_strlen($name) > 80) {
+                $name = mb_substr($name, 0, 80);
+            }
+            $email = (string) $user->email();
+            // Elevate only to write the account file, then build the payload from
+            // the updated user. The session cookie still identifies the real user.
+            $this->kirby->impersonate('kirby');
+            $updated = $this->kirby->user($email)?->changeName($name);
+            if ($updated === null) {
+                throw new ApiException(500, 'Could not update your name.', 'update_failed');
+            }
+
+            return $this->sessionPayload($updated);
+        }
+
         if ($method === 'DELETE') {
             $this->kirby->auth()->logout();
 
@@ -163,6 +190,12 @@ final class AdminApi
         }
         if (PanelGate::canSendEmail($user)) {
             $permissions[] = 'email.send';
+        }
+        if (PanelGate::canViewHermes($user)) {
+            $permissions[] = 'hermes.view';
+        }
+        if (PanelGate::canManageHermes($user)) {
+            $permissions[] = 'hermes.manage';
         }
 
         return [
@@ -485,6 +518,86 @@ final class AdminApi
         ];
     }
 
+    // ==================================================================
+    // Hermes integration console
+    // ==================================================================
+
+    /**
+     * @param list<string> $seg
+     * @return array<string,mixed>
+     */
+    private function hermes(string $method, array $seg, \Kirby\Cms\User $user): array
+    {
+        // Viewing the integration requires the Hermes view grant; operational
+        // actions (self-test, credential generation) are admin-only. CSRF for the
+        // POST actions is already enforced by route().
+        if (!PanelGate::canViewHermes($user)) {
+            throw new ApiException(403, 'You don’t have access to the Hermes integration.', 'forbidden');
+        }
+        $h        = new HermesAdmin($this->platform);
+        $resource = $seg[1] ?? 'overview';
+        $actor    = (string) $user->email();
+
+        // ---- Actions (POST) — admin only ----
+        if ($method === 'POST') {
+            if (!PanelGate::canManageHermes($user)) {
+                throw new ApiException(403, 'Only administrators can perform Hermes actions.', 'forbidden');
+            }
+            if ($resource === 'test') {
+                $id = (string) ($this->body()['credential'] ?? '');
+                if ($id === '') {
+                    throw new ApiException(422, 'Choose a credential to test.', 'invalid', ['credential' => 'Required.']);
+                }
+
+                return $h->selfTest($id, $actor);
+            }
+            if ($resource === 'credentials' && ($seg[2] ?? '') === 'generate') {
+                $body   = $this->body();
+                $id     = (string) ($body['id'] ?? '');
+                $scopes = is_array($body['scopes'] ?? null)
+                    ? array_values(array_map(static fn ($s): string => (string) $s, $body['scopes']))
+                    : [];
+
+                return $h->generateCredentialLine($id, $scopes, $actor);
+            }
+            throw new ApiException(404, 'Unknown Hermes action.', 'not_found');
+        }
+
+        // ---- Reads (GET) ----
+        return match ($resource) {
+            'overview'    => $h->overview(),
+            'credentials' => ['items' => $h->credentials()],
+            'scopes'      => $h->scopes(),
+            'health'      => $h->health(),
+            'settings'    => $h->settings(),
+            'activity'    => $this->hermesActivity($h, $seg),
+            default       => throw new ApiException(404, 'Unknown Hermes endpoint.', 'not_found'),
+        };
+    }
+
+    /**
+     * @param list<string> $seg
+     * @return array<string,mixed>
+     */
+    private function hermesActivity(HermesAdmin $h, array $seg): array
+    {
+        if (isset($seg[2]) && $seg[2] !== '') {
+            $detail = $h->activityDetail($seg[2]);
+            if ($detail === null) {
+                throw new ApiException(404, 'Activity entry not found.', 'not_found');
+            }
+
+            return ['entry' => $detail];
+        }
+        $q = $this->query();
+
+        return $h->activity(
+            ['result' => $q['result'] ?? '', 'credential' => $q['credential'] ?? ''],
+            max(1, (int) ($q['page'] ?? 1)),
+            $this->perPage(),
+        );
+    }
+
     /** @return array<string,mixed> */
     private function reports(): array
     {
@@ -506,11 +619,18 @@ final class AdminApi
             throw new ApiException(403, 'Admins only.', 'forbidden');
         }
         $q = $this->platform->queue();
+        $health = (new DashboardData($this->platform))->systemHealth();
 
         return [
             'queue'  => ['pending' => $q->pendingCount(), 'failed' => $q->failedCount()],
-            'mail'   => ['provider' => $this->platform->mailProvider()->name(), 'recent_failures' => $this->platform->outbound()->recentFailureCount()],
-            'health' => (new DashboardData($this->platform))->systemHealth(),
+            // Read the provider name from config (constructing it can throw in
+            // production when it isn't configured — that's what 'ready' reports).
+            'mail'   => [
+                'provider'        => (string) ($health['mail_provider'] ?? ''),
+                'ready'           => (bool) ($health['mail_ready'] ?? false),
+                'recent_failures' => $this->platform->outbound()->recentFailureCount(),
+            ],
+            'health' => $health,
         ];
     }
 

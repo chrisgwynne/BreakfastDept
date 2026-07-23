@@ -18,6 +18,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'website', name: 'website', component: () => import('@/views/WebsiteView.vue') },
       { path: 'reports', name: 'reports', component: () => import('@/views/ReportsView.vue') },
       { path: 'operations', name: 'operations', component: () => import('@/views/OperationsView.vue'), meta: { perm: 'admin' } },
+      { path: 'hermes', name: 'hermes', component: () => import('@/views/HermesView.vue'), meta: { perm: 'hermes.view' } },
       { path: 'settings', name: 'settings', component: () => import('@/views/SettingsView.vue') },
     ],
   },

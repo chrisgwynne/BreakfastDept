@@ -19,6 +19,9 @@ const paths: Record<string, string> = {
   arrow: 'M5 12h14M13 6l6 6-6 6',
   clock: 'M12 3a9 9 0 100 18 9 9 0 000-18zM12 7v5l3 2',
   alert: 'M12 4l9 16H3zM12 10v4M12 17h.01',
+  plug: 'M9 3v5M15 3v5M7 8h10v3a5 5 0 01-10 0zM12 16v5',
+  key: 'M14 7a4 4 0 11-3.8 5.2L4 18.4V21h2.6l.9-.9M9 15l2-2',
+  shield: 'M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z',
 }
 defineProps<{ name: string }>()
 </script>
