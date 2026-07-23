@@ -11,8 +11,12 @@ use RuntimeException;
  *
  * Migrations are plain `.sql` files named `NNNN_description.sql`. Each file is
  * applied once, inside a transaction, and recorded in `schema_migrations`.
- * Migrations are NEVER run automatically during a public web request — only via
- * the CLI (`bin/console migrate`) or an explicit admin action.
+ *
+ * They can be applied via the CLI (`bin/console migrate`), the queue cron, or —
+ * for hosts with neither — a guarded boot-time self-heal (see
+ * `breakfast_ensure_schema()` in the plugin entry point): it runs at most once
+ * per process, only when `hasPending()` is true, under an exclusive file lock so
+ * concurrent requests cannot race, and never lets a failure reach the response.
  */
 final class Migrator
 {
@@ -53,6 +57,17 @@ final class Migrator
         }
 
         return $applied;
+    }
+
+    /**
+     * Whether any migration has not yet been applied. Cheap: creates the history
+     * table if missing, reads the applied ids and compares against the migration
+     * files on disk. Used by the boot-time self-heal to avoid taking a lock (or
+     * doing any work) once the schema is fully up to date.
+     */
+    public function hasPending(): bool
+    {
+        return $this->pending() !== [];
     }
 
     /**
