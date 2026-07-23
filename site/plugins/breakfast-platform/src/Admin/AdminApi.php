@@ -81,6 +81,8 @@ final class AdminApi
             'tasks'         => $this->tasks($method, $seg),
             'activities'    => $this->activities(),
             'previews'      => $this->previews($seg),
+            'email'         => $this->email($user),
+            'website'       => $this->website(),
             'reports'       => $this->reports(),
             'operations'    => $this->operations($user),
             default         => throw new ApiException(404, 'Unknown endpoint.', 'not_found'),
@@ -405,6 +407,82 @@ final class AdminApi
         }
 
         return ['items' => array_map(fn (array $r): array => $this->previewRow($r, false), $repo->all(['limit' => 200]))];
+    }
+
+    /**
+     * Email delivery log — recent outbound messages and their status. Read-only:
+     * a straight view of what the studio has sent and whether it landed. Requires
+     * the email-delivery view permission.
+     *
+     * @return array<string,mixed>
+     */
+    private function email(\Kirby\Cms\User $user): array
+    {
+        if (!PanelGate::canViewEmailDelivery($user)) {
+            throw new ApiException(403, 'You can’t view email delivery.', 'forbidden');
+        }
+        $rows = $this->platform->outbound()->search(['limit' => $this->perPage()]);
+
+        $items = array_map(static fn (array $r): array => [
+            'id'         => (string) ($r['uuid'] ?? ''),
+            'to'         => (string) ($r['to_email'] ?? $r['recipient'] ?? ''),
+            'subject'    => (string) ($r['subject'] ?? ''),
+            'type'       => (string) ($r['message_type'] ?? ''),
+            'status'     => (string) ($r['status'] ?? ''),
+            'created_at' => (string) ($r['created_at'] ?? ''),
+        ], $rows);
+
+        return [
+            'items'    => $items,
+            'total'    => count($items),
+            'provider' => $this->platform->mailProvider()->name(),
+            'failures' => $this->platform->outbound()->recentFailureCount(),
+            'can_send' => PanelGate::canSendEmail($user),
+        ];
+    }
+
+    /**
+     * Public-site overview — the key pages of the live website with their status
+     * and public URL, so the studio can see and open what’s published. Content
+     * editing itself stays in the CMS; this is the map, not the editor.
+     *
+     * @return array<string,mixed>
+     */
+    private function website(): array
+    {
+        $site = $this->kirby->site();
+        $pages = [];
+
+        $home = $site->homePage();
+        if ($home !== null) {
+            $pages[] = $this->pageRow($home, true);
+        }
+        foreach ($site->children()->listed() as $page) {
+            if ($home !== null && $page->id() === $home->id()) {
+                continue;
+            }
+            $pages[] = $this->pageRow($page, false);
+        }
+
+        return [
+            'items' => $pages,
+            'total' => count($pages),
+            'url'   => (string) $site->url(),
+        ];
+    }
+
+    /** @return array<string,mixed> */
+    private function pageRow(\Kirby\Cms\Page $page, bool $isHome): array
+    {
+        return [
+            'id'       => (string) $page->id(),
+            'title'    => (string) $page->title()->value(),
+            'url'      => (string) $page->url(),
+            'template' => (string) $page->intendedTemplate()->name(),
+            'status'   => (string) $page->status(),
+            'home'     => $isHome,
+            'children' => $page->children()->listed()->count(),
+        ];
     }
 
     /** @return array<string,mixed> */

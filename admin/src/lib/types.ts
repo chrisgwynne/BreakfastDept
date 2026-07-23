@@ -73,3 +73,158 @@ export interface Paged<T> {
   page: number
   per_page: number
 }
+
+export interface StageRef {
+  key: string
+  label: string
+}
+
+// -- CRM entities (mirror AdminApi row mappers) --------------------------
+
+export interface Enquiry {
+  id: string
+  reference: string
+  form_type: string
+  status: string
+  name: string
+  email: string
+  company: string
+  summary: string
+  created_at: string
+}
+
+export interface Contact {
+  id: string
+  name: string
+  email: string
+  phone: string
+  company: string
+  status: string
+  lead_source: string
+}
+
+export interface Company {
+  id: string
+  name: string
+  website: string
+  sector: string
+  location: string
+  contact_count: number
+}
+
+export interface Opportunity {
+  id: string
+  title: string
+  stage: string
+  value: number
+  probability: number
+  contact: string
+  next_action: string
+}
+
+export interface Task {
+  id: string
+  title: string
+  status: string
+  due_date: string
+  assigned: string
+}
+
+export interface Activity {
+  id: string
+  type: string
+  summary: string
+  actor: string
+  at: string
+}
+
+export interface ContactDetail {
+  contact: Contact
+  timeline: Activity[]
+}
+
+export interface ListResponse<T> {
+  items: T[]
+  total: number
+}
+
+export interface OpportunitiesResponse {
+  items: Opportunity[]
+  total: number
+  stages: StageRef[]
+}
+
+// -- Client previews -----------------------------------------------------
+
+export interface Preview {
+  id: string
+  name: string
+  client: string
+  slug: string
+  status: string
+  visibility: string
+  password: boolean
+  views: number
+  last_viewed: string
+  expires_at: string
+  version_count: number
+  url?: string
+}
+
+// -- Reports & operations ------------------------------------------------
+
+export interface StageValue {
+  count: number
+  value: number
+}
+
+export interface Reports {
+  enquiries_by_source: Record<string, number>
+  pipeline_by_stage: Record<string, StageValue>
+  stages: StageRef[]
+  open_opportunities: number
+  pipeline_value: number
+}
+
+export interface Operations {
+  queue: { pending: number; failed: number }
+  mail: { provider: string; recent_failures: number }
+  health: SystemHealth
+}
+
+// -- Email delivery ------------------------------------------------------
+
+export interface EmailMessage {
+  id: string
+  to: string
+  subject: string
+  type: string
+  status: string
+  created_at: string
+}
+
+export interface EmailLog {
+  items: EmailMessage[]
+  total: number
+  provider: string
+  failures: number
+  can_send: boolean
+}
+
+// -- Website overview ----------------------------------------------------
+
+export interface WebsitePage {
+  id: string
+  title: string
+  url: string
+  template: string
+  status: string
+  home: boolean
+  children: number
+}
+
+export interface WebsiteOverview {
+  items: WebsitePage[]
+  total: number
+  url: string
+}

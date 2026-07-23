@@ -3,10 +3,12 @@ import { ref, computed } from 'vue'
 import { useRoute, useRouter, RouterLink, RouterView } from 'vue-router'
 import { useAuth } from '@/stores/auth'
 import NavIcon from '@/components/NavIcon.vue'
+import CommandPalette from '@/components/CommandPalette.vue'
 
 const auth = useAuth()
 const route = useRoute()
 const router = useRouter()
+const palette = ref<InstanceType<typeof CommandPalette> | null>(null)
 
 const nav = [
   { to: '/', name: 'dashboard', label: 'Dashboard', icon: 'grid' },
@@ -58,13 +60,13 @@ async function doLogout() {
         <button class="iconbtn topbar__burger" @click="mobileOpen = true" aria-label="Menu">
           <NavIcon name="menu" />
         </button>
-        <button class="topbar__search" @click="router.push('/crm')">
+        <button class="topbar__search" @click="palette?.open()">
           <NavIcon name="search" class="topbar__searchicon" />
           <span>Search or jump to…</span>
           <kbd>⌘K</kbd>
         </button>
         <div class="grow"></div>
-        <button class="btn btn--sm btn--primary topbar__new"><NavIcon name="plus" /><span>New</span></button>
+        <button class="btn btn--sm btn--primary topbar__new" @click="palette?.open()"><NavIcon name="plus" /><span>New</span></button>
         <button class="iconbtn" aria-label="Notifications"><NavIcon name="bell" /></button>
         <div class="acct">
           <button class="acct__btn" @click="menuOpen = !menuOpen" :aria-expanded="menuOpen">
@@ -91,6 +93,8 @@ async function doLogout() {
         </RouterView>
       </main>
     </div>
+
+    <CommandPalette ref="palette" />
   </div>
 </template>
 
