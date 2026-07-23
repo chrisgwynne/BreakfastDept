@@ -26,6 +26,17 @@ if ($adminSlug === '' || $adminSlug === 'panel') {
     $adminSlug = 'breakfast-admin';
 }
 
+// The standalone Breakfast Admin application (a custom Vue SPA) is served at
+// `/breakfast-admin`. The Kirby Panel is NOT that application — it is demoted to
+// an undisclosed super-admin/emergency console at its own private slug so it can
+// never collide with, or be mistaken for, the real admin. Its location is not
+// advertised anywhere in the product. Normalised to lowercase [a-z0-9-].
+$panelSlug = strtolower(trim(Env::get('BREAKFAST_PANEL_SLUG', 'studio-console')));
+$panelSlug = (string) preg_replace('/[^a-z0-9-]/', '', $panelSlug);
+if ($panelSlug === '' || $panelSlug === 'panel' || $panelSlug === $adminSlug) {
+    $panelSlug = 'studio-console';
+}
+
 return [
     // Debug is OFF in production. Never leak stack traces or paths publicly.
     'debug' => $debug,
@@ -36,7 +47,7 @@ return [
     // `breakfast.adminSlug` value and the `panel`/`panel/*` guard route in the
     // platform plugin, which makes the old `/panel` location return 404).
     'panel' => [
-        'slug'    => $adminSlug,
+        'slug'    => $panelSlug,
         // Panel self-signup installer. ON by default so the first admin can be
         // created from the web with no config editing. It is self-securing:
         // Kirby only shows it while there are ZERO users, so it closes itself the
