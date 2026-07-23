@@ -293,13 +293,77 @@ stripped before writing.
 
 1. Generate a new credential and add it as an additional
    `HERMES_KEY_<new-id>=…` variable (do not remove the old one yet).
-   `php bin/console hermes:keys --create <label>` produces the line.
+   `php bin/console hermes:keys <new-id> <comma,scopes>` produces the line, or use
+   *Hermes → Credentials → Generate credential* in the admin.
 2. Roll the new id/secret out to Hermes and confirm signed requests succeed
    (check the audit log for `ok` results under the new credential id).
 3. Remove the old `HERMES_KEY_<old-id>` variable and reload the environment.
 4. Because a compromised secret is only ever in the environment, rotation is a
    config change and a restart — no code deploy is required. Rotate immediately
    if a secret is ever exposed.
+
+## Managing Hermes from the standalone admin
+
+Day-to-day Hermes operations live in the standalone Breakfast Admin app, under
+**Hermes** (nav, below Operations) — not the Kirby Panel. It reads the backend
+described above and never exposes a secret.
+
+**Access.** The nav entry and every `/breakfast-admin/api/v1/hermes/*` route are
+gated server-side: viewing requires the CRM *manage* grant
+(`PanelGate::canViewHermes`); running a self-test or generating a credential line
+is admin-only (`canManageHermes`). Hiding the nav is never the control.
+
+**What each screen shows.**
+
+- **Overview** — configured/enabled state, endpoint, credential + scope counts,
+  replay window, 24-hour request/failure counts, last success/failure and recent
+  activity. When Hermes is off or unconfigured it shows a guided setup checklist.
+- **Credentials** — a read-only inventory (id, scopes, last used, request count),
+  labelled *deployment-managed*. The shared secret is never shown.
+- **Scopes** — all 13 scopes grouped by domain with a plain-English description,
+  a risk level and read/write/draft kind, and which credentials hold each.
+- **Activity** — the `hermes_audit` trail, filterable by result and paginated,
+  with a redacted per-request detail drawer.
+- **Diagnostics** — severity cards (enabled, credentials, audit + nonce storage,
+  queue, 24-hour failures) and the read-only deployment settings.
+
+**Settings: deployment-managed vs application-managed.** Every Hermes setting is
+currently *deployment-managed* — it lives in the environment and changes only on
+a redeploy. The admin surfaces these read-only and never pretends otherwise:
+
+| Setting | Env var | Editable in UI |
+| --- | --- | --- |
+| Enabled | `HERMES_ENABLED` | No — deployment |
+| Replay window | `HERMES_REPLAY_WINDOW` | No — deployment |
+| Credentials (id, scopes, secret) | `HERMES_KEY_<id>` | No — deployment |
+
+**Create / rotate a credential.** *Hermes → Credentials → Generate credential*
+(admin only) produces the exact `HERMES_KEY_<id>=<scopes>|<secret>` line with a
+fresh 32-byte secret, shown **once**. Add it to your deployment `.env` and
+redeploy. The UI writes nothing at runtime and never stores or logs the secret;
+the generation event is audited without it. This mirrors `bin/console hermes:keys`.
+
+**Revoke a credential.** Remove its `HERMES_KEY_<id>` variable and redeploy.
+
+**Test the integration.** *Hermes → Test connection* (admin only) signs a request
+server-side with the chosen credential's secret and runs the real authenticator —
+configuration, credential resolution, signature, timestamp window, single-use
+nonce and scope enforcement — reporting each step pass/fail. It executes no
+endpoint and never reveals the secret or signature.
+
+**Disable Hermes immediately.** Set `HERMES_ENABLED=false` and redeploy; every
+request is then rejected with `503`. The route guard also short-circuits before
+any handler runs.
+
+**Inspect failed requests.** *Hermes → Activity → filter "denied"/"error"*, then
+open an entry for the redacted detail (credential, scope, endpoint, result,
+status, request id, safe metadata).
+
+**What Hermes can and cannot access** is unchanged from *What Hermes may and may
+not do* above: it can read and draft within its granted scopes; it can never
+publish, send email, delete, reveal secrets (Brevo keys, Hermes secrets, password
+hashes, session data, preview passwords), change users/permissions, run shell
+commands or reach arbitrary filesystem paths.
 
 ## Worked example — signing a request
 
