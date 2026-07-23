@@ -171,6 +171,37 @@ final class AdminApiTest extends TestCase
         $this->assertIsArray($out['data']['items']);
     }
 
+    public function testInvoiceEndpointsRequireAuth(): void
+    {
+        foreach (['invoices', 'invoices/settings'] as $path) {
+            $out = $this->call($path);
+            $this->assertSame(401, $out['code'], "$path must require authentication");
+        }
+    }
+
+    public function testInvoiceListAndSettingsAreShapedForAnAdmin(): void
+    {
+        $this->kirby->impersonate('kirby');
+
+        $list = $this->call('invoices');
+        $this->assertSame(200, $list['code']);
+        $this->assertArrayHasKey('items', $list['data']);
+        $this->assertIsArray($list['data']['items']);
+
+        $settings = $this->call('invoices/settings');
+        $this->assertSame(200, $settings['code']);
+        foreach (['currency', 'invoice_prefix', 'vat_registered', 'default_terms_days'] as $key) {
+            $this->assertArrayHasKey($key, $settings['data']['settings']);
+        }
+    }
+
+    public function testInvoiceDetailFor404Id(): void
+    {
+        $this->kirby->impersonate('kirby');
+        $out = $this->call('invoices/does-not-exist');
+        $this->assertSame(404, $out['code']);
+    }
+
     private function rrmdir(string $dir): void
     {
         if (!is_dir($dir)) {
