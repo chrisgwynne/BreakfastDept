@@ -471,6 +471,46 @@ Kirby::plugin('breakfast/platform', [
             },
         ],
 
+        // Admin invoice preview (any invoice, incl. drafts) — requires a signed-in
+        // user with invoice access. Renders the same branded, print-ready document.
+        [
+            'pattern' => 'invoice/preview/(:any)',
+            'action'  => function (string $id) {
+                $user = kirby()->user();
+                if (!\Breakfast\Platform\Security\PanelGate::canViewInvoices($user)) {
+                    $error = kirby()->site()->errorPage();
+
+                    return new \Kirby\Http\Response($error !== null ? $error->render() : 'Not found', 'text/html', 404);
+                }
+                $inv = breakfast()->invoices()->find($id);
+                if ($inv === null) {
+                    return new \Kirby\Http\Response('Invoice not found', 'text/plain', 404);
+                }
+
+                return new \Kirby\Http\Response(snippet('invoice', ['invoice' => $inv], true), 'text/html');
+            },
+        ],
+
+        // Signed client invoice link (/invoice/<token>). The unguessable token is
+        // the capability; viewing marks the invoice viewed. No login required.
+        [
+            'pattern' => 'invoice/(:any)',
+            'action'  => function (string $token) {
+                $svc = breakfast()->invoices();
+                $inv = $svc->findByToken($token);
+                if ($inv === null) {
+                    $error = kirby()->site()->errorPage();
+
+                    return new \Kirby\Http\Response($error !== null ? $error->render() : 'Not found', 'text/html', 404);
+                }
+                $svc->markViewed((string) $inv['uuid']);
+
+                return new \Kirby\Http\Response(snippet('invoice', ['invoice' => $inv], true), 'text/html', 200, [
+                    'X-Robots-Tag' => 'noindex, nofollow',
+                ]);
+            },
+        ],
+
         // XML sitemap (excludes drafts / noindex pages).
         [
             'pattern' => 'sitemap.xml',

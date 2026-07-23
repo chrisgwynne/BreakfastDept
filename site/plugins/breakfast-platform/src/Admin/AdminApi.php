@@ -84,6 +84,7 @@ final class AdminApi
             'email'         => $this->email($method, $seg, $user),
             'website'       => $this->website(),
             'hermes'        => $this->hermes($method, $seg, $user),
+            'invoices'      => $this->invoices($method, $seg, $user),
             'reports'       => $this->reports(),
             'operations'    => $this->operations($user),
             default         => throw new ApiException(404, 'Unknown endpoint.', 'not_found'),
@@ -196,6 +197,12 @@ final class AdminApi
         }
         if (PanelGate::canManageHermes($user)) {
             $permissions[] = 'hermes.manage';
+        }
+        if (PanelGate::canViewInvoices($user)) {
+            $permissions[] = 'invoices.view';
+        }
+        if (PanelGate::canManageInvoices($user)) {
+            $permissions[] = 'invoices.manage';
         }
 
         return [
@@ -749,6 +756,216 @@ final class AdminApi
             max(1, (int) ($q['page'] ?? 1)),
             $this->perPage(),
         );
+    }
+
+    // ==================================================================
+    // Invoicing
+    // ==================================================================
+
+    /**
+     * @param list<string> $seg
+     * @return array<string,mixed>
+     */
+    private function invoices(string $method, array $seg, \Kirby\Cms\User $user): array
+    {
+        if (!PanelGate::canViewInvoices($user)) {
+            throw new ApiException(403, 'You don’t have access to invoicing.', 'forbidden');
+        }
+        $svc   = $this->platform->invoices();
+        $actor = (string) $user->email();
+        $sub   = $seg[1] ?? '';
+
+        $requireManage = function () use ($user): void {
+            if (!PanelGate::canManageInvoices($user)) {
+                throw new ApiException(403, 'You can’t change invoices.', 'forbidden');
+            }
+        };
+
+        try {
+            if ($sub === 'settings') {
+                if ($method === 'PATCH') {
+                    $requireManage();
+
+                    return ['settings' => $this->settingsRow($svc->updateSettings($this->body()))];
+                }
+
+                return ['settings' => $this->settingsRow($svc->settings())];
+            }
+
+            if ($sub === '') {
+                if ($method === 'POST') {
+                    $requireManage();
+
+                    return ['invoice' => $this->invoiceRow($svc->create($this->body(), $actor), true)];
+                }
+                $q = $this->query();
+
+                return ['items' => array_map(
+                    fn (array $r): array => $this->invoiceRow($r, false),
+                    $svc->list(['status' => $q['status'] ?? null, 'limit' => $this->perPage()])
+                )];
+            }
+
+            $id     = $sub;
+            $action = $seg[2] ?? '';
+
+            if ($method === 'GET' && $action === '') {
+                $inv = $svc->find($id);
+                if ($inv === null) {
+                    throw new ApiException(404, 'Invoice not found.', 'not_found');
+                }
+
+                return ['invoice' => $this->invoiceRow($inv, true)];
+            }
+            if ($method === 'PATCH' && $action === '') {
+                $requireManage();
+
+                return ['invoice' => $this->invoiceRow($svc->update($id, $this->body(), $actor), true)];
+            }
+            if ($method === 'POST' && $action === 'issue') {
+                $requireManage();
+
+                return ['invoice' => $this->invoiceRow($svc->issue($id, $actor), true)];
+            }
+            if ($method === 'POST' && $action === 'payment') {
+                $requireManage();
+
+                return ['invoice' => $this->invoiceRow($svc->recordPayment($id, $this->body(), $actor), true)];
+            }
+            if ($method === 'POST' && $action === 'void') {
+                $requireManage();
+
+                return ['invoice' => $this->invoiceRow($svc->void($id, $actor), true)];
+            }
+            if ($method === 'POST' && $action === 'send') {
+                $requireManage();
+
+                return $this->sendInvoice($id, $user);
+            }
+
+            throw new ApiException(404, 'Unknown invoice endpoint.', 'not_found');
+        } catch (\Breakfast\Platform\Invoicing\InvoiceException $e) {
+            throw new ApiException($e->status, $e->getMessage(), 'invoice');
+        }
+    }
+
+    /**
+     * Email the client a link to the signed invoice view and mark it sent.
+     *
+     * @return array<string,mixed>
+     */
+    private function sendInvoice(string $id, \Kirby\Cms\User $user): array
+    {
+        if (!PanelGate::canSendEmail($user)) {
+            throw new ApiException(403, 'You don’t have permission to send email.', 'forbidden');
+        }
+        $svc = $this->platform->invoices();
+        $inv = $svc->find($id);
+        if ($inv === null) {
+            throw new ApiException(404, 'Invoice not found.', 'not_found');
+        }
+        if (($inv['status'] ?? 'draft') === 'draft' || ($inv['public_token'] ?? '') === '') {
+            throw new ApiException(409, 'Issue the invoice before sending it.', 'invoice');
+        }
+        $to = trim((string) ($this->body()['to'] ?? $inv['bill_to_email'] ?? ''));
+        if (filter_var($to, FILTER_VALIDATE_EMAIL) === false) {
+            throw new ApiException(422, 'Enter a valid client email address.', 'invalid', ['to' => 'Required.']);
+        }
+
+        $url    = rtrim((string) $this->kirby->site()->url(), '/') . '/invoice/' . (string) $inv['public_token'];
+        $number = (string) $inv['number'];
+        $seller = (string) ($inv['seller_name'] ?? '') ?: 'Breakfast';
+        $subject = 'Invoice ' . $number . ' from ' . $seller;
+        $body = "Hi,\n\nYour invoice {$number} is ready. You can view and download it here:\n{$url}\n\nThank you,\n{$seller}";
+
+        $result = $this->platform->crmMail()->send($to, $subject, $body, [], (string) $user->email());
+        if (($result['ok'] ?? false) !== true) {
+            $err = (string) ($result['error'] ?? 'send_failed');
+            throw new ApiException(422, $err === 'recipient_suppressed' ? 'That recipient can’t be emailed.' : 'The invoice email couldn’t be queued.', $err);
+        }
+
+        $svc->markSent($id, (string) $user->email(), 'Emailed to ' . $to);
+
+        return ['status' => 'queued', 'invoice' => $this->invoiceRow($svc->find($id) ?? [], true)];
+    }
+
+    /**
+     * @param array<string,mixed> $s
+     * @return array<string,mixed>
+     */
+    private function settingsRow(array $s): array
+    {
+        return [
+            'company_legal_name' => (string) ($s['company_legal_name'] ?? ''),
+            'company_address'    => (string) ($s['company_address'] ?? ''),
+            'company_email'      => (string) ($s['company_email'] ?? ''),
+            'payment_details'    => (string) ($s['payment_details'] ?? ''),
+            'vat_registered'     => (bool) ($s['vat_registered'] ?? false),
+            'vat_number'         => (string) ($s['vat_number'] ?? ''),
+            'default_vat_rate'   => (int) ($s['default_vat_rate'] ?? 0) / 100,
+            'currency'           => (string) ($s['currency'] ?? 'GBP'),
+            'invoice_prefix'     => (string) ($s['invoice_prefix'] ?? 'INV'),
+            'default_terms_days' => (int) ($s['default_terms_days'] ?? 14),
+            'default_notes'      => (string) ($s['default_notes'] ?? ''),
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $r
+     * @return array<string,mixed>
+     */
+    private function invoiceRow(array $r, bool $detail): array
+    {
+        $row = [
+            'id'          => (string) ($r['uuid'] ?? ''),
+            'number'      => (string) ($r['number'] ?? ''),
+            'status'      => (string) ($r['status'] ?? 'draft'),
+            'client'      => (string) ($r['bill_to_name'] ?? ''),
+            'project'     => (string) ($r['project'] ?? ''),
+            'currency'    => (string) ($r['currency'] ?? 'GBP'),
+            'total'       => (int) ($r['total'] ?? 0) / 100,
+            'amount_due'  => (int) ($r['amount_due'] ?? 0) / 100,
+            'issue_date'  => (string) ($r['issue_date'] ?? ''),
+            'due_date'    => (string) ($r['due_date'] ?? ''),
+            'overdue'     => (bool) ($r['overdue'] ?? false),
+            'created_at'  => (string) ($r['created_at'] ?? ''),
+        ];
+        if ($detail) {
+            $row['contact_uuid']    = (string) ($r['contact_uuid'] ?? '');
+            $row['company_uuid']    = (string) ($r['company_uuid'] ?? '');
+            $row['bill_to_email']   = (string) ($r['bill_to_email'] ?? '');
+            $row['bill_to_address'] = (string) ($r['bill_to_address'] ?? '');
+            $row['notes']           = (string) ($r['notes'] ?? '');
+            $row['terms']           = (string) ($r['terms'] ?? '');
+            $row['subtotal']        = (int) ($r['subtotal'] ?? 0) / 100;
+            $row['tax_total']       = (int) ($r['tax_total'] ?? 0) / 100;
+            $row['amount_paid']     = (int) ($r['amount_paid'] ?? 0) / 100;
+            $row['seller_name']     = (string) ($r['seller_name'] ?? '');
+            $row['payment_details'] = (string) ($r['payment_details'] ?? '');
+            $token = (string) ($r['public_token'] ?? '');
+            $row['public_url']      = $token !== '' ? rtrim((string) $this->kirby->site()->url(), '/') . '/invoice/' . $token : '';
+            $row['items'] = array_map(static fn (array $i): array => [
+                'description' => (string) ($i['description'] ?? ''),
+                'quantity'    => (int) ($i['quantity'] ?? 0) / 1000,
+                'unit_price'  => (int) ($i['unit_price'] ?? 0) / 100,
+                'tax_rate'    => (int) ($i['tax_rate'] ?? 0) / 100,
+                'discount'    => (int) ($i['discount'] ?? 0) / 100,
+                'line_total'  => (int) ($i['line_total'] ?? 0) / 100,
+            ], is_array($r['items'] ?? null) ? $r['items'] : []);
+            $row['payments'] = array_map(static fn (array $p): array => [
+                'amount'    => (int) ($p['amount'] ?? 0) / 100,
+                'paid_on'   => (string) ($p['paid_on'] ?? ''),
+                'method'    => (string) ($p['method'] ?? ''),
+                'reference' => (string) ($p['reference'] ?? ''),
+            ], is_array($r['payments'] ?? null) ? $r['payments'] : []);
+            $row['events'] = array_map(static fn (array $e): array => [
+                'type'   => (string) ($e['type'] ?? ''),
+                'detail' => (string) ($e['detail'] ?? ''),
+                'at'     => (string) ($e['created_at'] ?? ''),
+            ], is_array($r['events'] ?? null) ? $r['events'] : []);
+        }
+
+        return $row;
     }
 
     /** @return array<string,mixed> */

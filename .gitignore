@@ -19,6 +19,7 @@
 /storage/accounts/*
 /storage/database/*.sqlite
 /storage/database/*.sqlite-*
+/storage/database/.migrate.lock
 /storage/uploads/*
 /storage/queue/*
 /storage/client-previews/*

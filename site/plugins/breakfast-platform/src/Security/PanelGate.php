@@ -67,6 +67,21 @@ final class PanelGate
         return $user !== null && $user->isAdmin();
     }
 
+    /**
+     * Invoicing. Viewing and managing invoices both require the CRM 'manage'
+     * grant (they contain financial + client billing data). Enforced server-side
+     * on every invoice route.
+     */
+    public static function canViewInvoices(?User $user): bool
+    {
+        return self::canManage($user);
+    }
+
+    public static function canManageInvoices(?User $user): bool
+    {
+        return self::canManage($user);
+    }
+
     private static function allowed(?User $user, string $action): bool
     {
         if ($user === null) {
