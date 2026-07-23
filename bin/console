@@ -55,7 +55,6 @@ declare(strict_types=1);
 use Breakfast\Platform\Hermes\Scopes;
 use Breakfast\Platform\Mail\BrevoAdmin;
 use Breakfast\Platform\Mail\EmailAddress;
-use Breakfast\Platform\Mail\HttpClient;
 use Breakfast\Platform\Mail\MailMessage;
 use Breakfast\Platform\Queue\Worker;
 use Breakfast\Platform\Support\Clock;
@@ -147,7 +146,7 @@ switch ($command) {
         (new Worker($platform))->work($sleep);
         break;
 
-    // ----- Mail ------------------------------------------------------------
+        // ----- Mail ------------------------------------------------------------
     case 'mail:check':
         $provider = (string) ($mailConfig['provider'] ?? 'smtp');
         $ok       = true;
@@ -211,7 +210,7 @@ switch ($command) {
         ($row['status'] ?? '') === 'accepted' ? out('OK') : fail('Test email was not accepted (' . ($row['status'] ?? '') . ').');
         break;
 
-    // ----- Brevo -----------------------------------------------------------
+        // ----- Brevo -----------------------------------------------------------
     case 'brevo:webhook:status':
         $admin = new BrevoAdmin(['apiKey' => (string) ($brevo['apiKey'] ?? ''), 'baseUrl' => (string) ($brevo['baseUrl'] ?? '')]);
         if ($admin->configured() === false) {
@@ -301,7 +300,7 @@ switch ($command) {
         out($dryRun ? 'Dry run. OK' : ($res['ok'] ? 'Synced. OK' : 'Sync failed (' . $res['detail'] . ').'));
         break;
 
-    // ----- Privacy ---------------------------------------------------------
+        // ----- Privacy ---------------------------------------------------------
     case 'privacy:export-contact':
         $uuid = $args[0] ?? fail('Usage: privacy:export-contact <uuid>');
         $data = (new PrivacyService($platform))->exportContact($uuid);
@@ -325,7 +324,7 @@ switch ($command) {
         out($apply ? 'Cleaned up. OK' : 'Dry run (pass --confirm to apply). OK');
         break;
 
-    // ----- Client Previews -------------------------------------------------
+        // ----- Client Previews -------------------------------------------------
     case 'previews:expire':
         $r = $platform->previewExpiry()->expireDue();
         out('Expired: ' . $r['expired']);
@@ -459,7 +458,7 @@ switch ($command) {
         out('OK');
         break;
 
-    // ----- Retention -------------------------------------------------------
+        // ----- Retention -------------------------------------------------------
     case 'retention:check':
         out('Retention plan (nothing is deleted):');
         foreach ($platform->retention()->plan() as $key => $info) {
@@ -483,7 +482,7 @@ switch ($command) {
         out($apply ? 'Cleaned up. OK' : 'Dry run (pass --confirm to apply). OK');
         break;
 
-    // ----- Diagnostics -----------------------------------------------------
+        // ----- Diagnostics -----------------------------------------------------
     case 'app:check':
         require $base . '/site/plugins/breakfast-platform/checks/app_check.php';
         break;
@@ -514,6 +513,73 @@ switch ($command) {
         }
         out('# Add this line to your .env (keep the secret private):');
         out('HERMES_KEY_' . $id . '=' . implode(',', $scopes) . '|' . base64_encode(random_bytes(32)));
+        break;
+
+    case 'admin:functionality-check':
+        // Verify the standalone admin's real operations are wired end to end. With
+        // --read-only (safe in production) it only inspects; otherwise it proves a
+        // write path by creating a lead inside a transaction it then ROLLS BACK, so
+        // no data is left behind.
+        $readOnly = flag($flags, 'read-only') || $platform->isProduction();
+        $results  = [];
+        $record   = static function (string $label, bool $ok, string $detail = '') use (&$results): void {
+            $results[] = [$label, $ok, $detail];
+            out(($ok ? '  [OK]   ' : '  [FAIL] ') . $label . ($detail !== '' ? ' — ' . $detail : ''));
+        };
+
+        $record('Schema migrated', $platform->migrator()->hasPending() === false);
+        foreach (['contacts', 'companies', 'enquiries', 'opportunities', 'tasks', 'activities', 'queue', 'outbound', 'audit', 'crmMail'] as $svc) {
+            try {
+                $platform->{$svc}();
+                $record("Service: {$svc}", true);
+            } catch (\Throwable $e) {
+                $record("Service: {$svc}", false, $e->getMessage());
+            }
+        }
+        $record('Pipeline stages defined', count($platform->crm()->stages()) > 0);
+        $record('Write service present', class_exists(\Breakfast\Platform\Admin\CrmWrite::class));
+        $record('Admin API present', class_exists(\Breakfast\Platform\Admin\AdminApi::class));
+        $record('Hermes console present', class_exists(\Breakfast\Platform\Admin\HermesAdmin::class));
+
+        $routeFound = false;
+        foreach ($kirby->routes() as $route) {
+            $patterns = (array) ($route['pattern'] ?? '');
+            foreach ($patterns as $pattern) {
+                if (str_contains((string) $pattern, 'breakfast-admin/api/v1')) {
+                    $routeFound = true;
+                }
+            }
+        }
+        $record('Admin API route registered', $routeFound);
+        $record('Mail provider configured', (string) ($platform->mailConfig()['provider'] ?? '') !== '');
+
+        if (!$readOnly) {
+            $db = $platform->db();
+            $db->pdo()->beginTransaction();
+            try {
+                $lead = (new \Breakfast\Platform\Admin\CrmWrite($platform))->createLead(
+                    ['name' => 'Functionality Check', 'email' => 'functionality-check@example.test'],
+                    'cli'
+                );
+                $ok = !empty($lead['enquiry']['uuid']) && !empty($lead['contact']['uuid']);
+                $record('Lead creation persists (rolled back)', $ok);
+            } catch (\Throwable $e) {
+                $record('Lead creation persists (rolled back)', false, $e->getMessage());
+            } finally {
+                if ($db->pdo()->inTransaction()) {
+                    $db->pdo()->rollBack();
+                }
+            }
+        } else {
+            out('  [skip] write checks (read-only/production)');
+        }
+
+        $failed = array_filter($results, static fn (array $r): bool => $r[1] === false);
+        out('');
+        if ($failed !== []) {
+            fail(count($failed) . ' functionality check(s) FAILED.');
+        }
+        out('admin:functionality-check PASSED (' . count($results) . ' checks)');
         break;
 
     case 'seed':
