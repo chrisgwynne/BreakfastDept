@@ -81,7 +81,7 @@ final class AdminApi
             'tasks'         => $this->tasks($method, $seg),
             'activities'    => $this->activities(),
             'previews'      => $this->previews($seg),
-            'email'         => $this->email($user),
+            'email'         => $this->email($method, $seg, $user),
             'website'       => $this->website(),
             'hermes'        => $this->hermes($method, $seg, $user),
             'reports'       => $this->reports(),
@@ -293,6 +293,25 @@ final class AdminApi
      */
     private function enquiries(string $method, array $seg): array
     {
+        // Create a lead (contact + optional company + enquiry) — a real, atomic write.
+        if ($method === 'POST' && !isset($seg[1])) {
+            $actor = (string) $this->requireManage()->email();
+            $created = $this->crmWrite()->createLead($this->body(), $actor);
+
+            return [
+                'lead'    => $this->enquiryRow(is_array($created['enquiry']) ? $created['enquiry'] : []),
+                'contact' => $this->contactRow(is_array($created['contact']) ? $created['contact'] : []),
+            ];
+        }
+
+        // Add a note to an enquiry's timeline.
+        if ($method === 'POST' && ($seg[2] ?? '') === 'note') {
+            $actor = (string) $this->requireManage()->email();
+            $this->crmWrite()->addNote('enquiry', (string) $seg[1], (string) ($this->body()['note'] ?? ''), $actor);
+
+            return ['ok' => true];
+        }
+
         if ($method === 'GET' && !isset($seg[1])) {
             $q = $this->query();
             $items = $this->platform->enquiries()->search([
@@ -311,6 +330,22 @@ final class AdminApi
      */
     private function contacts(string $method, array $seg)
     {
+        // Create a contact (+ optional company), de-duplicated by email.
+        if ($method === 'POST' && !isset($seg[1])) {
+            $actor = (string) $this->requireManage()->email();
+            $created = $this->crmWrite()->createContact($this->body(), $actor);
+
+            return ['contact' => $this->contactRow(is_array($created['contact']) ? $created['contact'] : [])];
+        }
+
+        // Add a note to a contact's timeline.
+        if ($method === 'POST' && ($seg[2] ?? '') === 'note') {
+            $actor = (string) $this->requireManage()->email();
+            $this->crmWrite()->addNote('contact', (string) $seg[1], (string) ($this->body()['note'] ?? ''), $actor);
+
+            return ['ok' => true];
+        }
+
         if (isset($seg[1])) {
             $c = $this->platform->contacts()->find($seg[1]);
             if ($c === null) {
@@ -330,6 +365,20 @@ final class AdminApi
      */
     private function companies(string $method, array $seg): array
     {
+        if ($method === 'POST' && !isset($seg[1])) {
+            $actor = (string) $this->requireManage()->email();
+            $company = $this->crmWrite()->createCompany($this->body(), $actor);
+
+            return ['company' => [
+                'id'            => (string) ($company['uuid'] ?? ''),
+                'name'          => (string) ($company['name'] ?? ''),
+                'website'       => (string) ($company['website'] ?? ''),
+                'sector'        => (string) ($company['industry'] ?? ''),
+                'location'      => (string) ($company['address'] ?? ''),
+                'contact_count' => (int) ($company['contact_count'] ?? 0),
+            ]];
+        }
+
         $items = $this->platform->companies()->all($this->perPage());
 
         return ['items' => array_map(static fn (array $r): array => [
@@ -348,6 +397,19 @@ final class AdminApi
      */
     private function opportunities(string $method, array $seg)
     {
+        if ($method === 'POST' && !isset($seg[1])) {
+            $actor = (string) $this->requireManage()->email();
+            $opp = $this->crmWrite()->createOpportunity($this->body(), $actor);
+
+            return ['opportunity' => [
+                'id'          => (string) ($opp['uuid'] ?? ''),
+                'title'       => (string) ($opp['title'] ?? ''),
+                'stage'       => (string) ($opp['stage'] ?? ''),
+                'value'       => (int) ($opp['estimated_value'] ?? 0),
+                'probability' => (int) ($opp['probability'] ?? 0),
+            ]];
+        }
+
         if ($method === 'POST' && ($seg[1] ?? '') !== '' && ($seg[2] ?? '') === 'move') {
             if (!PanelGate::canManage($this->kirby->user())) {
                 throw new ApiException(403, 'You can’t change deals.', 'forbidden');
@@ -377,6 +439,19 @@ final class AdminApi
      */
     private function tasks(string $method, array $seg)
     {
+        if ($method === 'POST' && !isset($seg[1])) {
+            $actor = (string) $this->requireManage()->email();
+            $task = $this->crmWrite()->createTask($this->body(), $actor);
+
+            return ['task' => [
+                'id'       => (string) ($task['uuid'] ?? ''),
+                'title'    => (string) ($task['title'] ?? ''),
+                'status'   => (string) ($task['status'] ?? 'open'),
+                'due_date' => (string) ($task['due_date'] ?? ''),
+                'assigned' => (string) ($task['assigned_to'] ?? ''),
+            ]];
+        }
+
         if ($method === 'POST' && ($seg[1] ?? '') !== '' && ($seg[2] ?? '') === 'complete') {
             if (!PanelGate::canManage($this->kirby->user())) {
                 throw new ApiException(403, 'You can’t change tasks.', 'forbidden');
@@ -443,14 +518,20 @@ final class AdminApi
     }
 
     /**
-     * Email delivery log — recent outbound messages and their status. Read-only:
-     * a straight view of what the studio has sent and whether it landed. Requires
-     * the email-delivery view permission.
+     * Email: GET returns the delivery log (requires the email-delivery view
+     * permission); POST /email/send and POST /email/test compose + queue a real
+     * message (requires the send permission).
      *
+     * @param list<string> $seg
      * @return array<string,mixed>
      */
-    private function email(\Kirby\Cms\User $user): array
+    private function email(string $method, array $seg, \Kirby\Cms\User $user): array
     {
+        // Compose + send: queues a real message through the provider/outbox.
+        if ($method === 'POST' && (($seg[1] ?? '') === 'send' || ($seg[1] ?? '') === 'test')) {
+            return $this->sendEmail($user, ($seg[1] ?? '') === 'test');
+        }
+
         if (!PanelGate::canViewEmailDelivery($user)) {
             throw new ApiException(403, 'You can’t view email delivery.', 'forbidden');
         }
@@ -471,6 +552,78 @@ final class AdminApi
             'provider' => $this->platform->mailProvider()->name(),
             'failures' => $this->platform->outbound()->recentFailureCount(),
             'can_send' => PanelGate::canSendEmail($user),
+        ];
+    }
+
+    /**
+     * Compose and queue a real email through the provider/outbox. A success here
+     * means QUEUED (accepted into the durable outbox), never "delivered" — the UI
+     * labels it accurately. Suppressed/invalid recipients are refused server-side.
+     *
+     * @return array<string,mixed>
+     */
+    private function sendEmail(\Kirby\Cms\User $user, bool $test): array
+    {
+        if (!PanelGate::canSendEmail($user)) {
+            throw new ApiException(403, 'You don’t have permission to send email.', 'forbidden');
+        }
+        $body    = $this->body();
+        $to      = strtolower(trim((string) ($body['to'] ?? '')));
+        $subject = trim((string) ($body['subject'] ?? ''));
+        $message = (string) ($body['body'] ?? '');
+        $actor   = (string) $user->email();
+
+        $errors = [];
+        if (!$test && $to === '') {
+            $errors['to'] = 'Enter a recipient.';
+        } elseif (!$test && filter_var($to, FILTER_VALIDATE_EMAIL) === false) {
+            $errors['to'] = 'Enter a valid email address.';
+        }
+        if ($subject === '') {
+            $errors['subject'] = 'Enter a subject.';
+        }
+        if (trim($message) === '') {
+            $errors['body'] = 'Write a message.';
+        }
+        if ($errors !== []) {
+            throw new ApiException(422, 'Please fix the highlighted fields.', 'invalid', $errors);
+        }
+
+        $links = [];
+        foreach (['contact_uuid', 'enquiry_uuid', 'opportunity_uuid'] as $k) {
+            $v = trim((string) ($body[$k] ?? ''));
+            if ($v !== '') {
+                $links[$k] = $v;
+            }
+        }
+
+        $result = $test
+            ? $this->platform->crmMail()->sendTest($actor, $subject, $message)
+            : $this->platform->crmMail()->send($to, $subject, $message, $links, $actor);
+
+        if (($result['ok'] ?? false) !== true) {
+            $err = (string) ($result['error'] ?? 'send_failed');
+            $msg = match ($err) {
+                'invalid_recipient'     => 'That recipient address isn’t valid.',
+                'recipient_suppressed'  => 'That recipient has unsubscribed or bounced — sending is blocked.',
+                'subject_required'      => 'Enter a subject.',
+                default                 => 'The message couldn’t be queued.',
+            };
+            throw new ApiException(422, $msg, $err);
+        }
+
+        $this->platform->audit()->event(
+            $test ? 'email.test' : 'email.queued',
+            'email',
+            (string) ($result['uuid'] ?? ''),
+            $actor,
+            ['to' => $test ? $actor : $to]
+        );
+
+        return [
+            'status'  => 'queued',
+            'id'      => (string) ($result['uuid'] ?? ''),
+            'message' => $test ? ('Test email queued to ' . $actor) : 'Email queued for delivery',
         ];
     }
 
@@ -732,6 +885,24 @@ final class AdminApi
     // ==================================================================
     // Helpers
     // ==================================================================
+
+    /**
+     * Require the CRM 'manage' permission for a write, returning the acting user.
+     */
+    private function requireManage(): \Kirby\Cms\User
+    {
+        $user = $this->kirby->user();
+        if ($user === null || !PanelGate::canManage($user)) {
+            throw new ApiException(403, 'You don’t have permission to make changes.', 'forbidden');
+        }
+
+        return $user;
+    }
+
+    private function crmWrite(): CrmWrite
+    {
+        return new CrmWrite($this->platform);
+    }
 
     private function requireCsrf(): void
     {
