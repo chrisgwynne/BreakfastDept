@@ -102,6 +102,12 @@ jobs:
       - name: Lint JavaScript — blocking
         run: npm run lint
 
+      - name: Build the standalone admin app (served at /breakfast-admin)
+        working-directory: admin
+        run: |
+          npm ci
+          npm run build:fast
+
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
 
