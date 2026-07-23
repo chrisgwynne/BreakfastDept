@@ -59,6 +59,26 @@ jobs:
           composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader
           php bin/console app:check
 
+  admin:
+    name: Admin app (type-check + build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: admin/package-lock.json
+
+      - name: Install admin dependencies
+        working-directory: admin
+        run: npm ci
+
+      - name: Type-check + production build — blocking
+        working-directory: admin
+        run: npm run build
+
   e2e:
     name: Browser tests (Playwright)
     runs-on: ubuntu-latest
@@ -81,6 +101,12 @@ jobs:
 
       - name: Lint JavaScript — blocking
         run: npm run lint
+
+      - name: Build the standalone admin app (served at /breakfast-admin)
+        working-directory: admin
+        run: |
+          npm ci
+          npm run build:fast
 
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium

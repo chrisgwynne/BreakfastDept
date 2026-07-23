@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Breakfast\Platform\Admin\AdminApi;
 use Breakfast\Platform\Hermes\Api as HermesApi;
 use Breakfast\Platform\Hermes\AuditLog;
 use Breakfast\Platform\Hermes\Authenticator;
@@ -31,6 +32,39 @@ function breakfast(): Platform
     }
 
     return Platform::instance();
+}
+
+/**
+ * Serve a built Breakfast Admin static asset with a correct content type.
+ *
+ * Only used as a fallback for servers that funnel every request through
+ * index.php (e.g. the PHP built-in dev server). In production the web server
+ * serves these files directly and this never runs. The caller has already
+ * verified the file exists and the path contains no traversal.
+ */
+function breakfast_admin_asset_response(string $file): \Kirby\Http\Response
+{
+    $types = [
+        'js'    => 'text/javascript; charset=utf-8',
+        'mjs'   => 'text/javascript; charset=utf-8',
+        'css'   => 'text/css; charset=utf-8',
+        'html'  => 'text/html; charset=utf-8',
+        'json'  => 'application/json',
+        'svg'   => 'image/svg+xml',
+        'png'   => 'image/png',
+        'jpg'   => 'image/jpeg',
+        'jpeg'  => 'image/jpeg',
+        'webp'  => 'image/webp',
+        'ico'   => 'image/x-icon',
+        'woff2' => 'font/woff2',
+        'woff'  => 'font/woff',
+        'map'   => 'application/json',
+        'txt'   => 'text/plain; charset=utf-8',
+    ];
+    $ext  = strtolower(pathinfo($file, PATHINFO_EXTENSION));
+    $mime = $types[$ext] ?? 'application/octet-stream';
+
+    return new \Kirby\Http\Response(file_get_contents($file) ?: '', $mime);
 }
 
 // Register the granular Client Previews permission category. A Kirby plugin's
@@ -324,6 +358,61 @@ Kirby::plugin('breakfast/platform', [
             },
         ],
 
+        // Standalone Breakfast Admin API. Powers the custom admin SPA served at
+        // /breakfast-admin. Its own session-based auth, CSRF and RBAC are enforced
+        // inside AdminApi — never Panel auth, never trusting the client.
+        //
+        // Deliberately NOT under the top-level `/api/` slug: Kirby reserves that
+        // namespace for its own Panel API router, which intercepts every `/api/*`
+        // path and 404s anything it doesn't recognise. Nesting the admin API under
+        // the app's own slug keeps it in the front-end router, and registering it
+        // before the SPA shell route below means it always matches first.
+        [
+            'pattern' => 'breakfast-admin/api/v1/(:all?)',
+            'method'  => 'GET|POST|PATCH|PUT|DELETE',
+            'action'  => fn (?string $path = '') => (new AdminApi(kirby(), breakfast()))->handle((string) $path),
+        ],
+
+        // The standalone Breakfast Admin application shell. The Vue SPA is built to
+        // public/breakfast-admin/ (base=/breakfast-admin/). Real built assets are
+        // served directly by the web server; every other in-app path (deep links
+        // like /breakfast-admin/leads) is a client-side route, so we return the
+        // built index.html and let vue-router take over. Requests that look like a
+        // missing static asset get a real 404 instead of the HTML shell.
+        [
+            'pattern' => ['breakfast-admin', 'breakfast-admin/(:all?)'],
+            'method'  => 'GET',
+            'action'  => function (?string $all = '') {
+                $dir   = kirby()->root('index') . '/breakfast-admin';
+                $rel   = trim((string) $all, '/');
+
+                // Serve an existing built file (fallback for servers that route
+                // every request through index.php, e.g. the PHP dev server).
+                if ($rel !== '' && !str_contains($rel, '..')) {
+                    $file = $dir . '/' . $rel;
+                    if (is_file($file)) {
+                        return breakfast_admin_asset_response($file);
+                    }
+                    // A path with a file extension that does not exist is a missing
+                    // asset — never answer it with the HTML shell.
+                    if (preg_match('/\.[a-z0-9]{2,5}$/i', $rel) === 1) {
+                        return new \Kirby\Http\Response('Not found', 'text/plain', 404);
+                    }
+                }
+
+                $index = $dir . '/index.html';
+                if (is_file($index) === false) {
+                    return new \Kirby\Http\Response(
+                        'Breakfast Admin has not been built yet.',
+                        'text/plain',
+                        503
+                    );
+                }
+
+                return new \Kirby\Http\Response(file_get_contents($index) ?: '', 'text/html');
+            },
+        ],
+
         // XML sitemap (excludes drafts / noindex pages).
         [
             'pattern' => 'sitemap.xml',
@@ -383,26 +472,23 @@ Kirby::plugin('breakfast/platform', [
         ],
     ],
 
-    // ------------------------------------------------------------------
-    // Panel API routes for the CRM area (Panel-authenticated + permission
-    // checked server-side; never trust the client to hide buttons).
-    // ------------------------------------------------------------------
+    // The business admin/CRM now lives entirely in the standalone Breakfast Admin
+    // application (a custom Vue SPA at /breakfast-admin, backed by the
+    // /breakfast-admin/api/v1 layer above). The former custom CRM / dashboard /
+    // operations Panel areas and their Panel API routes have been removed — that
+    // old admin UI no longer exists anywhere.
+    //
+    // The one exception is Client Previews *management* (upload, versioning,
+    // publish), which the standalone app currently surfaces read-only. Until that
+    // authoring flow is rebuilt in the SPA, it stays available in the undisclosed
+    // super-admin console so the capability is never lost. Everything here is
+    // Panel-authenticated and re-checked server-side on every request.
     'api' => [
-        'routes' => array_merge(
-            require __DIR__ . '/api/crm.php',
-            require __DIR__ . '/api/admin.php',
-            require __DIR__ . '/api/previews.php',
-        ),
+        'routes' => require __DIR__ . '/api/previews.php',
     ],
 
-    // ------------------------------------------------------------------
-    // Custom Breakfast Admin areas: branded dashboard, CRM, operations.
-    // ------------------------------------------------------------------
     'areas' => [
-        'dashboard' => require __DIR__ . '/areas/dashboard.php',
-        'crm'       => require __DIR__ . '/areas/crm.php',
-        'previews'  => require __DIR__ . '/areas/previews.php',
-        'ops'       => require __DIR__ . '/areas/ops.php',
+        'previews' => require __DIR__ . '/areas/previews.php',
     ],
 
     // ------------------------------------------------------------------

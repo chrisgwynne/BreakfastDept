@@ -14,11 +14,17 @@ test.describe("Breakfast Admin relocation", () => {
     expect((await request.get("/panel/users")).status()).toBe(404);
   });
 
-  test("admin loads at the configured slug", async ({ request }) => {
-    // 200 (installer/login shell) or 302 (redirect to login when an admin exists)
-    // — both mean the admin responds at its slug; only a 404 would be a failure.
-    const res = await request.get("/breakfast-admin", { maxRedirects: 0 });
-    expect([200, 302]).toContain(res.status());
+  test("the standalone admin app is served at /breakfast-admin", async ({ request }) => {
+    // The Vue SPA shell (built to public/breakfast-admin) is returned as HTML for
+    // the app root and its client-side deep links — not a Kirby Panel page.
+    const res = await request.get("/breakfast-admin");
+    expect(res.status()).toBe(200);
+    const body = await res.text();
+    expect(body).toContain('<div id="app"></div>');
+
+    const deep = await request.get("/breakfast-admin/leads");
+    expect(deep.status()).toBe(200);
+    expect(await deep.text()).toContain('<div id="app"></div>');
   });
 
   test("public pages carry no hard-coded /panel links", async ({ page }) => {

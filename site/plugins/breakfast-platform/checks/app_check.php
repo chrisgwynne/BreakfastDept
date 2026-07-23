@@ -86,9 +86,10 @@ try {
     $check('Brevo provider constructable', false);
 }
 
-// Breakfast Admin: Panel relocated to the private slug; /panel retired.
-$adminSlug = (string) $kirby->option('panel')['slug'] ?? '';
-$check('Admin slug configured', $adminSlug !== '' && $adminSlug !== 'panel', '/' . $adminSlug);
+// Standalone Breakfast Admin: the SPA owns /breakfast-admin; the Kirby Panel is
+// demoted to a private, undisclosed super-admin slug; /panel is retired.
+$panelSlug = (string) ($kirby->option('panel')['slug'] ?? '');
+$check('Panel on a private slug', $panelSlug !== '' && $panelSlug !== 'panel' && $panelSlug !== 'breakfast-admin', '/' . $panelSlug);
 try {
     $panelResult = $kirby->render('panel');
     $panelCode   = $panelResult instanceof \Kirby\Http\Response ? $panelResult->code() : 200;
@@ -97,12 +98,16 @@ try {
     $check('Old /panel returns 404', false, $e->getMessage());
 }
 
-// Breakfast Admin areas registered and menu is a callable that yields entries.
-$areas = $kirby->option('panel')['menu'] ?? null;
-$check('Custom Panel menu configured', $areas instanceof Closure);
-$menuEntries = \Breakfast\Platform\Admin\AdminMenu::entries(null);
-$check('Admin menu builds', is_array($menuEntries) && isset($menuEntries['dashboard']));
-$check('Dashboard is Panel home', ($kirby->option('panel')['home'] ?? '') === 'dashboard');
+// The standalone admin API responds (unauthenticated session probe → 401 JSON),
+// and the SPA shell route is registered so /breakfast-admin serves the app.
+try {
+    $apiResult = $kirby->render('breakfast-admin/api/v1/session', 'GET');
+    $apiCode   = $apiResult instanceof \Kirby\Http\Response ? $apiResult->code() : 0;
+    $apiType   = $apiResult instanceof \Kirby\Http\Response ? (string) $apiResult->type() : '';
+    $check('Admin API responds (401 JSON when unauthenticated)', $apiCode === 401 && str_contains($apiType, 'json'), 'HTTP ' . $apiCode);
+} catch (Throwable $e) {
+    $check('Admin API responds (401 JSON when unauthenticated)', false, $e->getMessage());
+}
 
 // Client Previews wiring: dev-prefix route present, services constructable,
 // preview origin serves security headers even for an unknown slug (404).

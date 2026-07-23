@@ -27,9 +27,12 @@ module.exports = defineConfig({
     { name: "desktop", use: { ...devices["Desktop Chrome"] } },
     { name: "mobile", use: { ...devices["Pixel 5"] } },
   ],
-  // Migrate the DB, then serve public/. APP_ENV=production so robots allow + prod behaviour.
+  // Migrate the DB, then serve public/ through router.php so the built admin SPA,
+  // its API (/breakfast-admin/api/v1) and the public pages all dispatch correctly
+  // under php -S. The admin bundle is expected to be built already (npm run build
+  // in admin/ — done in CI before this job; locally, build it once).
   webServer: {
-    command: `php bin/console migrate && php -S 127.0.0.1:${PORT} -t public`,
+    command: `php bin/console migrate && php -S 127.0.0.1:${PORT} -t public public/router.php`,
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 30000,
