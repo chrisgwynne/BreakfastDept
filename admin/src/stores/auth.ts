@@ -36,6 +36,11 @@ export const useAuth = defineStore('auth', () => {
     apply(await api.post<Session>('/session', { email, password, remember }))
   }
 
+  /** Update the signed-in user's own display name (the greeting name). */
+  async function updateName(name: string): Promise<void> {
+    apply(await api.patch<Session>('/session', { name }))
+  }
+
   async function logout(): Promise<void> {
     try {
       await api.del('/session')
@@ -49,5 +54,5 @@ export const useAuth = defineStore('auth', () => {
     return user.value?.permissions.includes(permission) ?? false
   }
 
-  return { user, ready, isAuthed, bootstrap, login, logout, can }
+  return { user, ready, isAuthed, bootstrap, login, logout, updateName, can }
 })

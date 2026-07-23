@@ -1,11 +1,39 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '@/stores/auth'
+import { ApiError } from '@/lib/api'
 import PageHeader from '@/components/PageHeader.vue'
 
 const auth = useAuth()
 const router = useRouter()
+
+// A friendly display name — used in the dashboard greeting. Seeded from the
+// current name, unless it's just the email (in which case start blank).
+const initialName = (() => {
+  const n = (auth.user?.name || '').trim()
+  return !n || n.includes('@') ? '' : n
+})()
+const displayName = ref(initialName)
+const saving = ref(false)
+const saved = ref(false)
+const nameError = ref('')
+
+async function saveName() {
+  if (saving.value) return
+  saving.value = true
+  saved.value = false
+  nameError.value = ''
+  try {
+    await auth.updateName(displayName.value.trim())
+    saved.value = true
+    setTimeout(() => (saved.value = false), 2400)
+  } catch (e) {
+    nameError.value = e instanceof ApiError ? e.message : 'Could not save your name.'
+  } finally {
+    saving.value = false
+  }
+}
 
 const PERMS: Record<string, string> = {
   admin: 'Full administrator',
@@ -35,6 +63,19 @@ async function signOut() {
             <p class="faint">{{ auth.user?.email }}</p>
           </div>
         </div>
+        <form class="nameform" @submit.prevent="saveName">
+          <label class="label" for="displayName">Display name</label>
+          <p class="faint nameform__hint">The name Breakfast greets you by. Leave blank to just say hello.</p>
+          <div class="nameform__row">
+            <input id="displayName" class="input" v-model="displayName" type="text" maxlength="80"
+                   placeholder="e.g. Chris" autocomplete="name" />
+            <button class="btn btn--primary btn--sm" type="submit" :disabled="saving">
+              {{ saving ? 'Saving…' : 'Save' }}</button>
+          </div>
+          <p v-if="saved" class="nameform__ok">Saved.</p>
+          <p v-if="nameError" class="nameform__err" role="alert">{{ nameError }}</p>
+        </form>
+
         <div class="rows">
           <div class="row"><span class="row__k">Role</span><span class="row__v">{{ auth.user?.role || '—' }}</span></div>
         </div>
@@ -62,6 +103,13 @@ async function signOut() {
 .acct__avatar { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 50%;
   background: var(--purple-soft); color: var(--purple-ink); font-weight: 700; }
 .acct__name { font-size: var(--text-lg); font-weight: 600; }
+.nameform { display: grid; gap: 6px; margin-bottom: var(--sp-4); padding-bottom: var(--sp-4); border-bottom: 1px solid var(--line); }
+.nameform__hint { font-size: var(--text-xs); margin-top: -2px; }
+.nameform__row { display: flex; gap: var(--sp-2); margin-top: 4px; }
+.nameform__row .input { flex: 1; }
+.nameform__ok { font-size: var(--text-xs); color: var(--success-ink); font-weight: 600; }
+.nameform__err { font-size: var(--text-xs); color: var(--danger-ink); font-weight: 600; }
+
 .rows { display: grid; margin-bottom: var(--sp-4); }
 .row { display: flex; justify-content: space-between; padding: 10px 0; border-top: 1px solid var(--line); font-size: var(--text-sm); }
 .row__k { color: var(--ink-3); }

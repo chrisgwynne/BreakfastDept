@@ -14,6 +14,34 @@ function money(n: number): string {
   return '£' + Math.round(n).toLocaleString('en-GB')
 }
 
+// The greeting is built on the client so it follows the viewer's own timezone
+// and stays friendly even if the dashboard data hasn't loaded. A name is used
+// only when the user has set a real one (never their email address).
+function firstName(): string {
+  const n = (auth.user?.name || '').trim()
+  if (!n || n.includes('@')) return ''
+  return n.split(/\s+/)[0]
+}
+const PHRASES: Record<string, string[]> = {
+  morning: ['Morning', 'Good morning', 'Rise and shine', 'Bright and early'],
+  afternoon: ['Afternoon', 'Good afternoon', 'Hope the day’s treating you well', 'Back at it'],
+  evening: ['Evening', 'Good evening', 'Winding down'],
+  night: ['Burning the midnight oil', 'Still up', 'Late one tonight'],
+}
+function timeBucket(h: number): keyof typeof PHRASES {
+  if (h < 5) return 'night'
+  if (h < 12) return 'morning'
+  if (h < 18) return 'afternoon'
+  if (h < 22) return 'evening'
+  return 'night'
+}
+// Computed once per visit so the phrase doesn't flicker on re-render.
+const list = PHRASES[timeBucket(new Date().getHours())]
+const phrase = list[Math.floor(Math.random() * list.length)]
+const name = firstName()
+const greeting = name ? `${phrase}, ${name}` : phrase
+const today = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })
+
 onMounted(async () => {
   try {
     data.value = await api.get<Dashboard>('/dashboard')
@@ -37,8 +65,8 @@ const attentionItems = (d: Dashboard) => [
   <div>
     <header class="dash__head">
       <div>
-        <p class="eyebrow">{{ data?.date || '—' }}</p>
-        <h1 class="dash__title">{{ data?.greeting || `Morning, ${auth.user?.name?.split(' ')[0] || 'there'}` }}.</h1>
+        <p class="eyebrow">{{ today }}</p>
+        <h1 class="dash__title">{{ greeting }}.</h1>
       </div>
       <div class="row">
         <button class="btn btn--sm"><NavIcon name="search" /> Search</button>
