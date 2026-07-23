@@ -1,18 +1,26 @@
 <script setup lang="ts">
-import { onMounted, ref, computed } from 'vue'
+import { onMounted, ref, computed, watch } from 'vue'
 import { api } from '@/lib/api'
 import type { Enquiry, ListResponse } from '@/lib/types'
+import { useUi } from '@/stores/ui'
+import { useAuth } from '@/stores/auth'
 import PageHeader from '@/components/PageHeader.vue'
 import DataState from '@/components/DataState.vue'
 import StatusPill from '@/components/StatusPill.vue'
 import Sheet from '@/components/Sheet.vue'
+import NavIcon from '@/components/NavIcon.vue'
 
+const ui = useUi()
+const auth = useAuth()
+const canManage = computed(() => auth.can('crm.manage') || auth.can('admin'))
 const items = ref<Enquiry[]>([])
 const total = ref(0)
 const loading = ref(true)
 const error = ref<string | null>(null)
 const filter = ref<string>('')
 const selected = ref<Enquiry | null>(null)
+// Reload real data whenever a lead is created anywhere in the app.
+watch(() => ui.version.leads, () => load())
 
 const FILTERS = [
   { key: '', label: 'All' },
@@ -50,7 +58,11 @@ onMounted(load)
 
 <template>
   <div>
-    <PageHeader eyebrow="Inbox" title="Leads" :sub="`${total} enquir${total === 1 ? 'y' : 'ies'} received`" />
+    <PageHeader eyebrow="Inbox" title="Leads" :sub="`${total} enquir${total === 1 ? 'y' : 'ies'} received`">
+      <template #actions>
+        <button v-if="canManage" class="btn btn--sm btn--primary" @click="ui.openCreate('lead')"><NavIcon name="plus" /> New lead</button>
+      </template>
+    </PageHeader>
 
     <div class="tabs" role="tablist">
       <button v-for="f in FILTERS" :key="f.key" class="tab" :class="{ 'tab--active': filter === f.key }"

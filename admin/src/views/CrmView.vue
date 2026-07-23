@@ -1,13 +1,19 @@
 <script setup lang="ts">
-import { onMounted, ref, computed } from 'vue'
+import { onMounted, ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '@/lib/api'
 import type { Contact, Company, ListResponse } from '@/lib/types'
+import { useUi } from '@/stores/ui'
+import { useAuth } from '@/stores/auth'
 import PageHeader from '@/components/PageHeader.vue'
 import DataState from '@/components/DataState.vue'
 import StatusPill from '@/components/StatusPill.vue'
 
 const router = useRouter()
+const ui = useUi()
+const auth = useAuth()
+const canManage = computed(() => auth.can('crm.manage') || auth.can('admin'))
+watch(() => [ui.version.contacts, ui.version.companies], () => load())
 const tab = ref<'contacts' | 'companies'>('contacts')
 const search = ref('')
 
@@ -59,6 +65,8 @@ onMounted(load)
         <div class="search">
           <input v-model="search" class="input search__input" type="search" placeholder="Search…" />
         </div>
+        <button v-if="canManage" class="btn btn--sm" @click="ui.openCreate('company')">New company</button>
+        <button v-if="canManage" class="btn btn--sm btn--primary" @click="ui.openCreate('contact')">New contact</button>
       </template>
     </PageHeader>
 

@@ -1,11 +1,15 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, computed } from 'vue'
 import { api } from '@/lib/api'
 import type { Dashboard } from '@/lib/types'
 import { useAuth } from '@/stores/auth'
+import { useUi } from '@/stores/ui'
 import NavIcon from '@/components/NavIcon.vue'
 
 const auth = useAuth()
+const ui = useUi()
+const canManage = computed(() => auth.can('crm.manage') || auth.can('admin'))
+const canEmail = computed(() => auth.can('email.send') || auth.can('admin'))
 const data = ref<Dashboard | null>(null)
 const loading = ref(true)
 const failed = ref(false)
@@ -69,8 +73,8 @@ const attentionItems = (d: Dashboard) => [
         <h1 class="dash__title">{{ greeting }}.</h1>
       </div>
       <div class="row">
-        <button class="btn btn--sm"><NavIcon name="search" /> Search</button>
-        <button class="btn btn--sm btn--primary"><NavIcon name="plus" /> Quick create</button>
+        <button v-if="canEmail" class="btn btn--sm" @click="ui.openCreate('email')"><NavIcon name="mail" /> Compose</button>
+        <button v-if="canManage" class="btn btn--sm btn--primary" @click="ui.openCreate('lead')"><NavIcon name="plus" /> New lead</button>
       </div>
     </header>
 

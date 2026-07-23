@@ -1,13 +1,16 @@
 <script setup lang="ts">
-import { onMounted, ref, computed } from 'vue'
+import { onMounted, ref, computed, watch } from 'vue'
 import { api } from '@/lib/api'
 import type { Opportunity, OpportunitiesResponse, StageRef } from '@/lib/types'
 import { useAuth } from '@/stores/auth'
+import { useUi } from '@/stores/ui'
 import PageHeader from '@/components/PageHeader.vue'
 import DataState from '@/components/DataState.vue'
 
 const auth = useAuth()
+const ui = useUi()
 const canManage = computed(() => auth.can('crm.manage') || auth.can('admin'))
+watch(() => ui.version.deals, () => load())
 
 const items = ref<Opportunity[]>([])
 const stages = ref<StageRef[]>([])
@@ -84,7 +87,11 @@ onMounted(load)
 <template>
   <div>
     <PageHeader eyebrow="Deals" title="Pipeline"
-                :sub="canManage ? 'Drag a card to move it between stages.' : 'Your opportunities by stage.'" />
+                :sub="canManage ? 'Drag a card to move it between stages.' : 'Your opportunities by stage.'">
+      <template #actions>
+        <button v-if="canManage" class="btn btn--sm btn--primary" @click="ui.openCreate('deal')">New opportunity</button>
+      </template>
+    </PageHeader>
 
     <DataState :loading="loading" :error="error" :empty="!items.length" :rows="3"
                empty-title="No opportunities yet" empty-note="Convert a lead to start a deal in your pipeline."

@@ -3,12 +3,21 @@ import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '@/lib/api'
 import type { ContactDetail } from '@/lib/types'
+import { useUi } from '@/stores/ui'
+import { useAuth } from '@/stores/auth'
 import DataState from '@/components/DataState.vue'
 import StatusPill from '@/components/StatusPill.vue'
 import NavIcon from '@/components/NavIcon.vue'
 
 const route = useRoute()
 const router = useRouter()
+const ui = useUi()
+const auth = useAuth()
+
+function emailContact() {
+  if (!data.value) return
+  ui.openCreate('email', { to: data.value.contact.email, contact_uuid: data.value.contact.id })
+}
 const data = ref<ContactDetail | null>(null)
 const loading = ref(true)
 const error = ref<string | null>(null)
@@ -56,7 +65,8 @@ onMounted(load)
             <div class="fact"><span class="fact__k">Company</span><span>{{ data.contact.company || '—' }}</span></div>
             <div class="fact"><span class="fact__k">Source</span><span>{{ data.contact.lead_source || '—' }}</span></div>
           </div>
-          <a v-if="data.contact.email" class="btn btn--primary btn--sm btn--block" :href="`mailto:${data.contact.email}`">Email {{ data.contact.name.split(' ')[0] || 'contact' }}</a>
+          <button v-if="data.contact.email && (auth.can('email.send') || auth.can('admin'))"
+                  class="btn btn--primary btn--sm btn--block" @click="emailContact">Email {{ data.contact.name.split(' ')[0] || 'contact' }}</button>
         </div>
 
         <!-- Timeline -->
