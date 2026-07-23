@@ -3,7 +3,7 @@ import vue from '@vitejs/plugin-vue'
 import { fileURLToPath, URL } from 'node:url'
 
 // The standalone Breakfast admin app. Served in production at /breakfast-admin/
-// by Kirby (SPA fallback), talking to /api/breakfast-admin/v1 on the same origin.
+// by Kirby (SPA fallback), talking to /breakfast-admin/api/v1 on the same origin.
 // Built assets land in public/breakfast-admin/ so the FTP deploy ships them.
 export default defineConfig({
   base: '/breakfast-admin/',
@@ -28,7 +28,7 @@ export default defineConfig({
     port: 5177,
     // In dev the SPA runs on Vite; proxy the API to the PHP backend.
     proxy: {
-      '/api': { target: 'http://127.0.0.1:8787', changeOrigin: true },
+      '/breakfast-admin/api': { target: 'http://127.0.0.1:8787', changeOrigin: true },
       '/media': { target: 'http://127.0.0.1:8787', changeOrigin: true },
     },
   },

@@ -331,7 +331,7 @@ final class AdminApi
             'id'          => (string) ($r['uuid'] ?? ''),
             'title'       => (string) ($r['title'] ?? ''),
             'stage'       => (string) ($r['stage'] ?? ''),
-            'value'       => (int) ($r['value'] ?? 0),
+            'value'       => (int) ($r['estimated_value'] ?? 0),
             'probability' => (int) ($r['probability'] ?? 0),
             'contact'     => (string) ($r['contact_name'] ?? ''),
             'next_action' => (string) ($r['next_action_date'] ?? ''),

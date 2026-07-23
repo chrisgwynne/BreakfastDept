@@ -360,10 +360,15 @@ Kirby::plugin('breakfast/platform', [
 
         // Standalone Breakfast Admin API. Powers the custom admin SPA served at
         // /breakfast-admin. Its own session-based auth, CSRF and RBAC are enforced
-        // inside AdminApi — never Panel auth, never trusting the client. Registered
-        // before the SPA shell route and Kirby's own /api so it matches first.
+        // inside AdminApi — never Panel auth, never trusting the client.
+        //
+        // Deliberately NOT under the top-level `/api/` slug: Kirby reserves that
+        // namespace for its own Panel API router, which intercepts every `/api/*`
+        // path and 404s anything it doesn't recognise. Nesting the admin API under
+        // the app's own slug keeps it in the front-end router, and registering it
+        // before the SPA shell route below means it always matches first.
         [
-            'pattern' => 'api/breakfast-admin/v1/(:all?)',
+            'pattern' => 'breakfast-admin/api/v1/(:all?)',
             'method'  => 'GET|POST|PATCH|PUT|DELETE',
             'action'  => fn (?string $path = '') => (new AdminApi(kirby(), breakfast()))->handle((string) $path),
         ],

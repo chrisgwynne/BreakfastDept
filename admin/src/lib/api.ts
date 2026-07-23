@@ -1,8 +1,9 @@
 // Centralised, typed request handling for the Breakfast Admin API.
-// Same-origin JSON under /api/breakfast-admin/v1. Session cookie auth + CSRF
+// Same-origin JSON under /breakfast-admin/api/v1. Session cookie auth + CSRF
 // header on every mutating request. All errors are normalised to ApiError.
+// (Kept off the top-level /api slug, which Kirby reserves for its Panel API.)
 
-export const API_BASE = '/api/breakfast-admin/v1'
+export const API_BASE = '/breakfast-admin/api/v1'
 
 export class ApiError extends Error {
   constructor(
