@@ -158,7 +158,7 @@ Logos:
 
 ----
 
-Statement_enabled: true
+Statement_enabled: false
 
 ----
 

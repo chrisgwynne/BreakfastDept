@@ -550,6 +550,35 @@ switch ($command) {
         out('Seeded user ' . $email . ' (' . $role . '). OK');
         break;
 
+    case 'admin:create':
+        // Create (or reset the password of) a Panel admin. SAFE in production —
+        // it's the way to bootstrap the first login on a fresh host, where the
+        // Panel self-signup installer is disabled. Requires shell access, so the
+        // trust level is the same as editing files on the server.
+        $email = (string) ($flags['email'] ?? '');
+        $pass  = (string) ($flags['password'] ?? '');
+        $name  = (string) ($flags['name'] ?? 'Admin');
+        if ($email === '' || $pass === '') {
+            fail('Usage: admin:create --email=<addr> --password=<pw> [--name="Your Name"]');
+        }
+        if (strlen($pass) < 8) {
+            fail('Password must be at least 8 characters.');
+        }
+        $kirby->impersonate('kirby');
+        $existing = $kirby->user($email);
+        if ($existing !== null) {
+            $existing->changePassword($pass);
+            if ($existing->role()->name() !== 'admin') {
+                $existing->changeRole('admin');
+            }
+            out('Updated admin ' . $email . ' (password reset).');
+        } else {
+            $kirby->users()->create(['email' => $email, 'password' => $pass, 'role' => 'admin', 'name' => $name]);
+            out('Created admin ' . $email . '.');
+        }
+        out('Log in at: /' . ltrim((string) $kirby->option('panel.slug', 'breakfast-admin'), '/'));
+        break;
+
     case 'health':
         $q = $platform->queue();
         out('Time:        ' . Clock::nowIso());
