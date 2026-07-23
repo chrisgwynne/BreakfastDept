@@ -21,6 +21,7 @@ const nav = [
   { to: '/website', name: 'website', label: 'Website', icon: 'globe' },
   { to: '/reports', name: 'reports', label: 'Reports', icon: 'chart' },
   { to: '/operations', name: 'operations', label: 'Operations', icon: 'pulse', perm: 'admin' },
+  { to: '/hermes', name: 'hermes', label: 'Hermes', icon: 'plug', perm: 'hermes.view' },
 ]
 const visibleNav = computed(() => nav.filter((n) => !n.perm || auth.can(n.perm)))
 

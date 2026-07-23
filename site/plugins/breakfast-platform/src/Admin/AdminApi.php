@@ -191,6 +191,12 @@ final class AdminApi
         if (PanelGate::canSendEmail($user)) {
             $permissions[] = 'email.send';
         }
+        if (PanelGate::canViewHermes($user)) {
+            $permissions[] = 'hermes.view';
+        }
+        if (PanelGate::canManageHermes($user)) {
+            $permissions[] = 'hermes.manage';
+        }
 
         return [
             'user' => [

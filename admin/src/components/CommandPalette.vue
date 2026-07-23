@@ -24,6 +24,7 @@ const commands: Command[] = [
   { label: 'Website', hint: 'Public site', icon: 'globe', to: '/website' },
   { label: 'Reports', hint: 'Numbers', icon: 'chart', to: '/reports' },
   { label: 'Operations', hint: 'System health', icon: 'pulse', to: '/operations', perm: 'admin' },
+  { label: 'Hermes', hint: 'Integration console', icon: 'plug', to: '/hermes', perm: 'hermes.view' },
   { label: 'Settings', hint: 'Your account', icon: 'cog', to: '/settings' },
 ]
 

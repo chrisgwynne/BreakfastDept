@@ -228,3 +228,116 @@ export interface WebsiteOverview {
   total: number
   url: string
 }
+
+// -- Hermes integration --------------------------------------------------
+
+export type HermesStatus = 'healthy' | 'attention' | 'degraded' | 'misconfigured' | 'disabled'
+
+export interface HermesActivityEntry {
+  id: string
+  at: string
+  credential: string
+  scope: string
+  method: string
+  endpoint: string
+  result: string
+  status: number
+  request_id: string
+  target_type?: string
+  target_uuid?: string
+  metadata?: Record<string, unknown>
+}
+
+export interface HermesOverview {
+  enabled: boolean
+  configured: boolean
+  credential_count: number
+  scope_count: number
+  endpoint: string
+  replay_window: number
+  production: boolean
+  status: HermesStatus
+  last_success: string | null
+  last_failure: string | null
+  requests_24h: number
+  failures_24h: number
+  recent: HermesActivityEntry[]
+}
+
+export interface HermesCredential {
+  id: string
+  scopes: string[]
+  scope_count: number
+  managed: string
+  status: string
+  last_used: string | null
+  last_result: string | null
+  request_count: number
+}
+
+export interface HermesScope {
+  scope: string
+  label: string
+  description: string
+  risk: 'low' | 'medium' | 'high'
+  kind: 'read' | 'write' | 'draft'
+  granted_to: string[]
+}
+
+export interface HermesScopeGroup {
+  domain: string
+  scopes: HermesScope[]
+}
+
+export interface HermesScopes {
+  groups: HermesScopeGroup[]
+  total: number
+}
+
+export interface HermesHealth {
+  status: HermesStatus
+  enabled: boolean
+  configured: boolean
+  credentials: number
+  audit_storage: boolean
+  nonce_storage: boolean
+  queue_pending: number
+  queue_failed: number
+  replay_window: number
+  last_success: string | null
+  last_failure: string | null
+  requests_24h: number
+  failures_24h: number
+}
+
+export interface HermesSettingRow {
+  key: string
+  label: string
+  value: string
+  note: string
+}
+
+export interface HermesSettings {
+  deployment: HermesSettingRow[]
+}
+
+export interface HermesTestStep {
+  key: string
+  label: string
+  ok: boolean
+  detail: string
+}
+
+export interface HermesTestResult {
+  ok: boolean
+  credential: string
+  steps: HermesTestStep[]
+}
+
+export interface HermesGeneratedCredential {
+  id: string
+  scopes: string[]
+  rotating: boolean
+  env_line: string
+  instructions: string
+}
