@@ -22,7 +22,10 @@ if (headers_sent() === false) {
 }
 
 $meta      = $page->seoMeta();
-$assetVer  = '6';
+// Auto cache-bust: the stylesheet is served immutable, so tie the version to the
+// file's modified time. Every deploy changes it, so visitors always fetch the
+// current CSS instead of a stale cached copy. Falls back to a fixed version.
+$assetVer  = (string) (@filemtime($kirby->root('assets') . '/css/app.css') ?: '7');
 $ogImage   = $meta->ogImage();
 $structured = new StructuredData($site);
 
