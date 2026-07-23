@@ -37,7 +37,11 @@ return [
     // platform plugin, which makes the old `/panel` location return 404).
     'panel' => [
         'slug'    => $adminSlug,
-        'install' => $isProduction === false,
+        // The Panel self-signup installer (create the first admin from the web)
+        // is on outside production. Set PANEL_INSTALL=true in the host .env to
+        // enable it in production JUST long enough to create your account, then
+        // set it back to false. It only ever appears while there are zero users.
+        'install' => Env::bool('PANEL_INSTALL', $isProduction === false),
         'css'     => '/assets/css/panel.css',
         // Branded dashboard is the first screen after login.
         'home'    => 'dashboard',
