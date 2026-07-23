@@ -83,6 +83,7 @@ final class AdminApi
             'previews'      => $this->previews($seg),
             'email'         => $this->email($user),
             'website'       => $this->website(),
+            'hermes'        => $this->hermes($method, $seg, $user),
             'reports'       => $this->reports(),
             'operations'    => $this->operations($user),
             default         => throw new ApiException(404, 'Unknown endpoint.', 'not_found'),
@@ -509,6 +510,86 @@ final class AdminApi
             'home'     => $isHome,
             'children' => $page->children()->listed()->count(),
         ];
+    }
+
+    // ==================================================================
+    // Hermes integration console
+    // ==================================================================
+
+    /**
+     * @param list<string> $seg
+     * @return array<string,mixed>
+     */
+    private function hermes(string $method, array $seg, \Kirby\Cms\User $user): array
+    {
+        // Viewing the integration requires the Hermes view grant; operational
+        // actions (self-test, credential generation) are admin-only. CSRF for the
+        // POST actions is already enforced by route().
+        if (!PanelGate::canViewHermes($user)) {
+            throw new ApiException(403, 'You don’t have access to the Hermes integration.', 'forbidden');
+        }
+        $h        = new HermesAdmin($this->platform);
+        $resource = $seg[1] ?? 'overview';
+        $actor    = (string) $user->email();
+
+        // ---- Actions (POST) — admin only ----
+        if ($method === 'POST') {
+            if (!PanelGate::canManageHermes($user)) {
+                throw new ApiException(403, 'Only administrators can perform Hermes actions.', 'forbidden');
+            }
+            if ($resource === 'test') {
+                $id = (string) ($this->body()['credential'] ?? '');
+                if ($id === '') {
+                    throw new ApiException(422, 'Choose a credential to test.', 'invalid', ['credential' => 'Required.']);
+                }
+
+                return $h->selfTest($id, $actor);
+            }
+            if ($resource === 'credentials' && ($seg[2] ?? '') === 'generate') {
+                $body   = $this->body();
+                $id     = (string) ($body['id'] ?? '');
+                $scopes = is_array($body['scopes'] ?? null)
+                    ? array_values(array_map(static fn ($s): string => (string) $s, $body['scopes']))
+                    : [];
+
+                return $h->generateCredentialLine($id, $scopes, $actor);
+            }
+            throw new ApiException(404, 'Unknown Hermes action.', 'not_found');
+        }
+
+        // ---- Reads (GET) ----
+        return match ($resource) {
+            'overview'    => $h->overview(),
+            'credentials' => ['items' => $h->credentials()],
+            'scopes'      => $h->scopes(),
+            'health'      => $h->health(),
+            'settings'    => $h->settings(),
+            'activity'    => $this->hermesActivity($h, $seg),
+            default       => throw new ApiException(404, 'Unknown Hermes endpoint.', 'not_found'),
+        };
+    }
+
+    /**
+     * @param list<string> $seg
+     * @return array<string,mixed>
+     */
+    private function hermesActivity(HermesAdmin $h, array $seg): array
+    {
+        if (isset($seg[2]) && $seg[2] !== '') {
+            $detail = $h->activityDetail($seg[2]);
+            if ($detail === null) {
+                throw new ApiException(404, 'Activity entry not found.', 'not_found');
+            }
+
+            return ['entry' => $detail];
+        }
+        $q = $this->query();
+
+        return $h->activity(
+            ['result' => $q['result'] ?? '', 'credential' => $q['credential'] ?? ''],
+            max(1, (int) ($q['page'] ?? 1)),
+            $this->perPage(),
+        );
     }
 
     /** @return array<string,mixed> */

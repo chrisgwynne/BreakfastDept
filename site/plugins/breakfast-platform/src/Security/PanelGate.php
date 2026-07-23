@@ -50,6 +50,23 @@ final class PanelGate
         return self::canAccess($user);
     }
 
+    /**
+     * Hermes integration console. Viewing the integration (overview, credentials
+     * inventory, scopes, activity, diagnostics) requires the CRM 'manage' grant;
+     * operational actions that touch the integration — running a connection
+     * self-test, generating a credential's env line — are admin-only. Secrets are
+     * never exposed regardless. Enforced server-side on every Hermes route.
+     */
+    public static function canViewHermes(?User $user): bool
+    {
+        return self::canManage($user);
+    }
+
+    public static function canManageHermes(?User $user): bool
+    {
+        return $user !== null && $user->isAdmin();
+    }
+
     private static function allowed(?User $user, string $action): bool
     {
         if ($user === null) {
