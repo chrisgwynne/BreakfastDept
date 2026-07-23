@@ -173,6 +173,11 @@ final class Platform
         return $this->service(Queue::class, fn () => new Queue($this->db(), $this->logger()));
     }
 
+    public function invoices(): \Breakfast\Platform\Invoicing\Invoices
+    {
+        return $this->service(\Breakfast\Platform\Invoicing\Invoices::class, fn () => new \Breakfast\Platform\Invoicing\Invoices($this->db()));
+    }
+
     /** @return array<string,mixed> */
     public function mailConfig(): array
     {
