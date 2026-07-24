@@ -20,7 +20,7 @@ const loading = ref(true)
 const error = ref<string | null>(null)
 const busy = ref('')
 
-const tab = ref<'overview' | 'milestones' | 'board'>('overview')
+const tab = ref<'overview' | 'milestones' | 'board' | 'onboarding'>('overview')
 type Milestone = { uuid: string; title: string; status: string; progress_percent: number; due_date: string; is_ready: boolean; blocked_by: string[] }
 type Task = { uuid: string; title: string; status: string; milestone_uuid: string | null; is_ready: boolean; revision: number }
 const milestones = ref<Milestone[]>([])
@@ -37,10 +37,56 @@ async function loadBoard() {
   if (!project.value) return
   board.value = (await api.get<{ columns: Record<string, Task[]> }>(`/projects/${project.value.id}/board`)).columns
 }
-async function switchTab(t: 'overview' | 'milestones' | 'board') {
+async function switchTab(t: 'overview' | 'milestones' | 'board' | 'onboarding') {
   tab.value = t
   if (t === 'milestones') await loadMilestones()
   if (t === 'board') await loadBoard()
+  if (t === 'onboarding') await loadOnboarding()
+}
+
+// --- Onboarding ---
+interface OnbReview { uuid: string; question_key: string; target: string; existing_value: string; submitted_value: string; decision: string }
+interface OnbInstance { uuid: string; status: string; readiness: { ready: boolean; blockers: string[]; percent: number }; reviews: OnbReview[] }
+interface OnbTemplate { uuid: string; name: string; current_version: number }
+const onbInstances = ref<OnbInstance[]>([])
+const onbTemplates = ref<OnbTemplate[]>([])
+const onbTemplate = ref('')
+const onbBusy = ref('')
+const onbLink = ref('')
+async function loadOnboarding() {
+  if (!project.value) return
+  onbInstances.value = (await api.get<{ items: OnbInstance[] }>(`/projects/${project.value.id}/onboarding`)).items
+  if (!onbTemplates.value.length) {
+    onbTemplates.value = (await api.get<{ items: OnbTemplate[] }>('/onboarding-templates')).items.filter((t) => t.current_version > 0)
+  }
+}
+async function createOnboarding() {
+  if (!project.value || !onbTemplate.value) return
+  onbBusy.value = 'create'
+  try { await api.post(`/projects/${project.value.id}/onboarding`, { template_uuid: onbTemplate.value }); await loadOnboarding(); ui.toast('Onboarding created') }
+  catch (e) { ui.toast(e instanceof ApiError ? e.message : 'Could not create onboarding') }
+  finally { onbBusy.value = '' }
+}
+async function inviteOnboarding(inst: OnbInstance) {
+  onbBusy.value = inst.uuid
+  const email = window.prompt('Client email for the onboarding invitation?') || ''
+  if (!email.trim()) { onbBusy.value = ''; return }
+  try {
+    const res = await api.post<{ url: string }>(`/onboarding/${inst.uuid}/invite`, { email: email.trim(), expires_days: 14 })
+    onbLink.value = res.url
+    await loadOnboarding(); ui.toast('Invitation sent')
+  } catch (e) { ui.toast(e instanceof ApiError ? e.message : 'Could not send invite') }
+  finally { onbBusy.value = '' }
+}
+async function decideMapping(review: OnbReview, decision: string) {
+  try { await api.post('/onboarding/mapping/decide', { review: review.uuid, decision }); await loadOnboarding() }
+  catch (e) { ui.toast(e instanceof ApiError ? e.message : 'Could not decide') }
+}
+async function onbAction(inst: OnbInstance, action: string) {
+  onbBusy.value = inst.uuid + action
+  try { await api.post(`/onboarding/${inst.uuid}/${action}`, {}); await loadOnboarding(); await reloadProject(); ui.toast('Done') }
+  catch (e) { ui.toast(e instanceof ApiError ? e.message : 'Action failed') }
+  finally { onbBusy.value = '' }
 }
 async function addMilestone() {
   if (!project.value || !newMilestone.value.trim()) return
@@ -171,7 +217,43 @@ onMounted(load)
           <button class="tab" :class="{ 'tab--active': tab === 'overview' }" role="tab" @click="switchTab('overview')">Overview</button>
           <button class="tab" :class="{ 'tab--active': tab === 'milestones' }" role="tab" @click="switchTab('milestones')">Milestones</button>
           <button class="tab" :class="{ 'tab--active': tab === 'board' }" role="tab" @click="switchTab('board')">Board</button>
+          <button class="tab" :class="{ 'tab--active': tab === 'onboarding' }" role="tab" @click="switchTab('onboarding')">Onboarding</button>
         </div>
+
+        <!-- Onboarding -->
+        <section v-if="tab === 'onboarding'" class="card card--pad" data-test="project-onboarding">
+          <div v-if="canManage" class="quickadd">
+            <select class="input" v-model="onbTemplate" data-test="onboarding-template">
+              <option value="">Choose an onboarding template…</option>
+              <option v-for="t in onbTemplates" :key="t.uuid" :value="t.uuid">{{ t.name }}</option>
+            </select>
+            <button class="btn btn--sm btn--primary" data-test="onboarding-create" :disabled="!onbTemplate || onbBusy === 'create'" @click="createOnboarding">Create</button>
+          </div>
+          <div v-if="onbLink" class="paylink"><input class="input mono" :value="onbLink" readonly @focus="($event.target as HTMLInputElement).select()" /></div>
+          <div v-for="inst in onbInstances" :key="inst.uuid" class="onb">
+            <div class="onb__head">
+              <StatusPill :status="inst.status" />
+              <span class="faint">{{ inst.readiness.percent }}% complete</span>
+              <span v-if="!inst.readiness.ready" class="chip chip--warn">{{ inst.readiness.blockers.join('; ') }}</span>
+              <span class="onb__actions" v-if="canManage">
+                <button v-if="['draft','ready','viewed','invited','in_progress','needs_clarification'].includes(inst.status)" class="btn btn--sm" data-test="onboarding-invite" :disabled="onbBusy === inst.uuid" @click="inviteOnboarding(inst)">Send invite</button>
+                <button v-if="inst.status === 'submitted'" class="btn btn--sm" @click="onbAction(inst, 'review')">Start review</button>
+                <button v-if="['submitted','under_review'].includes(inst.status)" class="btn btn--sm btn--primary" data-test="onboarding-complete" :disabled="!inst.readiness.ready" @click="onbAction(inst, 'complete')">Complete</button>
+              </span>
+            </div>
+            <div v-if="inst.reviews.filter((r) => r.decision === 'pending').length" class="onb__reviews">
+              <p class="label">Mapping conflicts — review before overwriting</p>
+              <div v-for="r in inst.reviews.filter((x) => x.decision === 'pending')" :key="r.uuid" class="onb__review" :data-test="'mapping-' + r.target">
+                <span class="truncate">{{ r.target }}: <s>{{ r.existing_value }}</s> → {{ r.submitted_value }}</span>
+                <span class="onb__decide">
+                  <button class="btn btn--sm" data-test="mapping-accept" @click="decideMapping(r, 'accepted')">Accept</button>
+                  <button class="btn btn--sm" @click="decideMapping(r, 'rejected')">Reject</button>
+                </span>
+              </div>
+            </div>
+          </div>
+          <p v-if="!onbInstances.length" class="faint">No onboarding started yet.</p>
+        </section>
 
         <!-- Milestones -->
         <section v-if="tab === 'milestones'" class="card card--pad">
@@ -340,5 +422,12 @@ onMounted(load)
 .tcard { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-sm); padding: var(--sp-2); display: grid; gap: 6px; }
 .tcard__title { font-size: var(--text-sm); }
 .bcol__empty { text-align: center; font-size: var(--text-xs); }
+.paylink { margin: var(--sp-2) 0; } .paylink .input { width: 100%; font-size: var(--text-xs); }
+.onb { border-top: 1px solid var(--line); padding: var(--sp-3) 0; display: grid; gap: var(--sp-2); }
+.onb__head { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+.onb__actions { margin-left: auto; display: flex; gap: var(--sp-2); }
+.onb__reviews { background: var(--paper-2); border-radius: var(--r-md); padding: var(--sp-2) var(--sp-3); display: grid; gap: 6px; }
+.onb__review { display: flex; justify-content: space-between; gap: var(--sp-2); font-size: var(--text-sm); align-items: center; }
+.onb__decide { display: inline-flex; gap: 6px; }
 @media (max-width: 820px) { .cols { grid-template-columns: 1fr; } .grid2 { grid-template-columns: 1fr; } }
 </style>

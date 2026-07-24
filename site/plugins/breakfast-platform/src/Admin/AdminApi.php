@@ -93,6 +93,8 @@ final class AdminApi
             'milestones'    => $this->milestones($method, $seg, $user),
             'project-tasks' => $this->projectTasks($method, $seg, $user),
             'project-templates' => $this->projectTemplatesApi($method, $seg, $user),
+            'onboarding'    => $this->onboarding($method, $seg, $user),
+            'onboarding-templates' => $this->onboardingTemplatesApi($method, $seg, $user),
             'calendar'      => $this->calendar($method, $seg, $user),
             'search'        => $this->search(),
             'settings'      => $this->settings($method, $seg, $user),
@@ -2092,6 +2094,18 @@ final class AdminApi
             if ($method === 'GET' && $action === 'tasks') {
                 return ['items' => $this->platform->projectTasks()->forProject($id, ['status' => $this->query()['status'] ?? null, 'milestone_uuid' => $this->query()['milestone'] ?? null])];
             }
+            if ($method === 'GET' && $action === 'onboarding') {
+                return ['items' => $this->platform->onboarding()->forProject($id)];
+            }
+            if ($method === 'POST' && $action === 'onboarding') {
+                $requireManage();
+                $body = $this->body();
+                try {
+                    return ['instance' => $this->platform->onboarding()->createForProject($id, (string) ($body['template_uuid'] ?? ''), $body, $actor)];
+                } catch (\Breakfast\Platform\Onboarding\OnboardingException $e) {
+                    throw new ApiException($e->status, $e->getMessage(), 'onboarding');
+                }
+            }
             if ($method === 'GET' && $action === 'board') {
                 $columns = [];
                 foreach (\Breakfast\Platform\Projects\ProjectTasks::STATUSES as $col) {
@@ -2263,6 +2277,152 @@ final class AdminApi
         if (!$manage) {
             throw new ApiException(403, 'You can’t change projects.', 'forbidden');
         }
+    }
+
+    /**
+     * Onboarding instances. Item-level ops (invite, review, decide mapping,
+     * complete, withdraw). Staff only; the client fills via a tokened route.
+     *
+     * @param list<string> $seg
+     * @return array<string,mixed>
+     */
+    private function onboarding(string $method, array $seg, \Kirby\Cms\User $user): array
+    {
+        if (!PanelGate::canViewOnboarding($user)) {
+            throw new ApiException(403, 'You don’t have access to onboarding.', 'forbidden');
+        }
+        $manage = PanelGate::canManageOnboarding($user);
+        $svc    = $this->platform->onboarding();
+        $actor  = (string) $user->email();
+        $id     = $seg[1] ?? '';
+        $requireManage = function () use ($manage): void {
+            if (!$manage) {
+                throw new ApiException(403, 'You can’t change onboarding.', 'forbidden');
+            }
+        };
+        try {
+            if ($id === 'mapping' && ($seg[2] ?? '') === 'decide' && $method === 'POST') {
+                $requireManage();
+                $body = $this->body();
+
+                return ['instance' => $svc->decideMapping((string) ($body['review'] ?? ''), (string) ($body['decision'] ?? ''), $actor)];
+            }
+            if ($id === '') {
+                throw new ApiException(404, 'Unknown onboarding endpoint.', 'not_found');
+            }
+            $action = $seg[2] ?? '';
+            if ($method === 'GET' && $action === '') {
+                $i = $svc->find($id);
+                if ($i === null) {
+                    throw new ApiException(404, 'Onboarding not found.', 'not_found');
+                }
+
+                return ['instance' => $this->onboardingRow($i)];
+            }
+            $requireManage();
+            if ($method === 'POST') {
+                $body = $this->body();
+                switch ($action) {
+                    case 'invite':
+                        $result = $svc->invite($id, (string) ($body['email'] ?? ''), (int) ($body['expires_days'] ?? 14), $actor);
+                        $token = $result['token'];
+                        $url = rtrim((string) $this->kirby->site()->url(), '/') . '/onboarding/' . $token;
+                        // Email the client the link (link only; never the token in the record).
+                        $to = (string) ($body['email'] ?? '');
+                        if (filter_var($to, FILTER_VALIDATE_EMAIL) !== false) {
+                            $this->platform->crmMail()->send($to, 'Your project onboarding', "Hi,\n\nPlease complete your onboarding here:\n{$url}\n\nThank you.", [], $actor);
+                        }
+
+                        return ['instance' => $this->onboardingRow($result['instance']), 'url' => $url];
+                    case 'review':
+                        return ['instance' => $this->onboardingRow($svc->startReview($id, $actor))];
+                    case 'clarify':
+                        return ['instance' => $this->onboardingRow($svc->requestClarification($id, (string) ($body['note'] ?? ''), $actor))];
+                    case 'complete':
+                        return ['instance' => $this->onboardingRow($svc->complete($id, $actor))];
+                    case 'withdraw':
+                        return ['instance' => $this->onboardingRow($svc->withdraw($id, $actor))];
+                }
+            }
+
+            throw new ApiException(404, 'Unknown onboarding endpoint.', 'not_found');
+        } catch (\Breakfast\Platform\Onboarding\OnboardingException $e) {
+            throw new ApiException($e->status, $e->getMessage(), 'onboarding');
+        }
+    }
+
+    /**
+     * Onboarding templates: GET list, GET /:id, POST create, POST /:id/version,
+     * POST /:id/publish. Also serves the frozen structure for a project's
+     * onboarding via GET /onboarding-templates/:id/structure?version=N.
+     *
+     * @param list<string> $seg
+     * @return array<string,mixed>
+     */
+    private function onboardingTemplatesApi(string $method, array $seg, \Kirby\Cms\User $user): array
+    {
+        if (!PanelGate::canViewOnboarding($user)) {
+            throw new ApiException(403, 'You don’t have access to onboarding.', 'forbidden');
+        }
+        $manage = PanelGate::canManageOnboarding($user);
+        $svc    = $this->platform->onboardingTemplates();
+        $actor  = (string) $user->email();
+        $id     = $seg[1] ?? '';
+        try {
+            if ($id === '') {
+                if ($method === 'POST') {
+                    if (!$manage) {
+                        throw new ApiException(403, 'You can’t manage onboarding templates.', 'forbidden');
+                    }
+
+                    return ['template' => $svc->create($this->body(), $actor)];
+                }
+
+                return ['items' => $svc->list()];
+            }
+            $action = $seg[2] ?? '';
+            if ($method === 'GET' && $action === '') {
+                $t = $svc->find($id);
+                if ($t === null) {
+                    throw new ApiException(404, 'Template not found.', 'not_found');
+                }
+
+                return ['template' => $t];
+            }
+            if ($method === 'GET' && $action === 'structure') {
+                $v = (int) ($this->query()['version'] ?? 0);
+                $structure = $v > 0 ? $svc->versionStructure($id, $v) : $svc->publishedStructure($id);
+
+                return ['structure' => $structure];
+            }
+            if (!$manage) {
+                throw new ApiException(403, 'You can’t manage onboarding templates.', 'forbidden');
+            }
+            if ($method === 'POST' && $action === 'version') {
+                return ['template' => $svc->newDraftVersion($id, $actor)];
+            }
+            if ($method === 'POST' && $action === 'publish') {
+                return ['template' => $svc->publish($id, (int) ($this->body()['version'] ?? 0), $actor)];
+            }
+
+            throw new ApiException(404, 'Unknown template endpoint.', 'not_found');
+        } catch (\Breakfast\Platform\Onboarding\OnboardingException $e) {
+            throw new ApiException($e->status, $e->getMessage(), 'onboarding');
+        }
+    }
+
+    /**
+     * Staff-facing onboarding view — includes answers + reviews but never the
+     * raw token.
+     *
+     * @param array<string,mixed> $i
+     * @return array<string,mixed>
+     */
+    private function onboardingRow(array $i): array
+    {
+        unset($i['token_hash']);
+
+        return $i;
     }
 
     /**

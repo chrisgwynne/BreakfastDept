@@ -199,6 +199,21 @@ final class PanelGate
     }
 
     /**
+     * Onboarding. Viewing follows CRM access; managing templates, sending
+     * invitations and reviewing submissions require the 'manage' grant. The
+     * client fills onboarding through a separate tokened public route.
+     */
+    public static function canViewOnboarding(?User $user): bool
+    {
+        return self::canAccess($user);
+    }
+
+    public static function canManageOnboarding(?User $user): bool
+    {
+        return self::canManage($user);
+    }
+
+    /**
      * Website content. Viewing the overview needs admin access; editing drafts
      * and publishing to the live site both require the 'manage' grant. Enforced
      * server-side on every website route.

@@ -812,6 +812,60 @@ Kirby::plugin('breakfast/platform', [
             },
         ],
 
+        // Public client onboarding actions (POST /onboarding/<token>/save|submit).
+        // The opaque token is the capability; answers are server-validated and
+        // durable. Registered before the GET view route.
+        [
+            'pattern' => 'onboarding/(:any)/(save|submit)',
+            'method'  => 'POST',
+            'action'  => function (string $token, string $verb) {
+                $svc = breakfast()->onboarding();
+                $inst = $svc->findByToken($token);
+                if ($inst === null) {
+                    return new \Kirby\Http\Response('This onboarding link is invalid or has expired.', 'text/plain', 404);
+                }
+                $uuid = (string) $inst['uuid'];
+                try {
+                    if ($verb === 'save') {
+                        $answers = get('answers');
+                        $svc->saveDraft($uuid, is_array($answers) ? $answers : [], null, 'client');
+                    } else {
+                        $answers = get('answers');
+                        if (is_array($answers) && $answers !== []) {
+                            $svc->saveDraft($uuid, $answers, null, 'client');
+                        }
+                        $svc->submit($uuid, 'client');
+                    }
+                } catch (\Breakfast\Platform\Onboarding\OnboardingException $e) {
+                    return \Kirby\Http\Response::json(['error' => $e->getMessage()], $e->status);
+                }
+
+                return \Kirby\Http\Response::json(['ok' => true, 'status' => (string) ($svc->find($uuid)['status'] ?? '')]);
+            },
+        ],
+
+        // Hosted client onboarding form (/onboarding/<token>). Viewing marks it
+        // 'viewed' (never in_progress). No login required.
+        [
+            'pattern' => 'onboarding/(:any)',
+            'method'  => 'GET',
+            'action'  => function (string $token) {
+                $svc = breakfast()->onboarding();
+                $inst = $svc->findByToken($token);
+                if ($inst === null) {
+                    $error = kirby()->site()->errorPage();
+
+                    return new \Kirby\Http\Response($error !== null ? $error->render() : 'Not found', 'text/html', 404);
+                }
+                $svc->markViewed((string) $inst['uuid']);
+                $structure = breakfast()->onboardingTemplates()->versionStructure((string) $inst['template_uuid'], (int) $inst['version']);
+
+                return new \Kirby\Http\Response(snippet('onboarding', ['instance' => $svc->find((string) $inst['uuid']), 'structure' => $structure, 'token' => $token], true), 'text/html', 200, [
+                    'X-Robots-Tag' => 'noindex, nofollow',
+                ]);
+            },
+        ],
+
         // Signed client contract link (/contract/<token>). Viewing marks it
         // viewed (never signed). No login required.
         [
