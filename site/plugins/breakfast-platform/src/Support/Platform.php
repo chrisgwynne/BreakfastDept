@@ -178,6 +178,17 @@ final class Platform
         return $this->service(\Breakfast\Platform\Invoicing\Invoices::class, fn () => new \Breakfast\Platform\Invoicing\Invoices($this->db()));
     }
 
+    public function invoiceDocuments(): \Breakfast\Platform\Invoicing\InvoiceDocumentService
+    {
+        return $this->service(\Breakfast\Platform\Invoicing\InvoiceDocumentService::class, fn () => new \Breakfast\Platform\Invoicing\InvoiceDocumentService(
+            $this->invoices(),
+            new \Breakfast\Platform\Invoicing\InvoicePdfRenderer(),
+            new \Breakfast\Platform\Invoicing\InvoiceDocumentStore($this->db(), $this->storageDir() . '/invoices'),
+            $this->activities(),
+            $this->audit()
+        ));
+    }
+
     /**
      * The environment/config-sourced mail settings (no application overlay).
      *

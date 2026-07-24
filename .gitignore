@@ -67,3 +67,4 @@ Thumbs.db
 /admin/*.tsbuildinfo
 /admin/tsconfig.tsbuildinfo
 /public/breakfast-admin/
+/storage/invoices/*

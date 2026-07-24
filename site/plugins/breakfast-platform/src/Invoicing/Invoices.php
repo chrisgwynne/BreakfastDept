@@ -265,8 +265,45 @@ final class Invoices
             );
             $this->event($uuid, 'issued', 'Issued as ' . $number, $actor);
 
+            // Freeze the immutable financial snapshot and mark the document as
+            // pending generation. The PDF is rendered from THIS snapshot, never
+            // from live settings/client data, so the issued document is stable.
+            $detail   = $this->find($uuid) ?? [];
+            $snapshot = InvoiceSnapshot::build($detail, $settings);
+            $db->run(
+                "UPDATE invoices SET snapshot = :snap, document_status = 'pending', updated_at = :now WHERE uuid = :u",
+                ['snap' => json_encode($snapshot, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '', 'now' => Clock::nowIso(), 'u' => $uuid]
+            );
+
             return $this->find($uuid) ?? [];
         });
+    }
+
+    /**
+     * The frozen snapshot for an issued invoice, or null if not yet issued.
+     *
+     * @return array<string,mixed>|null
+     */
+    public function snapshot(string $uuid): ?array
+    {
+        $raw = (string) $this->db->scalar('SELECT snapshot FROM invoices WHERE uuid = :u', ['u' => $uuid]);
+        if ($raw === '') {
+            return null;
+        }
+        $decoded = json_decode($raw, true);
+
+        return is_array($decoded) ? $decoded : null;
+    }
+
+    public function setDocumentStatus(string $uuid, string $status): void
+    {
+        $this->db->run('UPDATE invoices SET document_status = :s, updated_at = :n WHERE uuid = :u', ['s' => $status, 'n' => Clock::nowIso(), 'u' => $uuid]);
+    }
+
+    /** Record an immutable invoice event (public wrapper for the document service). */
+    public function logEvent(string $uuid, string $type, string $detail, string $actor): void
+    {
+        $this->event($uuid, $type, $detail, $actor);
     }
 
     public function markSent(string $uuid, string $actor, string $detail): void
