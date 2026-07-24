@@ -229,6 +229,54 @@ export interface WebsiteOverview {
   url: string
 }
 
+// -- Website content editor ----------------------------------------------
+
+export interface WebsiteListItem {
+  id: string
+  title: string
+  kind: 'site' | 'page'
+  template: string
+  status: string
+  url: string
+  home: boolean
+}
+
+export interface WebsiteIndex {
+  items: WebsiteListItem[]
+  total: number
+  url: string
+}
+
+export interface WebsiteFieldOption {
+  value: string
+  label: string
+}
+
+export interface WebsiteField {
+  name: string
+  label: string
+  type: string
+  help: string
+  width: string
+  editable: boolean
+  required?: boolean
+  value?: string | boolean
+  options?: WebsiteFieldOption[]
+}
+
+export interface WebsiteEditor {
+  id: string
+  title: string
+  kind: 'site' | 'page'
+  template: string
+  status: string
+  url: string
+  has_changes: boolean
+  can_unpublish: boolean
+  fields: WebsiteField[]
+  readonly: WebsiteField[]
+}
+
 // -- Invoicing -----------------------------------------------------------
 
 export interface InvoiceItem {

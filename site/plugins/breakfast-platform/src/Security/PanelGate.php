@@ -82,6 +82,26 @@ final class PanelGate
         return self::canManage($user);
     }
 
+    /**
+     * Website content. Viewing the overview needs admin access; editing drafts
+     * and publishing to the live site both require the 'manage' grant. Enforced
+     * server-side on every website route.
+     */
+    public static function canViewWebsite(?User $user): bool
+    {
+        return self::canAccess($user);
+    }
+
+    public static function canEditWebsite(?User $user): bool
+    {
+        return self::canManage($user);
+    }
+
+    public static function canPublishWebsite(?User $user): bool
+    {
+        return self::canManage($user);
+    }
+
     private static function allowed(?User $user, string $action): bool
     {
         if ($user === null) {

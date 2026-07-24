@@ -431,6 +431,31 @@ Kirby::plugin('breakfast/platform', [
             'action'  => fn (?string $path = '') => (new AdminApi(kirby(), breakfast()))->handle((string) $path),
         ],
 
+        // Authenticated draft preview for the standalone admin's website editor.
+        // Registered before the SPA shell route so it isn't swallowed by the
+        // client-side catch-all. Renders the page's unpublished draft (changes
+        // version) in memory — nothing is persisted, and it never publishes to
+        // preview.
+        [
+            'pattern' => 'breakfast-admin/preview/page/(:any)',
+            'method'  => 'GET',
+            'action'  => function (string $id) {
+                $user = kirby()->user();
+                if (!\Breakfast\Platform\Security\PanelGate::canEditWebsite($user)) {
+                    return new \Kirby\Http\Response('Not found', 'text/plain', 404);
+                }
+                try {
+                    $html = (new \Breakfast\Platform\Website\WebsiteContent(kirby(), breakfast()))->previewHtml($id);
+                } catch (\Breakfast\Platform\Website\WebsiteException $e) {
+                    return new \Kirby\Http\Response($e->getMessage(), 'text/plain', $e->status);
+                }
+
+                return new \Kirby\Http\Response($html, 'text/html', 200, [
+                    'X-Robots-Tag' => 'noindex, nofollow',
+                ]);
+            },
+        ],
+
         // The standalone Breakfast Admin application shell. The Vue SPA is built to
         // public/breakfast-admin/ (base=/breakfast-admin/). Real built assets are
         // served directly by the web server; every other in-app path (deep links

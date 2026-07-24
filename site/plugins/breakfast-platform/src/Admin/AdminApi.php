@@ -82,7 +82,7 @@ final class AdminApi
             'activities'    => $this->activities(),
             'previews'      => $this->previews($seg),
             'email'         => $this->email($method, $seg, $user),
-            'website'       => $this->website(),
+            'website'       => $this->website($method, $seg, $user),
             'hermes'        => $this->hermes($method, $seg, $user),
             'invoices'      => $this->invoices($method, $seg, $user),
             'reports'       => $this->reports(),
@@ -203,6 +203,12 @@ final class AdminApi
         }
         if (PanelGate::canManageInvoices($user)) {
             $permissions[] = 'invoices.manage';
+        }
+        if (PanelGate::canEditWebsite($user)) {
+            $permissions[] = 'website.edit';
+        }
+        if (PanelGate::canPublishWebsite($user)) {
+            $permissions[] = 'website.publish';
         }
 
         return [
@@ -641,41 +647,86 @@ final class AdminApi
      *
      * @return array<string,mixed>
      */
-    private function website(): array
+    /**
+     * Website content editing over the real Kirby content model.
+     *
+     * GET    /website                     — list editable pages + global settings
+     * GET    /website/page/{id}           — load one model's fields + values
+     * PATCH  /website/page/{id}           — save edits to the draft (changes)
+     * POST   /website/page/{id}/publish   — apply the draft to live content
+     * POST   /website/page/{id}/discard   — throw the draft away
+     * POST   /website/page/{id}/unpublish — take a page offline (where allowed)
+     * POST   /website/page/{id}/republish — put a page back online
+     *
+     * @param list<string> $seg
+     * @return array<string,mixed>
+     */
+    private function website(string $method, array $seg, \Kirby\Cms\User $user): array
     {
-        $site = $this->kirby->site();
-        $pages = [];
-
-        $home = $site->homePage();
-        if ($home !== null) {
-            $pages[] = $this->pageRow($home, true);
+        if (!PanelGate::canViewWebsite($user)) {
+            throw new ApiException(403, 'You don’t have access to the website.', 'forbidden');
         }
-        foreach ($site->children()->listed() as $page) {
-            if ($home !== null && $page->id() === $home->id()) {
-                continue;
+        $svc   = new \Breakfast\Platform\Website\WebsiteContent($this->kirby, $this->platform);
+        $actor = (string) $user->email();
+        $sub   = $seg[1] ?? '';
+
+        $requireEdit = function () use ($user): void {
+            if (!PanelGate::canEditWebsite($user)) {
+                throw new ApiException(403, 'You can’t edit the website.', 'forbidden');
             }
-            $pages[] = $this->pageRow($page, false);
-        }
+        };
+        $requirePublish = function () use ($user): void {
+            if (!PanelGate::canPublishWebsite($user)) {
+                throw new ApiException(403, 'You can’t publish website changes.', 'forbidden');
+            }
+        };
 
-        return [
-            'items' => $pages,
-            'total' => count($pages),
-            'url'   => (string) $site->url(),
-        ];
+        try {
+            if ($sub === '') {
+                return $svc->index();
+            }
+            if ($sub !== 'page' || !isset($seg[2])) {
+                throw new ApiException(404, 'Unknown website endpoint.', 'not_found');
+            }
+            $id     = $seg[2];
+            $action = $seg[3] ?? '';
+
+            if ($method === 'GET' && $action === '') {
+                return $svc->load($id);
+            }
+            if ($method === 'PATCH' && $action === '') {
+                $requireEdit();
+
+                return $svc->save($id, $this->body(), $actor);
+            }
+            if ($method === 'POST') {
+                return match ($action) {
+                    'publish'   => $this->guarded($requirePublish, fn () => $svc->publish($id, $actor)),
+                    'discard'   => $this->guarded($requireEdit, fn () => $svc->discard($id, $actor)),
+                    'unpublish' => $this->guarded($requirePublish, fn () => $svc->unpublish($id, $actor)),
+                    'republish' => $this->guarded($requirePublish, fn () => $svc->republish($id, $actor)),
+                    default     => throw new ApiException(404, 'Unknown website action.', 'not_found'),
+                };
+            }
+
+            throw new ApiException(404, 'Unknown website endpoint.', 'not_found');
+        } catch (\Breakfast\Platform\Website\WebsiteException $e) {
+            throw new ApiException($e->status, $e->getMessage(), 'website', $e->fields);
+        }
     }
 
-    /** @return array<string,mixed> */
-    private function pageRow(\Kirby\Cms\Page $page, bool $isHome): array
+    /**
+     * Run $requirePermission (which throws on denial) then the action.
+     *
+     * @param callable():void $requirePermission
+     * @param callable():array<string,mixed> $action
+     * @return array<string,mixed>
+     */
+    private function guarded(callable $requirePermission, callable $action): array
     {
-        return [
-            'id'       => (string) $page->id(),
-            'title'    => (string) $page->title()->value(),
-            'url'      => (string) $page->url(),
-            'template' => (string) $page->intendedTemplate()->name(),
-            'status'   => (string) $page->status(),
-            'home'     => $isHome,
-            'children' => $page->children()->listed()->count(),
-        ];
+        $requirePermission();
+
+        return $action();
     }
 
     // ==================================================================

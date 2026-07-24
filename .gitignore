@@ -15,6 +15,7 @@
 # Operational storage — sessions, cache, logs, sqlite, private uploads, queue
 /storage/sessions/*
 /storage/cache/*
+/site/cache/*
 /storage/logs/*
 /storage/accounts/*
 /storage/database/*.sqlite

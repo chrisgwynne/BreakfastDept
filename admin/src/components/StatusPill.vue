@@ -9,6 +9,7 @@ const TONES: Record<string, string> = {
   proposal: 'warning', decision: 'warning', active: 'success', won: 'success',
   converted: 'success', done: 'success', complete: 'success', completed: 'success',
   open: 'neutral', draft: 'neutral', pending: 'neutral',
+  published: 'success', modified: 'warning', unlisted: 'muted',
   issued: 'info', sent: 'info', viewed: 'info', partial: 'warning', paid: 'success',
   overdue: 'danger', failed: 'danger', lost: 'danger', spam: 'danger',
   disabled: 'muted', expired: 'muted', archived: 'muted', closed: 'muted', void: 'muted',
