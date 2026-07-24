@@ -58,9 +58,10 @@ test.describe("Standalone admin — invoicing", () => {
     expect(issueRes.status(), "issuing must succeed server-side").toBe(200);
     await expect(page.getByText("Invoice issued")).toBeVisible({ timeout: 8000 });
 
-    // A real, monotonic invoice number is now shown.
+    // A real, monotonic invoice number is now shown in the open detail sheet
+    // (the list column is hidden on the mobile viewport, so scope to the sheet).
     const year = new Date().getFullYear();
-    await expect(page.getByText(new RegExp(`INV-${year}-\\d{4}`)).first()).toBeVisible({ timeout: 8000 });
+    await expect(page.locator(".sheet").getByText(new RegExp(`INV-${year}-\\d{4}`)).first()).toBeVisible({ timeout: 8000 });
 
     // The "View / PDF" link points at the signed public document and renders it.
     const href = await page.getByRole("link", { name: /View \/ PDF/ }).getAttribute("href");

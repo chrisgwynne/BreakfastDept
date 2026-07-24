@@ -416,7 +416,8 @@ final class Platform
             $this->previewStorage(),
             $this->previewPasswords(),
             $this->previewActivity(),
-            $this->previewConfig()
+            $this->previewConfig(),
+            $this->activities()
         ));
     }
 
