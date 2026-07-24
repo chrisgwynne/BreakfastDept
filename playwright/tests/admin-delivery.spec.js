@@ -42,7 +42,7 @@ test.describe("Standalone admin — delivery board", () => {
     await page.waitForURL((u) => /\/projects\/[0-9a-f-]+/.test(u.toString()), { timeout: 10000 });
 
     // Milestones tab → add one.
-    await page.getByRole("tab", { name: "Milestones" }).click();
+    await page.getByRole("tab", { name: "Milestones", exact: true }).click();
     await page.locator('[data-test="new-milestone"]').fill("Design phase");
     await Promise.all([
       page.waitForResponse((r) => /\/projects\/[^/]+\/milestones$/.test(r.url()) && r.request().method() === "POST"),
@@ -51,7 +51,7 @@ test.describe("Standalone admin — delivery board", () => {
     await expect(page.getByText("Design phase")).toBeVisible();
 
     // Board tab → add a task, then move it to completed.
-    await page.getByRole("tab", { name: "Board" }).click();
+    await page.getByRole("tab", { name: "Board", exact: true }).click();
     await page.locator('[data-test="new-task"]').fill("Build homepage");
     await Promise.all([
       page.waitForResponse((r) => /\/projects\/[^/]+\/tasks$/.test(r.url()) && r.request().method() === "POST"),

@@ -51,12 +51,12 @@ test.describe("Standalone admin — project templates", () => {
     await expect(page.locator(".app-toast", { hasText: "milestones" })).toBeVisible({ timeout: 8000 });
 
     // Milestones tab shows the generated checkpoints.
-    await page.getByRole("tab", { name: "Milestones" }).click();
+    await page.getByRole("tab", { name: "Milestones", exact: true }).click();
     await expect(page.getByText("Design & mock-up")).toBeVisible();
     await expect(page.getByText("Launch")).toBeVisible();
 
     // Board shows generated tasks.
-    await page.getByRole("tab", { name: "Board" }).click();
+    await page.getByRole("tab", { name: "Board", exact: true }).click();
     await expect(page.getByText("Homepage content due")).toBeVisible();
   });
 });
