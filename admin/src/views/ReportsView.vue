@@ -24,6 +24,12 @@ async function load() {
 function money(n: number): string {
   return '£' + Math.round(n).toLocaleString('en-GB')
 }
+function pence(n: number): string {
+  return '£' + (Math.round(n) / 100).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+function hrs(seconds: number): string {
+  return (seconds / 3600).toFixed(1) + 'h'
+}
 
 const sources = computed(() => {
   if (!data.value) return []
@@ -92,6 +98,45 @@ onMounted(load)
             <p v-else class="empty">No enquiries recorded.</p>
           </section>
         </div>
+
+        <div v-if="data.operations" class="ops" data-test="reports-operations">
+          <h2 class="sect__h" style="margin-top:24px">Delivery &amp; profitability</h2>
+          <div class="kpis">
+            <div class="kpi"><span class="kpi__label">Contract value</span><span class="kpi__value num" data-test="ops-contract">{{ pence(data.operations.portfolio.contract_value) }}</span></div>
+            <div class="kpi"><span class="kpi__label">Invoiced</span><span class="kpi__value num">{{ pence(data.operations.portfolio.invoiced) }}</span></div>
+            <div class="kpi"><span class="kpi__label">Outstanding</span><span class="kpi__value num">{{ pence(data.operations.portfolio.outstanding) }}</span></div>
+            <div class="kpi"><span class="kpi__label">Unbilled time</span><span class="kpi__value num" data-test="ops-unbilled">{{ pence(data.operations.portfolio.unbilled_time_value) }}</span></div>
+          </div>
+
+          <div class="cols">
+            <section class="card card--pad grow">
+              <h2 class="sect__h">Projects</h2>
+              <table class="optable" data-test="ops-projects">
+                <thead><tr><th>Project</th><th class="r">Contract</th><th class="r">Outstanding</th><th class="r">Unbilled time</th></tr></thead>
+                <tbody>
+                  <tr v-for="p in data.operations.projects" :key="p.uuid">
+                    <td class="truncate">{{ p.name }}</td>
+                    <td class="r num">{{ pence(p.contract_value) }}</td>
+                    <td class="r num">{{ pence(p.outstanding) }}</td>
+                    <td class="r num">{{ pence(p.unbilled_time_value) }}</td>
+                  </tr>
+                  <tr v-if="!data.operations.projects.length"><td colspan="4" class="empty">No active projects.</td></tr>
+                </tbody>
+              </table>
+            </section>
+
+            <section class="card card--pad grow">
+              <h2 class="sect__h">Utilisation (30 days)</h2>
+              <div v-if="data.operations.utilisation.length" class="bars">
+                <div v-for="u in data.operations.utilisation" :key="u.author" class="bar">
+                  <div class="bar__label"><span class="truncate">{{ u.author }}</span><span class="muted num">{{ hrs(u.total_seconds) }} · {{ u.billable_percent }}% billable</span></div>
+                  <div class="bar__track"><div class="bar__fill" :style="{ width: Math.max(2, u.billable_percent) + '%' }"></div></div>
+                </div>
+              </div>
+              <p v-else class="empty">No time logged in the last 30 days.</p>
+            </section>
+          </div>
+        </div>
       </div>
     </DataState>
   </div>
@@ -113,5 +158,9 @@ onMounted(load)
 .bar__fill--butter { background: linear-gradient(90deg, var(--butter), #ffe08a); }
 .empty { color: var(--ink-3); font-size: var(--text-sm); padding: var(--sp-4) 0; text-align: center; }
 
+.optable { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
+.optable th { text-align: left; color: var(--ink-3); font-weight: 600; font-size: var(--text-xs); padding: 4px 6px; border-bottom: 1px solid var(--line); }
+.optable td { padding: 7px 6px; border-bottom: 1px solid var(--line); }
+.optable .r { text-align: right; white-space: nowrap; }
 @media (max-width: 720px) { .kpis { grid-template-columns: 1fr; } .cols { flex-direction: column; } .cols .grow { width: 100%; } }
 </style>

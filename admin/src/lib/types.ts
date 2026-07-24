@@ -219,12 +219,37 @@ export interface StageValue {
   value: number
 }
 
+export interface OpsProjectRow {
+  uuid: string
+  name: string
+  status: string
+  contract_value: number
+  invoiced: number
+  paid: number
+  outstanding: number
+  billable_seconds: number
+  unbilled_time_value: number
+}
+export interface OpsUtilisationRow {
+  author: string
+  billable_seconds: number
+  nonbillable_seconds: number
+  total_seconds: number
+  billable_percent: number
+}
+export interface OperationsReport {
+  portfolio: Record<string, number>
+  projects: OpsProjectRow[]
+  utilisation: OpsUtilisationRow[]
+}
+
 export interface Reports {
   enquiries_by_source: Record<string, number>
   pipeline_by_stage: Record<string, StageValue>
   stages: StageRef[]
   open_opportunities: number
   pipeline_value: number
+  operations?: OperationsReport
 }
 
 export interface Operations {

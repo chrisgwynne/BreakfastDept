@@ -3495,12 +3495,19 @@ final class AdminApi
     {
         $crm = $this->platform->crm();
 
+        $reporting = $this->platform->reporting();
+
         return [
             'enquiries_by_source' => $this->platform->enquiries()->countBySource(),
             'pipeline_by_stage'   => $this->platform->opportunities()->pipelineByStage(),
             'stages'              => $this->stagesList(),
             'open_opportunities'  => $crm->opportunities()->countOpen(),
             'pipeline_value'      => $crm->opportunities()->openPipelineValue(),
+            'operations'          => [
+                'portfolio'    => $reporting->portfolio(),
+                'projects'     => $reporting->projects(50),
+                'utilisation'  => $reporting->utilisation(30),
+            ],
         ];
     }
 
