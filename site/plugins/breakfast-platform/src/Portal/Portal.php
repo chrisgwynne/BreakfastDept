@@ -351,6 +351,7 @@ final class Portal
             ], $files),
             'feedback' => $this->feedbackForIdentity($identityUuid, $projectUuid),
             'has_approved' => $this->db()->one("SELECT uuid FROM portal_feedback WHERE project_uuid = :p AND identity_uuid = :i AND kind = 'approval' LIMIT 1", ['p' => $projectUuid, 'i' => $identityUuid]) !== null,
+            'messages' => $this->messageThread($projectUuid, $identityUuid, 'client'),
         ];
     }
 
@@ -498,6 +499,97 @@ final class Portal
         $this->db()->run('UPDATE portal_feedback SET status = :s, handled_by = :actor, handled_at = :now WHERE uuid = :u', ['s' => $status, 'actor' => $actor, 'now' => Clock::nowIso(), 'u' => $feedbackUuid]);
 
         return $this->db()->one('SELECT * FROM portal_feedback WHERE uuid = :u', ['u' => $feedbackUuid]) ?? [];
+    }
+
+    // ==================================================================
+    // Messaging (two-way, per project + identity)
+    // ==================================================================
+
+    /**
+     * The client posts a message to staff on a granted project. Access-checked,
+     * attributed, mirrored onto the contact's CRM timeline; marked unread for
+     * staff. Returns the stored message.
+     *
+     * @return array<string,mixed>
+     */
+    public function postClientMessage(string $identityUuid, string $projectUuid, string $body): array
+    {
+        if (!$this->canAccessProject($identityUuid, $projectUuid)) {
+            throw new PortalException(403, 'You don’t have access to this project.');
+        }
+        $body = trim($body);
+        if ($body === '') {
+            throw new PortalException(422, 'Enter a message.');
+        }
+        $identity = $this->findIdentity($identityUuid);
+        $name = trim((string) ($identity['display_name'] ?? '')) ?: (string) ($identity['email'] ?? 'Client');
+        $uuid = $this->insertMessage($projectUuid, $identityUuid, 'client', $name, $body, readByClient: 1, readByStaff: 0);
+        $this->event($identityUuid, 'message_sent', $projectUuid, '');
+        $contact = (string) ($identity['contact_uuid'] ?? '');
+        if ($contact !== '') {
+            $this->platform->activities()->record('contact', $contact, 'portal.message', 'Client sent a message', 'client', null, ['project' => $projectUuid, 'message' => $uuid]);
+        }
+        $this->platform->projects()->logEvent($projectUuid, 'portal_message', 'Client message: ' . mb_substr($body, 0, 140), 'portal:' . $identityUuid);
+
+        return $this->db()->one('SELECT * FROM portal_messages WHERE uuid = :u', ['u' => $uuid]) ?? [];
+    }
+
+    /**
+     * Staff reply to a client on a project thread. Marked unread for the client.
+     *
+     * @return array<string,mixed>
+     */
+    public function postStaffMessage(string $projectUuid, string $identityUuid, string $body, string $actor): array
+    {
+        if ($this->findIdentity($identityUuid) === null) {
+            throw new PortalException(404, 'Portal identity not found.');
+        }
+        $body = trim($body);
+        if ($body === '') {
+            throw new PortalException(422, 'Enter a message.');
+        }
+        $uuid = $this->insertMessage($projectUuid, $identityUuid, 'staff', $actor, $body, readByClient: 0, readByStaff: 1);
+        $this->platform->projects()->logEvent($projectUuid, 'portal_message', 'Reply to client', $actor);
+
+        return $this->db()->one('SELECT * FROM portal_messages WHERE uuid = :u', ['u' => $uuid]) ?? [];
+    }
+
+    /**
+     * The thread for a (project, identity), oldest first. `viewer` decides which
+     * side's unread flags are cleared as a side effect of reading.
+     *
+     * @return list<array<string,mixed>>
+     */
+    public function messageThread(string $projectUuid, string $identityUuid, string $viewer = ''): array
+    {
+        if ($viewer === 'client') {
+            $this->db()->run('UPDATE portal_messages SET read_by_client = 1 WHERE project_uuid = :p AND identity_uuid = :i AND sender = \'staff\'', ['p' => $projectUuid, 'i' => $identityUuid]);
+        } elseif ($viewer === 'staff') {
+            $this->db()->run('UPDATE portal_messages SET read_by_staff = 1 WHERE project_uuid = :p AND identity_uuid = :i AND sender = \'client\'', ['p' => $projectUuid, 'i' => $identityUuid]);
+        }
+
+        return $this->db()->all(
+            'SELECT uuid, sender, author_name, body, created_at FROM portal_messages WHERE project_uuid = :p AND identity_uuid = :i ORDER BY created_at ASC LIMIT 500',
+            ['p' => $projectUuid, 'i' => $identityUuid]
+        );
+    }
+
+    /** Count of messages from the client that staff have not yet read, for a project. */
+    public function unreadForStaff(string $projectUuid): int
+    {
+        return (int) $this->db()->scalar("SELECT COUNT(*) FROM portal_messages WHERE project_uuid = :p AND sender = 'client' AND read_by_staff = 0", ['p' => $projectUuid]);
+    }
+
+    private function insertMessage(string $projectUuid, string $identityUuid, string $sender, string $name, string $body, int $readByClient, int $readByStaff): string
+    {
+        $uuid = Uuid::v4();
+        $this->db()->run(
+            'INSERT INTO portal_messages (uuid, project_uuid, identity_uuid, sender, author_name, body, read_by_client, read_by_staff, created_at)
+             VALUES (:uuid, :p, :i, :sender, :name, :body, :rc, :rs, :now)',
+            ['uuid' => $uuid, 'p' => $projectUuid, 'i' => $identityUuid, 'sender' => $sender, 'name' => $name, 'body' => $body, 'rc' => $readByClient, 'rs' => $readByStaff, 'now' => Clock::nowIso()]
+        );
+
+        return $uuid;
     }
 
     // ==================================================================

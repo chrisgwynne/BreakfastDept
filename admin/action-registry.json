@@ -883,6 +883,17 @@
       "status": "implemented"
     },
     {
+      "id": "portal.message-reply",
+      "label": "Reply to client in portal",
+      "resource": "portal",
+      "method": "POST",
+      "permission": "portal.manage",
+      "persistence": "Breakfast\\Platform\\Portal\\Portal::postStaffMessage",
+      "audit": "",
+      "playwright": "admin-portal.spec.js",
+      "status": "implemented"
+    },
+    {
       "id": "project.apply_template",
       "label": "Apply template to project",
       "resource": "projects",

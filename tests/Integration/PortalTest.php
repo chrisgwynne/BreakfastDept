@@ -297,6 +297,47 @@ final class PortalTest extends TestCase
         $this->assertSame('resolved', (string) $resolved['status']);
     }
 
+    public function testTwoWayMessagingWithReadTracking(): void
+    {
+        $p = breakfast();
+        // Without a grant, the client cannot message.
+        try {
+            $p->portal()->postClientMessage($this->identity, $this->projectA, 'hello');
+            $this->fail('expected message without a grant to be denied');
+        } catch (PortalException $e) {
+            $this->assertSame(403, $e->status);
+        }
+
+        $p->portal()->grantAccess($this->identity, 'project', $this->projectA, 'viewer', 'staff@breakfast');
+        // Empty message rejected.
+        try {
+            $p->portal()->postClientMessage($this->identity, $this->projectA, '   ');
+            $this->fail('expected empty message rejection');
+        } catch (PortalException $e) {
+            $this->assertSame(422, $e->status);
+        }
+
+        // Client sends → staff has one unread.
+        $p->portal()->postClientMessage($this->identity, $this->projectA, 'When will the homepage be ready?');
+        $this->assertSame(1, $p->portal()->unreadForStaff($this->projectA));
+
+        // Staff reading the thread clears the client-unread; staff replies.
+        $p->portal()->messageThread($this->projectA, $this->identity, 'staff');
+        $this->assertSame(0, $p->portal()->unreadForStaff($this->projectA));
+        $p->portal()->postStaffMessage($this->projectA, $this->identity, 'By Friday!', 'staff@breakfast');
+
+        // The thread is ordered oldest-first and carries both sides.
+        $thread = $p->portal()->messageThread($this->projectA, $this->identity, 'client');
+        $this->assertCount(2, $thread);
+        $this->assertSame('client', (string) $thread[0]['sender']);
+        $this->assertSame('staff', (string) $thread[1]['sender']);
+
+        // The client message reached the contact's CRM timeline.
+        $contact = (string) $p->portal()->findIdentity($this->identity)['contact_uuid'];
+        $types = array_map(static fn (array $a): string => (string) $a['type'], $p->activities()->forEntity('contact', $contact, 50));
+        $this->assertContains('portal.message', $types);
+    }
+
     private function rrmdir(string $dir): void
     {
         if (!is_dir($dir)) {

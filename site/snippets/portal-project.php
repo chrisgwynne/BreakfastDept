@@ -17,6 +17,7 @@ $tasks = is_array($data['tasks'] ?? null) ? $data['tasks'] : [];
 $files = is_array($data['files'] ?? null) ? $data['files'] : [];
 $feedback = is_array($data['feedback'] ?? null) ? $data['feedback'] : [];
 $hasApproved = !empty($data['has_approved']);
+$messages = is_array($data['messages'] ?? null) ? $data['messages'] : [];
 $byMilestone = [];
 $looseTasks = [];
 foreach ($tasks as $t) {
@@ -80,6 +81,11 @@ $statusLabel = static fn (string $s): string => ucfirst(str_replace('_', ' ', $s
   .fbitem { border:1px solid var(--line); border-radius:10px; padding:12px 14px; margin-top:10px; background:var(--paper); }
   .fbitem__meta { color:var(--muted); font-size:12px; margin-bottom:4px; }
   .tag { font-size:11px; padding:1px 8px; border-radius:99px; background:#efe9db; color:var(--muted); }
+  .msg { max-width:80%; padding:10px 14px; border-radius:14px; margin:8px 0; font-size:15px; }
+  .msg--staff { background:#fff; border:1px solid var(--line); border-bottom-left-radius:4px; }
+  .msg--client { background:var(--purple); color:#fff; margin-left:auto; border-bottom-right-radius:4px; }
+  .msg__who { font-size:11px; opacity:.75; margin-bottom:2px; }
+  .thread { display:flex; flex-direction:column; margin:8px 0 14px; }
 </style>
 </head>
 <body>
@@ -145,6 +151,28 @@ $statusLabel = static fn (string $s): string => ucfirst(str_replace('_', ' ', $s
         </div>
       <?php endforeach; ?>
     <?php endif; ?>
+
+    <h2 id="messages">Messages</h2>
+    <div data-test="portal-messages">
+      <?php if (count($messages)): ?>
+        <div class="thread">
+          <?php foreach ($messages as $m): $mine = (string) ($m['sender'] ?? '') === 'client'; ?>
+            <div class="msg <?= $mine ? 'msg--client' : 'msg--staff' ?>" data-test="<?= $mine ? 'msg-client' : 'msg-staff' ?>">
+              <div class="msg__who"><?= $e($m['author_name'] ?? ($mine ? 'You' : 'Breakfast')) ?> · <?= $e(substr((string) ($m['created_at'] ?? ''), 0, 16)) ?></div>
+              <div><?= nl2br($e($m['body'] ?? '')) ?></div>
+            </div>
+          <?php endforeach; ?>
+        </div>
+      <?php else: ?>
+        <p class="empty">No messages yet. Send us a note below and we’ll get back to you here.</p>
+      <?php endif; ?>
+      <form class="fb" method="post" action="<?= $e($base) ?>/portal/project/<?= $e($ov['uuid'] ?? '') ?>/message" data-test="portal-message-form">
+        <textarea name="body" placeholder="Write a message to the team…" data-test="portal-message-body"></textarea>
+        <div class="fbactions">
+          <button type="submit" class="btn btn--primary" data-test="portal-message-send">Send message</button>
+        </div>
+      </form>
+    </div>
 
     <h2>Feedback &amp; sign-off</h2>
     <?php if ($hasApproved): ?>

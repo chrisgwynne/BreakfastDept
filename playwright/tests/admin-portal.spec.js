@@ -82,6 +82,14 @@ test.describe("Standalone admin — client portal", () => {
     ]);
     await expect(clientPage.locator('[data-test="portal-approved"]')).toBeVisible();
 
+    // The client sends a message to the team (Phase 3.5).
+    await clientPage.locator('[data-test="portal-message-body"]').fill("When will the homepage be ready?");
+    await Promise.all([
+      clientPage.waitForURL((u) => u.toString().includes("/portal/project/")),
+      clientPage.locator('[data-test="portal-message-send"]').click(),
+    ]);
+    await expect(clientPage.locator('[data-test="msg-client"]').first()).toContainText("homepage be ready");
+
     // Staff see the feedback + sign-off back in the Client access tab.
     await page.getByRole("tab", { name: "Client access", exact: true }).click();
     await expect(page.locator('[data-test="feedback-approval"]')).toBeVisible();
@@ -90,6 +98,20 @@ test.describe("Standalone admin — client portal", () => {
       page.waitForResponse((r) => /\/portal\/feedback\/[^/]+\/status$/.test(r.url()) && r.request().method() === "POST"),
       page.locator('[data-test="feedback-resolve"]').first().click(),
     ]);
+
+    // Staff open the message thread and reply.
+    await page.locator('[data-test="access-message"]').first().click();
+    await expect(page.locator('[data-test="access-thread"]')).toContainText("homepage be ready");
+    await page.locator('[data-test="thread-reply"]').fill("By Friday!");
+    await Promise.all([
+      page.waitForResponse((r) => r.url().endsWith("/api/v1/portal/messages/reply") && r.request().method() === "POST"),
+      page.locator('[data-test="thread-send"]').click(),
+    ]);
+    await expect(page.locator('[data-test="access-thread"]')).toContainText("By Friday!");
+
+    // The client sees the staff reply on refresh.
+    await clientPage.reload();
+    await expect(clientPage.locator('[data-test="msg-staff"]').first()).toContainText("By Friday!");
 
     // The one-shot link cannot be replayed.
     await clientPage.goto(signInUrl);

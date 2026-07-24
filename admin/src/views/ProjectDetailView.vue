@@ -92,6 +92,29 @@ async function newClientLink(idn: PortalIdentity) {
   finally { portalBusy.value = '' }
 }
 
+// --- Portal messaging (staff side) ---
+interface PortalMessage { uuid: string; sender: string; author_name: string; body: string; created_at: string }
+const msgThreadFor = ref<string>('')
+const msgThread = ref<PortalMessage[]>([])
+const msgReply = ref('')
+async function openThread(idn: PortalIdentity) {
+  if (!project.value) return
+  if (msgThreadFor.value === idn.uuid) { msgThreadFor.value = ''; return }
+  msgThreadFor.value = idn.uuid
+  msgThread.value = (await api.get<{ items: PortalMessage[] }>(`/portal/messages?project=${project.value.id}&identity=${idn.uuid}`)).items
+}
+async function sendReply(idn: PortalIdentity) {
+  if (!project.value || !msgReply.value.trim()) return
+  portalBusy.value = idn.uuid + 'msg'
+  try {
+    await api.post('/portal/messages/reply', { project_uuid: project.value.id, identity_uuid: idn.uuid, body: msgReply.value.trim() })
+    msgReply.value = ''
+    msgThread.value = (await api.get<{ items: PortalMessage[] }>(`/portal/messages?project=${project.value.id}&identity=${idn.uuid}`)).items
+    ui.toast('Reply sent')
+  } catch (e) { ui.toast(e instanceof ApiError ? e.message : 'Could not send') }
+  finally { portalBusy.value = '' }
+}
+
 // --- Change requests ---
 interface CrItem { kind: string; description: string; quantity: number; unit_price: number; line_total: number; estimate_hours: number }
 interface ChangeRequest {
@@ -481,14 +504,30 @@ onMounted(load)
           </form>
           <div v-if="portalLink" class="paylink"><input class="input mono" :value="portalLink" readonly data-test="access-link" @focus="($event.target as HTMLInputElement).select()" /></div>
           <div class="card list">
-            <div v-for="idn in portalIdentities" :key="idn.uuid" class="frow" data-test="access-row">
-              <span class="fname truncate">{{ idn.display_name || idn.email }}<span class="chip">{{ idn.status }}</span></span>
-              <span class="fmeta faint">{{ idn.last_login_at ? 'last in ' + idn.last_login_at.slice(0, 10) : 'never signed in' }}</span>
-              <span class="factions" v-if="canManage">
-                <button class="btn btn--sm" data-test="access-link-btn" :disabled="portalBusy === idn.uuid" @click="newClientLink(idn)">Sign-in link</button>
-                <button class="btn btn--sm" data-test="access-revoke" :disabled="portalBusy === idn.uuid" @click="revokeClient(idn)">Revoke</button>
-              </span>
-            </div>
+            <template v-for="idn in portalIdentities" :key="idn.uuid">
+              <div class="frow" data-test="access-row">
+                <span class="fname truncate">{{ idn.display_name || idn.email }}<span class="chip">{{ idn.status }}</span></span>
+                <span class="fmeta faint">{{ idn.last_login_at ? 'last in ' + idn.last_login_at.slice(0, 10) : 'never signed in' }}</span>
+                <span class="factions">
+                  <button class="btn btn--sm" data-test="access-message" @click="openThread(idn)">{{ msgThreadFor === idn.uuid ? 'Close' : 'Messages' }}</button>
+                  <template v-if="canManage">
+                    <button class="btn btn--sm" data-test="access-link-btn" :disabled="portalBusy === idn.uuid" @click="newClientLink(idn)">Sign-in link</button>
+                    <button class="btn btn--sm" data-test="access-revoke" :disabled="portalBusy === idn.uuid" @click="revokeClient(idn)">Revoke</button>
+                  </template>
+                </span>
+              </div>
+              <div v-if="msgThreadFor === idn.uuid" class="thread" data-test="access-thread">
+                <div v-for="m in msgThread" :key="m.uuid" class="msg" :class="m.sender === 'staff' ? 'msg--staff' : 'msg--client'" :data-test="'thr-' + m.sender">
+                  <div class="msg__who">{{ m.author_name }} · {{ m.created_at.slice(0, 16) }}</div>
+                  <div>{{ m.body }}</div>
+                </div>
+                <p v-if="!msgThread.length" class="faint" style="padding:6px 0">No messages yet.</p>
+                <form v-if="canManage" class="thread__reply" @submit.prevent="sendReply(idn)">
+                  <input class="input" v-model="msgReply" data-test="thread-reply" placeholder="Reply to the client…" />
+                  <button class="btn btn--sm btn--primary" type="submit" data-test="thread-send" :disabled="!msgReply.trim() || portalBusy === idn.uuid + 'msg'">Send</button>
+                </form>
+              </div>
+            </template>
             <p v-if="!portalIdentities.length" class="faint" style="padding:var(--sp-3)">No client access yet.</p>
           </div>
 
@@ -709,5 +748,12 @@ onMounted(load)
 .fbrow__main { flex: 1; display: flex; flex-direction: column; gap: 2px; }
 .fbrow__who { font-weight: 600; font-size: var(--text-sm); display: flex; align-items: center; gap: 6px; }
 .fbrow__body { font-size: var(--text-sm); }
+.thread { padding: 8px var(--sp-3) var(--sp-3); border-top: 1px dashed var(--line); display: flex; flex-direction: column; gap: 6px; }
+.thread .msg { max-width: 80%; padding: 8px 12px; border-radius: 12px; font-size: var(--text-sm); }
+.thread .msg--staff { background: var(--paper-2); align-self: flex-start; }
+.thread .msg--client { background: var(--accent, #efe7ff); align-self: flex-end; }
+.thread .msg__who { font-size: 11px; color: var(--ink-3); margin-bottom: 2px; }
+.thread__reply { display: flex; gap: var(--sp-2); margin-top: 6px; }
+.thread__reply .input { flex: 1; }
 @media (max-width: 820px) { .cols { grid-template-columns: 1fr; } .grid2 { grid-template-columns: 1fr; } .crnew__item { grid-template-columns: 1fr; } }
 </style>

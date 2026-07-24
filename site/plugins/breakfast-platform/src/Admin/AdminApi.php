@@ -2252,6 +2252,22 @@ final class AdminApi
 
                 return ['identity' => $result['identity'], 'url' => $result['url']];
             }
+            // Portal messages: GET /portal/messages?project=X&identity=Y (staff view,
+            // clears client-unread), POST /portal/messages/reply.
+            if ($id === 'messages') {
+                if (($seg[2] ?? '') === 'reply' && $method === 'POST') {
+                    $requireManage();
+                    $body = $this->body();
+
+                    return ['message' => $svc->postStaffMessage((string) ($body['project_uuid'] ?? ''), (string) ($body['identity_uuid'] ?? ''), (string) ($body['body'] ?? ''), $actor)];
+                }
+                if ($method === 'GET') {
+                    $q = $this->query();
+
+                    return ['items' => $svc->messageThread((string) ($q['project'] ?? ''), (string) ($q['identity'] ?? ''), 'staff')];
+                }
+                throw new ApiException(404, 'Unknown portal messages endpoint.', 'not_found');
+            }
             // Portal feedback: GET /portal/feedback?project=X, POST /portal/feedback/<uuid>/status
             if ($id === 'feedback') {
                 $fbId = $seg[2] ?? '';
