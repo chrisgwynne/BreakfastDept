@@ -8,6 +8,7 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/components/AppShell.vue'),
     children: [
       { path: '', name: 'dashboard', component: () => import('@/views/DashboardView.vue') },
+      { path: 'inbox', name: 'inbox', component: () => import('@/views/InboxView.vue') },
       { path: 'leads', name: 'leads', component: () => import('@/views/LeadsView.vue') },
       { path: 'crm', name: 'crm', component: () => import('@/views/CrmView.vue') },
       { path: 'crm/contacts/:id', name: 'contact', component: () => import('@/views/ContactDetailView.vue') },

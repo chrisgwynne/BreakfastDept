@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter, RouterLink, RouterView } from 'vue-router'
+import { api } from '@/lib/api'
 import { useAuth } from '@/stores/auth'
 import NavIcon from '@/components/NavIcon.vue'
 import CommandPalette from '@/components/CommandPalette.vue'
@@ -16,6 +17,7 @@ const palette = ref<InstanceType<typeof CommandPalette> | null>(null)
 
 const nav = [
   { to: '/', name: 'dashboard', label: 'Dashboard', icon: 'grid' },
+  { to: '/inbox', name: 'inbox', label: 'Inbox', icon: 'inbox' },
   { to: '/leads', name: 'leads', label: 'Leads', icon: 'inbox' },
   { to: '/crm', name: 'crm', label: 'CRM', icon: 'users' },
   { to: '/pipeline', name: 'pipeline', label: 'Pipeline', icon: 'columns' },
@@ -38,6 +40,16 @@ const visibleNav = computed(() => nav.filter((n) => !n.perm || auth.can(n.perm))
 const mobileOpen = ref(false)
 const menuOpen = ref(false)
 
+// Live inbox badge — the count of items needing staff action.
+const inboxCount = ref(0)
+async function refreshInbox() {
+  try { inboxCount.value = (await api.get<{ summary: { total: number } }>('/inbox')).summary.total }
+  catch { /* non-fatal */ }
+}
+onMounted(refreshInbox)
+// Refresh when navigating away from the inbox (items may have been handled).
+watch(() => route.name, (_, prev) => { if (prev === 'inbox') refreshInbox() })
+
 async function doLogout() {
   await auth.logout()
   router.replace({ name: 'login' })
@@ -57,6 +69,7 @@ async function doLogout() {
           :class="{ 'navlink--active': route.name === item.name }" @click="mobileOpen = false">
           <NavIcon :name="item.icon" class="navlink__icon" />
           <span>{{ item.label }}</span>
+          <span v-if="item.name === 'inbox' && inboxCount > 0" class="navbadge" data-test="inbox-badge">{{ inboxCount }}</span>
         </RouterLink>
       </nav>
       <RouterLink to="/settings" class="navlink navlink--foot" @click="mobileOpen = false">
@@ -137,6 +150,7 @@ async function doLogout() {
 .navlink:hover { background: var(--surface-2); color: var(--ink); text-decoration: none; }
 .navlink--active { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: var(--sh-1); }
 .navlink--active .navlink__icon { color: var(--purple); }
+.navbadge { margin-left: auto; background: var(--butter); color: var(--ink); font-size: 11px; font-weight: 700; border-radius: var(--r-pill); padding: 0 7px; min-width: 18px; text-align: center; }
 .navlink__icon { width: 18px; height: 18px; color: var(--ink-3); flex: none; }
 .navlink--foot { margin-top: auto; }
 

@@ -97,6 +97,7 @@ final class AdminApi
             'portal'        => $this->portal($method, $seg, $user),
             'time'          => $this->time($method, $seg, $user),
             'retainers'     => $this->retainers($method, $seg, $user),
+            'inbox'         => $this->inbox($seg, $user),
             'onboarding'    => $this->onboarding($method, $seg, $user),
             'onboarding-templates' => $this->onboardingTemplatesApi($method, $seg, $user),
             'files'         => $this->files($method, $seg, $user),
@@ -2222,6 +2223,26 @@ final class AdminApi
         } catch (\Breakfast\Platform\ChangeRequests\ChangeRequestException $e) {
             throw new ApiException($e->status, $e->getMessage(), 'change_request');
         }
+    }
+
+    /**
+     * The staff operational inbox (Phase 4). Read-only: a live to-do derived from
+     * source-of-truth state. GET /inbox returns the summary; GET /inbox/items the
+     * grouped items. Requires CRM access.
+     *
+     * @param list<string> $seg
+     * @return array<string,mixed>
+     */
+    private function inbox(array $seg, \Kirby\Cms\User $user): array
+    {
+        if (!PanelGate::canAccess($user)) {
+            throw new ApiException(403, 'You don’t have access to the inbox.', 'forbidden');
+        }
+        if (($seg[1] ?? '') === 'items') {
+            return ['items' => $this->platform->inbox()->items()];
+        }
+
+        return ['summary' => $this->platform->inbox()->summary()];
     }
 
     /**

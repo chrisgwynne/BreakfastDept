@@ -272,6 +272,11 @@ final class Platform
         return $this->service(\Breakfast\Platform\Retainers\Retainers::class, fn () => new \Breakfast\Platform\Retainers\Retainers($this));
     }
 
+    public function inbox(): \Breakfast\Platform\Operations\Inbox
+    {
+        return $this->service(\Breakfast\Platform\Operations\Inbox::class, fn () => new \Breakfast\Platform\Operations\Inbox($this));
+    }
+
     public function stripeSettings(): \Breakfast\Platform\Payments\StripeSettings
     {
         return $this->service(\Breakfast\Platform\Payments\StripeSettings::class, fn () => new \Breakfast\Platform\Payments\StripeSettings(

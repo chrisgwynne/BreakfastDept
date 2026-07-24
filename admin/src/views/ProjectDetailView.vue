@@ -416,9 +416,17 @@ function when(d: string): string { if (!d) return '—'; const t = new Date(d); 
 function label(s: string): string { return s.replace(/_/g, ' ') }
 function hrs(sec: number): string { return sec > 0 ? (sec / 3600).toFixed(1) + 'h' : '—' }
 
+const TABS = ['overview', 'milestones', 'board', 'onboarding', 'files', 'changes', 'access', 'time', 'retainers']
 async function load() {
   loading.value = true; error.value = null
-  try { project.value = (await api.get<{ project: Project }>(`/projects/${route.params.id}`)).project }
+  try {
+    project.value = (await api.get<{ project: Project }>(`/projects/${route.params.id}`)).project
+    // Deep-link support (e.g. from the operational inbox): ?tab=access.
+    const wanted = String(route.query.tab || '')
+    if (wanted && TABS.includes(wanted) && wanted !== 'overview') {
+      await switchTab(wanted as typeof tab.value)
+    }
+  }
   catch (e) { error.value = e instanceof ApiError ? e.message : 'Could not load the project.' }
   finally { loading.value = false }
 }

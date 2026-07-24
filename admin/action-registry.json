@@ -34,7 +34,8 @@
     "reports",
     "operations",
     "time",
-    "retainers"
+    "retainers",
+    "inbox"
   ],
   "actions": [
     {
