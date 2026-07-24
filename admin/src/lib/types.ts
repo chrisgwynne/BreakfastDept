@@ -527,9 +527,33 @@ export interface Invoice extends InvoiceListItem {
   public_url: string
   document_status: string
   pdf_ready: boolean
+  online_payments_enabled: boolean
   items: InvoiceItem[]
   payments: InvoicePayment[]
   events: InvoiceEvent[]
+}
+
+export interface StripeOverview {
+  enabled: boolean
+  mode: string
+  currency: string
+  account_id: string
+  publishable_key: string
+  secret_key_hint: string
+  webhook_secret_hint: string
+  success_url: string
+  cancel_url: string
+  has_secret: boolean
+  has_webhook_secret: boolean
+  last_webhook: string
+  last_payment: string
+  last_failure: string
+}
+
+export interface StripeTestResult {
+  ok: boolean
+  account_id?: string
+  business?: string
 }
 
 export interface InvoiceSettings {

@@ -34,6 +34,12 @@ const draft = reactive<{ bill_to_name: string; bill_to_email: string; bill_to_ad
 const detail = ref<Invoice | null>(null)
 const busy = ref('')
 
+// online payments (Stripe)
+interface OnlinePayment { id: string; status: string; amount: number; amount_refunded: number; currency: string; receipt_number: string; created_at: string; paid_at: string }
+const onlinePayments = ref<OnlinePayment[]>([])
+const linkBusy = ref(false)
+const lastLink = ref('')
+
 // PDF documents
 interface InvoiceDocument { id: string; version: number; kind: string; filename: string; byte_size: number; sha256: string; renderer: string; state: string; created_at: string }
 const versions = ref<InvoiceDocument[]>([])
@@ -96,11 +102,33 @@ async function saveDraft() {
 
 // --- detail + actions ---
 async function openDetail(id: string) {
-  versions.value = []
+  versions.value = []; onlinePayments.value = []; lastLink.value = ''
   try {
     detail.value = (await api.get<{ invoice: Invoice }>(`/invoices/${id}`)).invoice
-    if (detail.value.status !== 'draft') await loadVersions()
+    if (detail.value.status !== 'draft') { await loadVersions(); await loadOnlinePayments() }
   } catch { /* ignore */ }
+}
+async function loadOnlinePayments() {
+  if (!detail.value) return
+  try { onlinePayments.value = (await api.get<{ items: OnlinePayment[] }>(`/invoices/${detail.value.id}/payments`)).items }
+  catch { onlinePayments.value = [] }
+}
+// Create a Stripe Checkout link for the outstanding balance. The amount is
+// computed server-side; we only receive the hosted URL to share with the client.
+async function createPaymentLink() {
+  if (!detail.value || linkBusy.value) return
+  linkBusy.value = true
+  try {
+    const res = await api.post<{ link: { url: string } }>(`/invoices/${detail.value.id}/payment-link`, {})
+    lastLink.value = res.link.url
+    await loadOnlinePayments()
+    try { await navigator.clipboard?.writeText(res.link.url) ; ui.toast('Payment link created & copied') }
+    catch { ui.toast('Payment link created') }
+  } catch (e) { ui.toast(e instanceof ApiError ? e.message : 'Could not create a payment link') }
+  finally { linkBusy.value = false }
+}
+function receiptHref(paymentId: string): string {
+  return `/breakfast-admin/payments/${paymentId}/receipt`
 }
 async function loadVersions() {
   if (!detail.value) return
@@ -294,8 +322,27 @@ onMounted(load)
           </div>
         </div>
 
+        <!-- Online payment (Stripe). The client pays a Stripe-hosted page; the
+             invoice is only marked paid by a verified webhook, never this link. -->
+        <div v-if="canManage && detail.online_payments_enabled && !['draft', 'void', 'paid'].includes(detail.status)" class="paybox">
+          <p class="label">Take payment online (Stripe)</p>
+          <button class="btn btn--sm btn--primary" data-test="create-payment-link" :disabled="linkBusy" @click="createPaymentLink">{{ linkBusy ? 'Creating…' : 'Create payment link' }}</button>
+          <div v-if="lastLink" class="paylink"><input class="input mono" :value="lastLink" readonly @focus="($event.target as HTMLInputElement).select()" /></div>
+        </div>
+
+        <div v-if="onlinePayments.length" class="dpays" data-test="online-payments">
+          <p class="label">Online payments</p>
+          <div v-for="p in onlinePayments" :key="p.id" class="dpay">
+            <span><StatusPill :status="p.status" /> <span class="faint">{{ when(p.paid_at || p.created_at) }}</span></span>
+            <span class="dpay__amt">
+              <span class="mono">{{ money(p.amount) }}</span>
+              <a v-if="p.receipt_number" class="pdflink" :href="receiptHref(p.id)" target="_blank" rel="noopener">Receipt</a>
+            </span>
+          </div>
+        </div>
+
         <div v-if="canManage && !['draft', 'void', 'paid'].includes(detail.status)" class="paybox">
-          <p class="label">Record a payment</p>
+          <p class="label">Record a manual payment</p>
           <div class="cf__row">
             <input class="input" v-model="payAmount" placeholder="Amount £" inputmode="decimal" />
             <input class="input" v-model="payMethod" placeholder="Method (bank, card…)" />
@@ -365,6 +412,8 @@ onMounted(load)
 .dactions { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin: var(--sp-4) 0; }
 .paybox { background: var(--paper-2); border-radius: var(--r-md); padding: var(--sp-3); display: grid; gap: var(--sp-2); margin-bottom: var(--sp-4); }
 .dpays { display: grid; gap: 4px; } .dpay { display: flex; justify-content: space-between; font-size: var(--text-sm); gap: var(--sp-3); align-items: center; }
+.dpay__amt { display: inline-flex; gap: var(--sp-2); align-items: center; }
+.paylink { margin-top: var(--sp-2); } .paylink .input { width: 100%; font-size: var(--text-xs); }
 .pdflink { color: var(--purple); font-weight: 550; white-space: nowrap; }
 .pdfwarn { display: flex; align-items: center; gap: 8px; font-size: var(--text-sm); color: var(--ink-2); background: var(--paper-2); border: 1px solid var(--line); border-radius: var(--r-md); padding: var(--sp-2) var(--sp-3); margin-bottom: var(--sp-4); }
 .vat { display: flex; align-items: center; gap: 8px; font-size: var(--text-sm); margin: var(--sp-2) 0; }

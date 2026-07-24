@@ -5,6 +5,7 @@ import { useAuth } from '@/stores/auth'
 import { ApiError } from '@/lib/api'
 import PageHeader from '@/components/PageHeader.vue'
 import BrevoSettings from '@/components/BrevoSettings.vue'
+import StripeSettings from '@/components/StripeSettings.vue'
 
 const auth = useAuth()
 const router = useRouter()
@@ -96,6 +97,7 @@ async function signOut() {
       </section>
 
       <BrevoSettings v-if="auth.can('brevo.view')" class="span2" />
+      <StripeSettings v-if="auth.can('admin')" class="span2" />
     </div>
   </div>
 </template>
