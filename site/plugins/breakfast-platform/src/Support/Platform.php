@@ -267,6 +267,11 @@ final class Platform
         return $this->service(\Breakfast\Platform\Time\TimeTracking::class, fn () => new \Breakfast\Platform\Time\TimeTracking($this));
     }
 
+    public function retainers(): \Breakfast\Platform\Retainers\Retainers
+    {
+        return $this->service(\Breakfast\Platform\Retainers\Retainers::class, fn () => new \Breakfast\Platform\Retainers\Retainers($this));
+    }
+
     public function stripeSettings(): \Breakfast\Platform\Payments\StripeSettings
     {
         return $this->service(\Breakfast\Platform\Payments\StripeSettings::class, fn () => new \Breakfast\Platform\Payments\StripeSettings(

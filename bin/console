@@ -543,6 +543,17 @@ switch ($command) {
         out('calendar:reminders — ' . count($due) . ' due, ' . $sent . ' emailed.');
         break;
 
+    case 'retainers:run':
+        // Generate draft invoices for every active retainer whose period has
+        // elapsed, billing in arrears (fee + time overage) and locking the
+        // covered time. Idempotent per period — safe to run on a schedule.
+        // --as-of=YYYY-MM-DD bills as if run on that date (defaults to today).
+        $asOfFlag = $flags['as-of'] ?? null;
+        $asOf     = is_string($asOfFlag) && $asOfFlag !== '' ? $asOfFlag : date('Y-m-d');
+        $res      = $platform->retainers()->runDue($asOf, 'cli:retainers');
+        out(sprintf('retainers:run — as of %s: %d period(s) billed, %d draft invoice(s) created.', $asOf, (int) $res['periods'], (int) $res['invoices']));
+        break;
+
     case 'invoices:backfill-pdfs':
         // Generate the immutable PDF for every issued invoice that doesn't have
         // one yet (issued before the PDF pipeline existed, or a prior failure).

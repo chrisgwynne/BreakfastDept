@@ -20,7 +20,7 @@ const loading = ref(true)
 const error = ref<string | null>(null)
 const busy = ref('')
 
-const tab = ref<'overview' | 'milestones' | 'board' | 'onboarding' | 'files' | 'changes' | 'access' | 'time'>('overview')
+const tab = ref<'overview' | 'milestones' | 'board' | 'onboarding' | 'files' | 'changes' | 'access' | 'time' | 'retainers'>('overview')
 type Milestone = { uuid: string; title: string; status: string; progress_percent: number; due_date: string; is_ready: boolean; blocked_by: string[] }
 type Task = { uuid: string; title: string; status: string; milestone_uuid: string | null; is_ready: boolean; revision: number }
 const milestones = ref<Milestone[]>([])
@@ -37,7 +37,7 @@ async function loadBoard() {
   if (!project.value) return
   board.value = (await api.get<{ columns: Record<string, Task[]> }>(`/projects/${project.value.id}/board`)).columns
 }
-async function switchTab(t: 'overview' | 'milestones' | 'board' | 'onboarding' | 'files' | 'changes' | 'access' | 'time') {
+async function switchTab(t: 'overview' | 'milestones' | 'board' | 'onboarding' | 'files' | 'changes' | 'access' | 'time' | 'retainers') {
   tab.value = t
   if (t === 'milestones') await loadMilestones()
   if (t === 'board') await loadBoard()
@@ -46,6 +46,47 @@ async function switchTab(t: 'overview' | 'milestones' | 'board' | 'onboarding' |
   if (t === 'changes') await loadChangeRequests()
   if (t === 'access') await loadPortalAccess()
   if (t === 'time') await loadTime()
+  if (t === 'retainers') await loadRetainers()
+}
+
+// --- Retainers ---
+interface RetainerPeriod { period_start: string; period_end: string; used_seconds: number; included_seconds: number; overage_pence: number; fee_pence: number; invoice_uuid: string | null }
+interface Retainer { uuid: string; title: string; cadence: string; fee_pence: number; included_seconds: number; overage_rate_pence: number; status: string; next_period_start: string; periods?: RetainerPeriod[] }
+const retainers = ref<Retainer[]>([])
+const retainerBusy = ref('')
+const retDraft = ref<{ title: string; fee: string; included_hours: string; overage_rate: string; start_date: string }>({ title: 'Monthly retainer', fee: '', included_hours: '', overage_rate: '', start_date: '' })
+async function loadRetainers() {
+  if (!project.value) return
+  retainers.value = (await api.get<{ items: Retainer[] }>(`/retainers?project=${project.value.id}`)).items
+}
+async function createRetainer() {
+  if (!project.value || !retDraft.value.title.trim()) return
+  retainerBusy.value = 'create'
+  try {
+    await api.post('/retainers', {
+      project_uuid: project.value.id, title: retDraft.value.title.trim(),
+      fee: Number(retDraft.value.fee) || 0, included_hours: Number(retDraft.value.included_hours) || 0,
+      overage_rate: Number(retDraft.value.overage_rate) || 0, start_date: retDraft.value.start_date || undefined,
+    })
+    retDraft.value = { title: 'Monthly retainer', fee: '', included_hours: '', overage_rate: '', start_date: '' }
+    await loadRetainers(); ui.toast('Retainer created')
+  } catch (e) { ui.toast(e instanceof ApiError ? e.message : 'Could not create retainer') }
+  finally { retainerBusy.value = '' }
+}
+async function setRetainerStatus(r: Retainer, status: string) {
+  retainerBusy.value = r.uuid
+  try { await api.post(`/retainers/${r.uuid}/status`, { status }); await loadRetainers() }
+  catch (e) { ui.toast(e instanceof ApiError ? e.message : 'Could not update') }
+  finally { retainerBusy.value = '' }
+}
+async function runRetainer(r: Retainer) {
+  retainerBusy.value = r.uuid
+  try {
+    const res = await api.post<{ result: number[] }>(`/retainers/${r.uuid}/run`, {})
+    await loadRetainers(); await reloadProject()
+    ui.toast(res.result[0] > 0 ? `Billed ${res.result[0]} period(s)` : 'Nothing due yet')
+  } catch (e) { ui.toast(e instanceof ApiError ? e.message : 'Could not run billing') }
+  finally { retainerBusy.value = '' }
 }
 
 // --- Time tracking ---
@@ -437,6 +478,7 @@ onMounted(load)
           <button class="tab" :class="{ 'tab--active': tab === 'changes' }" role="tab" @click="switchTab('changes')">Change requests</button>
           <button class="tab" :class="{ 'tab--active': tab === 'access' }" role="tab" @click="switchTab('access')">Client access</button>
           <button class="tab" :class="{ 'tab--active': tab === 'time' }" role="tab" @click="switchTab('time')">Time</button>
+          <button class="tab" :class="{ 'tab--active': tab === 'retainers' }" role="tab" @click="switchTab('retainers')">Retainers</button>
         </div>
 
         <!-- Files -->
@@ -543,6 +585,43 @@ onMounted(load)
               </div>
             </div>
             <p v-if="!changeRequests.length" class="faint" style="padding:var(--sp-3)">No change requests yet.</p>
+          </div>
+        </section>
+
+        <!-- Retainers -->
+        <section v-if="tab === 'retainers'" class="card card--pad" data-test="project-retainers">
+          <form v-if="canManage" class="timeform" data-test="retainer-form" @submit.prevent="createRetainer">
+            <input class="input" v-model="retDraft.title" data-test="retainer-title" placeholder="Retainer name" />
+            <div class="timeform__row">
+              <input class="input input--sm" v-model="retDraft.fee" type="number" min="0" step="0.01" data-test="retainer-fee" placeholder="Fee £" />
+              <input class="input input--sm" v-model="retDraft.included_hours" type="number" min="0" step="0.5" data-test="retainer-hours" placeholder="Incl h" />
+              <input class="input input--sm" v-model="retDraft.overage_rate" type="number" min="0" step="0.01" data-test="retainer-overage" placeholder="Over £/h" />
+              <input class="input input--sm" v-model="retDraft.start_date" type="date" data-test="retainer-start" style="width:150px" />
+              <button class="btn btn--sm btn--primary" type="submit" data-test="retainer-create" :disabled="!retDraft.title.trim() || retainerBusy === 'create'">Add retainer</button>
+            </div>
+          </form>
+
+          <div class="card list">
+            <div v-for="r in retainers" :key="r.uuid" class="retrow" :data-test="'retainer-' + r.status">
+              <div class="retrow__head">
+                <StatusPill :status="r.status" />
+                <span class="retrow__title">{{ r.title }}</span>
+                <span class="fmeta faint">£{{ (r.fee_pence / 100).toFixed(2) }} / {{ r.cadence }}<span v-if="r.included_seconds"> · {{ (r.included_seconds / 3600) }}h incl</span></span>
+                <span class="factions" v-if="canManage">
+                  <button class="btn btn--sm btn--primary" data-test="retainer-run" :disabled="retainerBusy === r.uuid || r.status !== 'active'" @click="runRetainer(r)">Run billing</button>
+                  <button v-if="r.status === 'active'" class="btn btn--sm" data-test="retainer-pause" :disabled="retainerBusy === r.uuid" @click="setRetainerStatus(r, 'paused')">Pause</button>
+                  <button v-else-if="r.status === 'paused'" class="btn btn--sm" @click="setRetainerStatus(r, 'active')">Resume</button>
+                </span>
+              </div>
+              <div v-if="r.periods && r.periods.length" class="retrow__periods">
+                <div v-for="p in r.periods" :key="p.period_start" class="retper" data-test="retainer-period">
+                  <span>{{ p.period_start }} → {{ p.period_end }}</span>
+                  <span class="faint">{{ (p.used_seconds / 3600).toFixed(1) }}h used / {{ (p.included_seconds / 3600) }}h</span>
+                  <span class="faint">£{{ ((p.fee_pence + p.overage_pence) / 100).toFixed(2) }}<span v-if="p.overage_pence"> (£{{ (p.overage_pence / 100).toFixed(2) }} over)</span></span>
+                </div>
+              </div>
+            </div>
+            <p v-if="!retainers.length" class="faint" style="padding:var(--sp-3)">No retainers on this project.</p>
           </div>
         </section>
 
@@ -859,5 +938,11 @@ onMounted(load)
 .timeform__row { display: flex; gap: var(--sp-2); align-items: center; flex-wrap: wrap; }
 .timeform__row .input--sm { width: 70px; }
 .chkbx { display: inline-flex; align-items: center; gap: 4px; font-size: var(--text-sm); white-space: nowrap; }
+.retrow + .retrow { border-top: 1px solid var(--line); }
+.retrow__head { display: flex; align-items: center; gap: var(--sp-3); padding: 10px var(--sp-3); }
+.retrow__title { font-weight: 650; font-size: var(--text-sm); }
+.retrow__periods { padding: 0 var(--sp-3) 10px; }
+.retper { display: flex; gap: var(--sp-4); font-size: var(--text-xs); padding: 3px 0; border-top: 1px dashed var(--line); }
+.retper span:first-child { min-width: 190px; }
 @media (max-width: 820px) { .cols { grid-template-columns: 1fr; } .grid2 { grid-template-columns: 1fr; } .crnew__item { grid-template-columns: 1fr; } }
 </style>

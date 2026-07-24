@@ -131,7 +131,7 @@ final class TimeTracking
             [
                 'uuid' => $uuid, 'p' => $projectUuid, 'task' => $this->nullable($data['task_uuid'] ?? null),
                 'author' => (string) ($data['author'] ?? $actor), 'desc' => (string) ($data['description'] ?? ''),
-                'activity' => in_array((string) ($data['activity'] ?? 'general'), self::ACTIVITIES, true) ? (string) $data['activity'] : 'general',
+                'activity' => $this->activity($data),
                 'started' => $this->nullable($data['started_at'] ?? null) ?? substr($now, 0, 10),
                 'dur' => $seconds, 'billable' => !empty($data['billable'] ?? true) ? 1 : 0,
                 'rate' => (int) round(((float) ($data['rate'] ?? 0)) * 100), 'now' => $now,
@@ -214,7 +214,7 @@ final class TimeTracking
             [
                 'uuid' => $uuid, 'p' => $projectUuid, 'task' => $this->nullable($data['task_uuid'] ?? null), 'author' => $actor,
                 'desc' => (string) ($data['description'] ?? ''),
-                'activity' => in_array((string) ($data['activity'] ?? 'general'), self::ACTIVITIES, true) ? (string) $data['activity'] : 'general',
+                'activity' => $this->activity($data),
                 'billable' => !empty($data['billable'] ?? true) ? 1 : 0, 'rate' => (int) round(((float) ($data['rate'] ?? 0)) * 100), 'now' => $now,
             ]
         );
@@ -283,6 +283,14 @@ final class TimeTracking
         }
 
         return (int) $entry['duration_seconds'];
+    }
+
+    /** @param array<string,mixed> $data */
+    private function activity(array $data): string
+    {
+        $activity = (string) ($data['activity'] ?? 'general');
+
+        return in_array($activity, self::ACTIVITIES, true) ? $activity : 'general';
     }
 
     /** @param array<string,mixed> $data */

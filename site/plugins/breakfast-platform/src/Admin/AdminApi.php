@@ -96,6 +96,7 @@ final class AdminApi
             'change-requests' => $this->changeRequests($method, $seg, $user),
             'portal'        => $this->portal($method, $seg, $user),
             'time'          => $this->time($method, $seg, $user),
+            'retainers'     => $this->retainers($method, $seg, $user),
             'onboarding'    => $this->onboarding($method, $seg, $user),
             'onboarding-templates' => $this->onboardingTemplatesApi($method, $seg, $user),
             'files'         => $this->files($method, $seg, $user),
@@ -2220,6 +2221,84 @@ final class AdminApi
             throw new ApiException(404, 'Unknown change-request endpoint.', 'not_found');
         } catch (\Breakfast\Platform\ChangeRequests\ChangeRequestException $e) {
             throw new ApiException($e->status, $e->getMessage(), 'change_request');
+        }
+    }
+
+    /**
+     * Retainers & recurring billing (Phase 4). Viewing follows CRM access;
+     * create/edit/status and running the billing scheduler require the 'manage'
+     * grant. Running generates ordinary draft invoices billed in arrears.
+     *
+     * @param list<string> $seg
+     * @return array<string,mixed>
+     */
+    private function retainers(string $method, array $seg, \Kirby\Cms\User $user): array
+    {
+        if (!PanelGate::canViewRetainers($user)) {
+            throw new ApiException(403, 'You don’t have access to retainers.', 'forbidden');
+        }
+        $svc   = $this->platform->retainers();
+        $actor = (string) $user->email();
+        $id    = $seg[1] ?? '';
+        $requireManage = function () use ($user): void {
+            if (!PanelGate::canManageRetainers($user)) {
+                throw new ApiException(403, 'You can’t change retainers.', 'forbidden');
+            }
+        };
+
+        try {
+            if ($id === 'run' && $method === 'POST') {
+                $requireManage();
+                $body = $this->body();
+                $asOf = (string) ($body['as_of'] ?? date('Y-m-d'));
+
+                return ['result' => $svc->runDue($asOf, $actor)];
+            }
+            if ($id === '') {
+                if ($method === 'POST') {
+                    $requireManage();
+                    $body = $this->body();
+
+                    return ['retainer' => $svc->create((string) ($body['project_uuid'] ?? ''), $body, $actor)];
+                }
+                $q = $this->query();
+                // Enrich each with its periods so the UI can show billing history.
+                $items = array_map(fn (array $r): array => $svc->find((string) $r['uuid']) ?? $r, $svc->list(['project_uuid' => $q['project'] ?? null, 'status' => $q['status'] ?? null, 'limit' => $this->perPage()]));
+
+                return ['items' => $items];
+            }
+            $action = $seg[2] ?? '';
+            if ($method === 'GET' && $action === '') {
+                $r = $svc->find($id);
+                if ($r === null) {
+                    throw new ApiException(404, 'Retainer not found.', 'not_found');
+                }
+
+                return ['retainer' => $r];
+            }
+            if ($method === 'PATCH' && $action === '') {
+                $requireManage();
+                $body = $this->body();
+
+                return ['retainer' => $svc->update($id, $body, $actor, array_key_exists('revision', $body) ? (int) $body['revision'] : null)];
+            }
+            if ($method === 'POST') {
+                $body = $this->body();
+                switch ($action) {
+                    case 'status':
+                        $requireManage();
+
+                        return ['retainer' => $svc->setStatus($id, (string) ($body['status'] ?? ''), $actor)];
+                    case 'run':
+                        $requireManage();
+
+                        return ['result' => $svc->runRetainer($id, (string) ($body['as_of'] ?? date('Y-m-d')), $actor), 'retainer' => $svc->find($id)];
+                }
+            }
+
+            throw new ApiException(404, 'Unknown retainer endpoint.', 'not_found');
+        } catch (\Breakfast\Platform\Retainers\RetainerException $e) {
+            throw new ApiException($e->status, $e->getMessage(), 'retainer');
         }
     }
 

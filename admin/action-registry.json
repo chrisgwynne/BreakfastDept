@@ -33,7 +33,8 @@
     "settings",
     "reports",
     "operations",
-    "time"
+    "time",
+    "retainers"
   ],
   "actions": [
     {
@@ -1464,6 +1465,50 @@
       "persistence": "Breakfast\\Platform\\Time\\TimeTracking::stopTimer",
       "audit": "",
       "playwright": "admin-time.spec.js",
+      "status": "implemented"
+    },
+    {
+      "id": "retainers.create",
+      "label": "Create retainer",
+      "resource": "retainers",
+      "method": "POST",
+      "permission": "retainers.manage",
+      "persistence": "Breakfast\\Platform\\Retainers\\Retainers::create",
+      "audit": "",
+      "playwright": "admin-retainers.spec.js",
+      "status": "implemented"
+    },
+    {
+      "id": "retainers.edit",
+      "label": "Edit retainer",
+      "resource": "retainers",
+      "method": "PATCH",
+      "permission": "retainers.manage",
+      "persistence": "Breakfast\\Platform\\Retainers\\Retainers::update",
+      "audit": "",
+      "playwright": "",
+      "status": "implemented"
+    },
+    {
+      "id": "retainers.status",
+      "label": "Pause/resume/end retainer",
+      "resource": "retainers",
+      "method": "POST",
+      "permission": "retainers.manage",
+      "persistence": "Breakfast\\Platform\\Retainers\\Retainers::setStatus",
+      "audit": "",
+      "playwright": "",
+      "status": "implemented"
+    },
+    {
+      "id": "retainers.run",
+      "label": "Run recurring billing",
+      "resource": "retainers",
+      "method": "POST",
+      "permission": "retainers.manage",
+      "persistence": "Breakfast\\Platform\\Retainers\\Retainers::runRetainer",
+      "audit": "retainer.billed",
+      "playwright": "admin-retainers.spec.js",
       "status": "implemented"
     }
   ]

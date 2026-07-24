@@ -289,6 +289,22 @@ final class PanelGate
     }
 
     /**
+     * Retainers & recurring billing. Viewing follows CRM access; creating,
+     * editing, pausing/ending a retainer and running the billing scheduler
+     * require the 'manage' grant. Generated invoices are ordinary drafts subject
+     * to the invoicing permissions.
+     */
+    public static function canViewRetainers(?User $user): bool
+    {
+        return self::canAccess($user);
+    }
+
+    public static function canManageRetainers(?User $user): bool
+    {
+        return self::canManage($user);
+    }
+
+    /**
      * Credential vault. Viewing MASKED metadata follows the CRM 'manage' grant;
      * everything that touches a secret — create, edit a secret, reveal, copy,
      * rotate keys, view the access log — is admin-only and requires step-up
