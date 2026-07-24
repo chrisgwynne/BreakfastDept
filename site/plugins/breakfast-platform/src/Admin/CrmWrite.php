@@ -267,6 +267,158 @@ final class CrmWrite
     }
 
     // ==================================================================
+    // Edit / convert / archive
+    // ==================================================================
+
+    /**
+     * Edit an existing contact. Only the provided, allowed fields are changed;
+     * an activity and audit event are recorded.
+     *
+     * @param array<string,mixed> $in
+     * @return array<string,mixed>
+     */
+    public function editContact(string $uuid, array $in, string $actor): array
+    {
+        $contact = $this->platform->contacts()->find($uuid);
+        if ($contact === null) {
+            throw new ApiException(404, 'Contact not found.', 'not_found');
+        }
+        $email = strtolower(trim((string) ($in['email'] ?? '')));
+        if (array_key_exists('email', $in) && $email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
+            throw new ApiException(422, 'Enter a valid email address.', 'invalid', ['email' => 'Invalid email.']);
+        }
+
+        $map = [
+            'first_name' => 'first_name', 'last_name' => 'last_name', 'display_name' => 'display_name',
+            'phone' => 'phone', 'job_title' => 'role', 'website' => 'website', 'location' => 'location',
+            'source' => 'lead_source', 'owner' => 'owner', 'notes' => 'notes',
+            'marketing_consent' => 'marketing_consent',
+        ];
+        $data = [];
+        foreach ($map as $inKey => $col) {
+            if (array_key_exists($inKey, $in)) {
+                $data[$col] = $this->str($in, $inKey);
+            }
+        }
+        if (array_key_exists('email', $in)) {
+            $data['email'] = $email !== '' ? $email : null;
+        }
+        if (array_key_exists('tags', $in)) {
+            $data['tags'] = $this->tags($in);
+        }
+        if (array_key_exists('company', $in)) {
+            $company = $this->resolveCompany($in, $actor);
+            $data['company_uuid'] = $company['uuid'] ?? null;
+        }
+
+        $updated = $this->platform->contacts()->update($uuid, $data);
+        $this->platform->activities()->record('contact', $uuid, 'contact.updated', 'Contact edited by ' . $actor, 'user', $actor, []);
+        $this->platform->audit()->event('contact.updated', 'contact', $uuid, $actor, ['fields' => array_keys($data)]);
+
+        return ['contact' => $updated ?? []];
+    }
+
+    /**
+     * Edit an existing lead (enquiry) — status, owner, summary and next action.
+     *
+     * @param array<string,mixed> $in
+     * @return array<string,mixed>
+     */
+    public function editLead(string $uuid, array $in, string $actor): array
+    {
+        $enquiry = $this->platform->enquiries()->find($uuid);
+        if ($enquiry === null) {
+            throw new ApiException(404, 'Lead not found.', 'not_found');
+        }
+        $data = [];
+        foreach (['status', 'owner', 'summary'] as $f) {
+            if (array_key_exists($f, $in)) {
+                $data[$f] = $this->str($in, $f);
+            }
+        }
+        $updated = $this->platform->enquiries()->update($uuid, $data);
+        $this->platform->activities()->record('enquiry', $uuid, 'enquiry.updated', 'Lead edited by ' . $actor, 'user', $actor, []);
+        $this->platform->audit()->event('lead.updated', 'enquiry', $uuid, $actor, ['fields' => array_keys($data)]);
+
+        return ['enquiry' => $updated ?? []];
+    }
+
+    /**
+     * Convert a lead into an opportunity, atomically: create the opportunity from
+     * the enquiry's contact/company, mark the enquiry converted, record activities
+     * on both records and an audit event. Never partially applied.
+     *
+     * @param array<string,mixed> $in
+     * @return array<string,mixed>
+     */
+    public function convertLead(string $uuid, array $in, string $actor): array
+    {
+        $enquiry = $this->platform->enquiries()->find($uuid);
+        if ($enquiry === null) {
+            throw new ApiException(404, 'Lead not found.', 'not_found');
+        }
+        if ((string) ($enquiry['status'] ?? '') === 'converted') {
+            throw new ApiException(409, 'This lead has already been converted.', 'conflict');
+        }
+        $stage = trim((string) ($in['stage'] ?? 'new'));
+        if (in_array($stage, $this->platform->crm()->stages(), true) === false) {
+            $stage = 'new';
+        }
+        $title = trim((string) ($in['title'] ?? ''));
+        if ($title === '') {
+            $title = 'Opportunity from ' . (string) ($enquiry['reference'] ?? 'lead');
+        }
+
+        /** @var array<string,mixed> $result */
+        $result = $this->platform->db()->transaction(function () use ($enquiry, $uuid, $title, $stage, $in, $actor): array {
+            $opportunity = $this->platform->crm()->createOpportunity([
+                'title'           => $title,
+                'stage'           => $stage,
+                'estimated_value' => (int) ($in['value'] ?? 0),
+                'probability'     => (int) ($in['probability'] ?? 0),
+                'contact_uuid'    => $enquiry['contact_uuid'] ?? null,
+                'company_uuid'    => $enquiry['company_uuid'] ?? null,
+            ], 'user', $actor);
+
+            $this->platform->enquiries()->update($uuid, ['status' => 'converted']);
+
+            $this->platform->activities()->record('enquiry', $uuid, 'enquiry.converted', 'Converted to opportunity by ' . $actor, 'user', $actor, ['opportunity' => $opportunity['uuid'] ?? null]);
+            $this->platform->activities()->record('opportunity', (string) ($opportunity['uuid'] ?? ''), 'opportunity.created', 'Created from lead ' . (string) ($enquiry['reference'] ?? ''), 'user', $actor, []);
+            $this->platform->audit()->event('lead.converted', 'enquiry', $uuid, $actor, ['opportunity' => $opportunity['uuid'] ?? null]);
+
+            return ['opportunity' => $opportunity, 'enquiry_uuid' => $uuid];
+        });
+
+        return $result;
+    }
+
+    /** @return array<string,mixed> */
+    public function archiveContact(string $uuid, string $actor): array
+    {
+        if ($this->platform->contacts()->find($uuid) === null) {
+            throw new ApiException(404, 'Contact not found.', 'not_found');
+        }
+        $this->platform->contacts()->archive($uuid);
+        $this->platform->activities()->record('contact', $uuid, 'contact.archived', 'Contact archived by ' . $actor, 'user', $actor, []);
+        $this->platform->audit()->event('contact.archived', 'contact', $uuid, $actor, []);
+
+        return ['ok' => true, 'contact' => $this->platform->contacts()->find($uuid) ?? []];
+    }
+
+    /** @return array<string,mixed> */
+    public function archiveLead(string $uuid, string $actor): array
+    {
+        if ($this->platform->enquiries()->find($uuid) === null) {
+            throw new ApiException(404, 'Lead not found.', 'not_found');
+        }
+        $this->platform->enquiries()->update($uuid, ['status' => 'archived']);
+        $this->platform->activities()->record('enquiry', $uuid, 'enquiry.archived', 'Lead archived by ' . $actor, 'user', $actor, []);
+        $this->platform->audit()->event('lead.archived', 'enquiry', $uuid, $actor, []);
+
+        return ['ok' => true, 'enquiry' => $this->platform->enquiries()->find($uuid)];
+    }
+
+    // ==================================================================
     // Helpers
     // ==================================================================
 

@@ -332,6 +332,30 @@ final class AdminApi
             return ['ok' => true];
         }
 
+        // Edit a lead.
+        if ($method === 'PATCH' && isset($seg[1]) && !isset($seg[2])) {
+            $actor = (string) $this->requireManage()->email();
+            $res = $this->crmWrite()->editLead((string) $seg[1], $this->body(), $actor);
+
+            return ['lead' => $this->enquiryRow(is_array($res['enquiry']) ? $res['enquiry'] : [])];
+        }
+
+        // Convert a lead to an opportunity (atomic).
+        if ($method === 'POST' && ($seg[2] ?? '') === 'convert') {
+            $actor = (string) $this->requireManage()->email();
+            $res = $this->crmWrite()->convertLead((string) $seg[1], $this->body(), $actor);
+
+            return ['opportunity' => $this->opportunityRow(is_array($res['opportunity']) ? $res['opportunity'] : [])];
+        }
+
+        // Archive a lead.
+        if ($method === 'POST' && ($seg[2] ?? '') === 'archive') {
+            $actor = (string) $this->requireManage()->email();
+            $res = $this->crmWrite()->archiveLead((string) $seg[1], $actor);
+
+            return ['lead' => $this->enquiryRow(is_array($res['enquiry']) ? $res['enquiry'] : [])];
+        }
+
         if ($method === 'GET' && !isset($seg[1])) {
             $q = $this->query();
             $items = $this->platform->enquiries()->search([
@@ -364,6 +388,22 @@ final class AdminApi
             $this->crmWrite()->addNote('contact', (string) $seg[1], (string) ($this->body()['note'] ?? ''), $actor);
 
             return ['ok' => true];
+        }
+
+        // Edit a contact.
+        if ($method === 'PATCH' && isset($seg[1]) && !isset($seg[2])) {
+            $actor = (string) $this->requireManage()->email();
+            $res = $this->crmWrite()->editContact((string) $seg[1], $this->body(), $actor);
+
+            return ['contact' => $this->contactRow(is_array($res['contact']) ? $res['contact'] : [])];
+        }
+
+        // Archive a contact.
+        if ($method === 'POST' && ($seg[2] ?? '') === 'archive') {
+            $actor = (string) $this->requireManage()->email();
+            $res = $this->crmWrite()->archiveContact((string) $seg[1], $actor);
+
+            return ['contact' => $this->contactRow(is_array($res['contact']) ? $res['contact'] : [])];
         }
 
         if (isset($seg[1])) {
@@ -442,7 +482,16 @@ final class AdminApi
 
         $items = $this->platform->opportunities()->search(['limit' => $this->perPage()]);
 
-        return ['items' => array_map(static fn (array $r): array => [
+        return ['items' => array_map([$this, 'opportunityRow'], $items), 'total' => count($items), 'stages' => $this->stagesList()];
+    }
+
+    /**
+     * @param array<string,mixed> $r
+     * @return array<string,mixed>
+     */
+    private function opportunityRow(array $r): array
+    {
+        return [
             'id'          => (string) ($r['uuid'] ?? ''),
             'title'       => (string) ($r['title'] ?? ''),
             'stage'       => (string) ($r['stage'] ?? ''),
@@ -450,7 +499,7 @@ final class AdminApi
             'probability' => (int) ($r['probability'] ?? 0),
             'contact'     => (string) ($r['contact_name'] ?? ''),
             'next_action' => (string) ($r['next_action_date'] ?? ''),
-        ], $items), 'total' => count($items), 'stages' => $this->stagesList()];
+        ];
     }
 
     /**
