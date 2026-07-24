@@ -178,6 +178,11 @@ final class Platform
         return $this->service(\Breakfast\Platform\Invoicing\Invoices::class, fn () => new \Breakfast\Platform\Invoicing\Invoices($this->db()));
     }
 
+    public function proposals(): \Breakfast\Platform\Proposals\Proposals
+    {
+        return $this->service(\Breakfast\Platform\Proposals\Proposals::class, fn () => new \Breakfast\Platform\Proposals\Proposals($this->db()));
+    }
+
     public function invoiceDocuments(): \Breakfast\Platform\Invoicing\InvoiceDocumentService
     {
         return $this->service(\Breakfast\Platform\Invoicing\InvoiceDocumentService::class, fn () => new \Breakfast\Platform\Invoicing\InvoiceDocumentService(
