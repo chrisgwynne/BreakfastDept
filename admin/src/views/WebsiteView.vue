@@ -3,7 +3,7 @@ import { onMounted, ref, reactive, computed } from 'vue'
 import { api, ApiError } from '@/lib/api'
 import { useAuth } from '@/stores/auth'
 import { useUi } from '@/stores/ui'
-import type { WebsiteIndex, WebsiteListItem, WebsiteEditor, WebsiteField } from '@/lib/types'
+import type { WebsiteIndex, WebsiteListItem, WebsiteEditor, WebsiteField, MediaFile, MediaList } from '@/lib/types'
 import PageHeader from '@/components/PageHeader.vue'
 import DataState from '@/components/DataState.vue'
 import StatusPill from '@/components/StatusPill.vue'
@@ -49,6 +49,7 @@ async function open(item: WebsiteListItem) {
     const ed = await api.get<WebsiteEditor>(`/website/page/${item.id}`)
     for (const key of Object.keys(values)) delete values[key]
     applyEditor(ed)
+    void loadMedia()
   } catch (e) {
     ui.toast(e instanceof ApiError ? e.message : 'Could not open that page.')
   } finally {
@@ -58,7 +59,62 @@ async function open(item: WebsiteListItem) {
 
 function close() {
   editor.value = null
+  media.value = []
   clearErrors()
+}
+
+// --- media library ---
+const media = ref<MediaFile[]>([])
+const maxBytes = ref(0)
+const mediaBusy = ref('')
+const uploadInput = ref<HTMLInputElement | null>(null)
+async function loadMedia() {
+  if (!editor.value) return
+  try {
+    const res = await api.get<MediaList>(`/website/page/${editor.value.id}/media`)
+    media.value = res.items
+    maxBytes.value = res.max_bytes
+  } catch { media.value = [] }
+}
+function pickFile() {
+  uploadInput.value?.click()
+}
+async function onFilePicked(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = '' // allow re-picking the same file
+  if (!file || !editor.value || mediaBusy.value) return
+  if (maxBytes.value && file.size > maxBytes.value) {
+    ui.toast(`That file is too large (max ${Math.round(maxBytes.value / 1024 / 1024)} MB).`)
+    return
+  }
+  mediaBusy.value = 'upload'
+  try {
+    const form = new FormData()
+    form.append('file', file)
+    await api.upload(`/website/page/${editor.value.id}/media`, form)
+    ui.toast('File uploaded')
+    await loadMedia()
+  } catch (e) { ui.toast(e instanceof ApiError ? e.message : 'Upload failed') }
+  finally { mediaBusy.value = '' }
+}
+async function deleteMedia(f: MediaFile) {
+  if (!editor.value || mediaBusy.value) return
+  const warn = f.usage > 0
+    ? `“${f.filename}” is used in ${f.usage} place${f.usage === 1 ? '' : 's'}. Delete it anyway?`
+    : `Delete “${f.filename}”? This cannot be undone.`
+  if (!window.confirm(warn)) return
+  mediaBusy.value = f.filename
+  try {
+    await api.del(`/website/page/${editor.value.id}/media/${encodeURIComponent(f.filename)}${f.usage > 0 ? '?force=1' : ''}`)
+    ui.toast('File deleted')
+    await loadMedia()
+  } catch (e) { ui.toast(e instanceof ApiError ? e.message : 'Could not delete the file') }
+  finally { mediaBusy.value = '' }
+}
+function copyRef(f: MediaFile) {
+  navigator.clipboard?.writeText(f.filename)
+  ui.toast('Filename copied — paste it into an image field')
 }
 
 function clearErrors() {
@@ -212,6 +268,34 @@ onMounted(load)
             <span v-for="f in editor.readonly" :key="f.name" class="rochip">{{ f.label }} <em>{{ f.type }}</em></span>
           </div>
         </div>
+
+        <!-- Media library for this page -->
+        <div class="media">
+          <div class="media__head">
+            <p class="label">Media</p>
+            <button v-if="canEdit" class="btn btn--sm" :disabled="mediaBusy === 'upload'" @click="pickFile">
+              <NavIcon name="plus" /> {{ mediaBusy === 'upload' ? 'Uploading…' : 'Upload file' }}</button>
+            <input ref="uploadInput" class="visually-hidden" type="file" accept="image/*,.pdf" @change="onFilePicked" />
+          </div>
+          <p v-if="!media.length" class="faint sm">No files yet. Upload images or PDFs to use on this page.</p>
+          <div v-else class="media__grid">
+            <div v-for="f in media" :key="f.filename" class="mediaitem">
+              <div class="mediaitem__thumb">
+                <img v-if="f.is_image" :src="f.url" :alt="f.filename" loading="lazy" />
+                <NavIcon v-else name="window" />
+              </div>
+              <div class="mediaitem__meta">
+                <strong class="truncate" :title="f.filename">{{ f.filename }}</strong>
+                <span class="faint">{{ f.nice_size }}<template v-if="f.width"> · {{ f.width }}×{{ f.height }}</template>
+                  <template v-if="f.usage"> · used {{ f.usage }}×</template></span>
+              </div>
+              <div class="mediaitem__actions">
+                <button class="iconbtn" title="Copy filename" @click="copyRef(f)"><NavIcon name="check" /></button>
+                <button v-if="canEdit" class="iconbtn iconbtn--danger" title="Delete" :disabled="!!mediaBusy" @click="deleteMedia(f)">×</button>
+              </div>
+            </div>
+          </div>
+        </div>
       </template>
 
       <template #footer>
@@ -249,6 +333,23 @@ onMounted(load)
 .req { color: var(--danger-ink); margin-left: 2px; }
 .fhelp { font-size: var(--text-xs); color: var(--ink-3); margin-top: 4px; line-height: 1.5; }
 .ferr { font-size: var(--text-xs); color: var(--danger-ink); margin-top: 4px; }
+
+.visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
+.media { margin-top: var(--sp-5); padding-top: var(--sp-4); border-top: 1px solid var(--line); }
+.media__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--sp-3); }
+.media__grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2); }
+.mediaitem { display: grid; grid-template-columns: 44px 1fr auto; align-items: center; gap: var(--sp-2);
+  border: 1px solid var(--line); border-radius: var(--r-md); padding: 6px 8px; background: var(--surface); }
+.mediaitem__thumb { width: 44px; height: 44px; border-radius: var(--r-sm); overflow: hidden; background: var(--paper-2);
+  display: grid; place-items: center; color: var(--ink-3); }
+.mediaitem__thumb img { width: 100%; height: 100%; object-fit: cover; }
+.mediaitem__meta { display: grid; min-width: 0; }
+.mediaitem__meta strong { font-size: var(--text-sm); }
+.mediaitem__meta span { font-size: var(--text-xs); }
+.mediaitem__actions { display: flex; gap: 2px; }
+.iconbtn--danger:hover { color: var(--danger-ink); }
+.sm { font-size: var(--text-sm); }
+@media (max-width: 620px) { .media__grid { grid-template-columns: 1fr; } }
 .toggle { display: flex; align-items: center; gap: 10px; font-size: var(--text-base); font-weight: 500; padding: 6px 0; }
 .toggle input { width: 18px; height: 18px; }
 .readonly { margin-top: var(--sp-5); padding-top: var(--sp-4); border-top: 1px solid var(--line); }

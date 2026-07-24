@@ -318,6 +318,29 @@ export interface WebsiteEditor {
   readonly: WebsiteField[]
 }
 
+export interface MediaFile {
+  filename: string
+  url: string
+  extension: string
+  type: string
+  mime: string
+  size: number
+  nice_size: string
+  is_image: boolean
+  width: number
+  height: number
+  uuid: string
+  usage: number
+  model: string
+}
+
+export interface MediaList {
+  items: MediaFile[]
+  total: number
+  model: string
+  max_bytes: number
+}
+
 // -- Invoicing -----------------------------------------------------------
 
 export interface InvoiceItem {

@@ -126,6 +126,27 @@ final class PanelGate
     }
 
     /**
+     * Website media library + section structure. Browsing maps to website
+     * 'view'; uploading/replacing/deleting media and adding/editing/reordering/
+     * deleting sections map to website 'edit'. Enforced server-side on every
+     * media and section route.
+     */
+    public static function canViewWebsiteMedia(?User $user): bool
+    {
+        return self::canViewWebsite($user);
+    }
+
+    public static function canManageWebsiteMedia(?User $user): bool
+    {
+        return self::canEditWebsite($user);
+    }
+
+    public static function canManageWebsiteSections(?User $user): bool
+    {
+        return self::canEditWebsite($user);
+    }
+
+    /**
      * Brevo integration settings. Viewing, managing (key + config) and testing
      * all require the 'manage' grant — this area exposes email deliverability
      * configuration and a masked credential hint. Enforced server-side.

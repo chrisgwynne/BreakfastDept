@@ -833,6 +833,11 @@ final class AdminApi
             $id     = $seg[2];
             $action = $seg[3] ?? '';
 
+            // Media library: GET/POST /website/page/:id/media[/…]
+            if ($action === 'media') {
+                return $this->websiteMedia($method, $seg, $user, $id);
+            }
+
             if ($method === 'GET' && $action === '') {
                 return $svc->load($id);
             }
@@ -855,6 +860,66 @@ final class AdminApi
         } catch (\Breakfast\Platform\Website\WebsiteException $e) {
             throw new ApiException($e->status, $e->getMessage(), 'website', $e->fields);
         }
+    }
+
+    /**
+     * Website media library routes:
+     *   GET    /website/page/:id/media                     list files
+     *   POST   /website/page/:id/media                     upload (multipart, field "file")
+     *   POST   /website/page/:id/media/:filename/replace   replace (multipart)
+     *   DELETE /website/page/:id/media/:filename[?force=1]  delete
+     *
+     * @param list<string> $seg
+     * @return array<string,mixed>
+     */
+    private function websiteMedia(string $method, array $seg, \Kirby\Cms\User $user, string $modelId): array
+    {
+        $media    = new \Breakfast\Platform\Website\WebsiteMedia($this->kirby, $this->platform);
+        $actor    = (string) $user->email();
+        $filename = isset($seg[4]) ? rawurldecode((string) $seg[4]) : '';
+        $op       = (string) ($seg[5] ?? '');
+
+        try {
+            if ($method === 'GET' && $filename === '') {
+                if (!PanelGate::canViewWebsiteMedia($user)) {
+                    throw new ApiException(403, 'You can’t view website media.', 'forbidden');
+                }
+
+                return $media->list($modelId);
+            }
+            if (!PanelGate::canManageWebsiteMedia($user)) {
+                throw new ApiException(403, 'You can’t manage website media.', 'forbidden');
+            }
+            if ($method === 'POST' && $filename === '') {
+                return $media->upload($modelId, $this->uploadedFile(), $actor);
+            }
+            if ($method === 'POST' && $filename !== '' && $op === 'replace') {
+                return $media->replace($modelId, $filename, $this->uploadedFile(), $actor);
+            }
+            if ($method === 'DELETE' && $filename !== '') {
+                return $media->delete($modelId, $filename, $actor, ($this->query()['force'] ?? '') === '1');
+            }
+
+            throw new ApiException(404, 'Unknown media endpoint.', 'not_found');
+        } catch (\Breakfast\Platform\Website\WebsiteException $e) {
+            throw new ApiException($e->status, $e->getMessage(), 'website', $e->fields);
+        }
+    }
+
+    /**
+     * The single uploaded file from a multipart request (field "file").
+     *
+     * @return array{name?:string,type?:string,tmp_name?:string,error?:int,size?:int}
+     */
+    private function uploadedFile(): array
+    {
+        $files = $this->kirby->request()->files()->get('file');
+        if (!is_array($files) || !isset($files['tmp_name'])) {
+            throw new ApiException(422, 'No file was uploaded.', 'invalid');
+        }
+
+        /** @var array{name?:string,type?:string,tmp_name?:string,error?:int,size?:int} $files */
+        return $files;
     }
 
     /**
