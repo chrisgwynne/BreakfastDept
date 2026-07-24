@@ -90,6 +90,8 @@ final class AdminApi
             'contract-templates' => $this->contractTemplates($method, $seg, $user),
             'payments'      => $this->payments($method, $seg, $user),
             'projects'      => $this->projects($method, $seg, $user),
+            'milestones'    => $this->milestones($method, $seg, $user),
+            'project-tasks' => $this->projectTasks($method, $seg, $user),
             'calendar'      => $this->calendar($method, $seg, $user),
             'search'        => $this->search(),
             'settings'      => $this->settings($method, $seg, $user),
@@ -2065,12 +2067,193 @@ final class AdminApi
                         $members = is_array($this->body()['members'] ?? null) ? $this->body()['members'] : [];
 
                         return ['project' => $this->projectRow($svc->setMembers($id, $members, $actor), true)];
+                    case 'milestones':
+                        $requireManage();
+
+                        return ['milestone' => $this->platform->milestones()->create($id, $this->body(), $actor)];
+                    case 'tasks':
+                        $requireManage();
+
+                        return ['task' => $this->platform->projectTasks()->create($id, $this->body(), $actor)];
                 }
+            }
+            // Nested collections (GET): /projects/:id/milestones, /tasks, /board.
+            if ($method === 'GET' && $action === 'milestones') {
+                return ['items' => $this->platform->milestones()->forProject($id)];
+            }
+            if ($method === 'GET' && $action === 'tasks') {
+                return ['items' => $this->platform->projectTasks()->forProject($id, ['status' => $this->query()['status'] ?? null, 'milestone_uuid' => $this->query()['milestone'] ?? null])];
+            }
+            if ($method === 'GET' && $action === 'board') {
+                $columns = [];
+                foreach (\Breakfast\Platform\Projects\ProjectTasks::STATUSES as $col) {
+                    $columns[$col] = [];
+                }
+                foreach ($this->platform->projectTasks()->forProject($id) as $t) {
+                    $columns[(string) $t['status']][] = $t;
+                }
+
+                return ['columns' => $columns];
             }
 
             throw new ApiException(404, 'Unknown project endpoint.', 'not_found');
         } catch (\Breakfast\Platform\Projects\ProjectException $e) {
             throw new ApiException($e->status, $e->getMessage(), 'project');
+        }
+    }
+
+    /**
+     * Milestone item operations: GET/PATCH /milestones/:id and POST actions
+     * (status, depend, undepend, delete). Reorder is POST /milestones/reorder.
+     *
+     * @param list<string> $seg
+     * @return array<string,mixed>
+     */
+    private function milestones(string $method, array $seg, \Kirby\Cms\User $user): array
+    {
+        if (!PanelGate::canViewProjects($user)) {
+            throw new ApiException(403, 'You don’t have access to projects.', 'forbidden');
+        }
+        $manage = PanelGate::canManageProjects($user);
+        $svc    = $this->platform->milestones();
+        $actor  = (string) $user->email();
+        $id     = $seg[1] ?? '';
+        try {
+            if ($id === 'reorder' && $method === 'POST') {
+                $this->requireProjectManage($manage);
+                $body = $this->body();
+                $svc->reorder((string) ($body['project_uuid'] ?? ''), is_array($body['order'] ?? null) ? $body['order'] : [], $actor);
+
+                return ['ok' => true];
+            }
+            if ($id === '') {
+                throw new ApiException(404, 'Unknown milestone endpoint.', 'not_found');
+            }
+            $action = $seg[2] ?? '';
+            if ($method === 'GET' && $action === '') {
+                $m = $svc->find($id);
+                if ($m === null) {
+                    throw new ApiException(404, 'Milestone not found.', 'not_found');
+                }
+
+                return ['milestone' => $m];
+            }
+            $this->requireProjectManage($manage);
+            if ($method === 'PATCH' && $action === '') {
+                $body = $this->body();
+
+                return ['milestone' => $svc->update($id, $body, $actor, array_key_exists('revision', $body) ? (int) $body['revision'] : null)];
+            }
+            if ($method === 'POST') {
+                switch ($action) {
+                    case 'status':
+                        return ['milestone' => $svc->setStatus($id, (string) ($this->body()['status'] ?? ''), $actor)];
+                    case 'depend':
+                        return ['milestone' => $svc->addDependency($id, (string) ($this->body()['blocked_by'] ?? ''), $actor)];
+                    case 'undepend':
+                        $svc->removeDependency($id, (string) ($this->body()['blocked_by'] ?? ''));
+
+                        return ['ok' => true];
+                    case 'delete':
+                        return $svc->delete($id);
+                }
+            }
+
+            throw new ApiException(404, 'Unknown milestone endpoint.', 'not_found');
+        } catch (\Breakfast\Platform\Projects\ProjectException $e) {
+            throw new ApiException($e->status, $e->getMessage(), 'project');
+        }
+    }
+
+    /**
+     * Delivery task item operations: PATCH /project-tasks/:id and POST actions
+     * (move, depend, undepend, checklist, checklist-toggle, archive, restore).
+     * Bulk is POST /project-tasks/bulk; reorder is POST /project-tasks/reorder.
+     *
+     * @param list<string> $seg
+     * @return array<string,mixed>
+     */
+    private function projectTasks(string $method, array $seg, \Kirby\Cms\User $user): array
+    {
+        if (!PanelGate::canViewProjects($user)) {
+            throw new ApiException(403, 'You don’t have access to projects.', 'forbidden');
+        }
+        $manage = PanelGate::canManageProjects($user);
+        $svc    = $this->platform->projectTasks();
+        $actor  = (string) $user->email();
+        $id     = $seg[1] ?? '';
+        try {
+            if ($id === 'bulk' && $method === 'POST') {
+                $this->requireProjectManage($manage);
+                $body = $this->body();
+
+                return $svc->bulk(is_array($body['ids'] ?? null) ? $body['ids'] : [], is_array($body['changes'] ?? null) ? $body['changes'] : [], $actor);
+            }
+            if ($id === 'reorder' && $method === 'POST') {
+                $this->requireProjectManage($manage);
+                $body = $this->body();
+                $svc->reorder((string) ($body['project_uuid'] ?? ''), is_array($body['order'] ?? null) ? $body['order'] : [], $actor);
+
+                return ['ok' => true];
+            }
+            if ($id === 'checklist-toggle' && $method === 'POST') {
+                $this->requireProjectManage($manage);
+                $body = $this->body();
+
+                return ['task' => $svc->toggleChecklistItem((string) ($body['item'] ?? ''), !empty($body['done']))];
+            }
+            if ($id === '') {
+                throw new ApiException(404, 'Unknown task endpoint.', 'not_found');
+            }
+            $action = $seg[2] ?? '';
+            if ($method === 'GET' && $action === '') {
+                $t = $svc->find($id);
+                if ($t === null) {
+                    throw new ApiException(404, 'Task not found.', 'not_found');
+                }
+
+                return ['task' => $t];
+            }
+            $this->requireProjectManage($manage);
+            if ($method === 'PATCH' && $action === '') {
+                $body = $this->body();
+
+                return ['task' => $svc->update($id, $body, $actor, array_key_exists('revision', $body) ? (int) $body['revision'] : null)];
+            }
+            if ($method === 'POST') {
+                $body = $this->body();
+                switch ($action) {
+                    case 'move':
+                        return ['task' => $svc->move($id, (string) ($body['status'] ?? ''), $actor, array_key_exists('revision', $body) ? (int) $body['revision'] : null)];
+                    case 'depend':
+                        return ['task' => $svc->addDependency($id, (string) ($body['blocked_by'] ?? ''), $actor)];
+                    case 'undepend':
+                        $svc->removeDependency($id, (string) ($body['blocked_by'] ?? ''));
+
+                        return ['ok' => true];
+                    case 'checklist':
+                        return ['task' => $svc->addChecklistItem($id, (string) ($body['label'] ?? ''), $actor)];
+                    case 'archive':
+                        $svc->archive($id);
+
+                        return ['ok' => true];
+                    case 'restore':
+                        $svc->restore($id);
+
+                        return ['ok' => true];
+                }
+            }
+
+            throw new ApiException(404, 'Unknown task endpoint.', 'not_found');
+        } catch (\Breakfast\Platform\Projects\ProjectException $e) {
+            throw new ApiException($e->status, $e->getMessage(), 'project');
+        }
+    }
+
+    private function requireProjectManage(bool $manage): void
+    {
+        if (!$manage) {
+            throw new ApiException(403, 'You can’t change projects.', 'forbidden');
         }
     }
 
@@ -2149,6 +2332,11 @@ final class AdminApi
         $row['approved_variations'] = (int) ($p['approved_variations'] ?? 0) / 100;
         $row['estimated_cost'] = (int) ($p['estimated_cost'] ?? 0) / 100;
         $row['awaiting_seconds'] = (int) ($p['awaiting_seconds_live'] ?? $p['awaiting_seconds'] ?? 0);
+        $row['progress_percent'] = (int) ($p['progress_percent'] ?? 0);
+        $row['tasks_total'] = (int) ($p['tasks_total'] ?? 0);
+        $row['tasks_completed'] = (int) ($p['tasks_completed'] ?? 0);
+        $row['milestones_total'] = (int) ($p['milestones_total'] ?? 0);
+        $row['milestones_done'] = (int) ($p['milestones_done'] ?? 0);
         $row['members'] = array_map(static fn (array $m): array => [
             'user_email' => (string) ($m['user_email'] ?? ''), 'role' => (string) ($m['role'] ?? 'member'),
         ], is_array($p['members'] ?? null) ? $p['members'] : []);

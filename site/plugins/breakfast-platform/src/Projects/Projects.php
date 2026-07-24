@@ -457,6 +457,24 @@ final class Projects
         $r['invoiced_value'] = (int) $fin['invoiced'];
         $r['paid_value']     = (int) $fin['paid'];
         $r['tags']           = $this->decodeTags($r['tags'] ?? '[]');
+
+        // Real progress, derived from delivery tasks/milestones — never a typed
+        // vanity percentage. Progress = completed tasks / total tasks.
+        $tasks = $this->db->one(
+            "SELECT COUNT(*) AS total, COALESCE(SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END),0) AS done
+             FROM project_tasks WHERE project_uuid = :u AND archived = 0 AND status <> 'cancelled'",
+            ['u' => $uuid]
+        ) ?? ['total' => 0, 'done' => 0];
+        $ms = $this->db->one(
+            "SELECT COUNT(*) AS total, COALESCE(SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END),0) AS done
+             FROM milestones WHERE project_uuid = :u AND status <> 'cancelled'",
+            ['u' => $uuid]
+        ) ?? ['total' => 0, 'done' => 0];
+        $r['tasks_total']       = (int) $tasks['total'];
+        $r['tasks_completed']   = (int) $tasks['done'];
+        $r['milestones_total']  = (int) $ms['total'];
+        $r['milestones_done']   = (int) $ms['done'];
+        $r['progress_percent']  = (int) $tasks['total'] > 0 ? (int) round((int) $tasks['done'] / (int) $tasks['total'] * 100) : 0;
         // Live awaiting-client seconds include the currently-open window.
         $open = 0;
         if (!empty($r['awaiting_since'])) {

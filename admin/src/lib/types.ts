@@ -576,6 +576,11 @@ export interface Project extends ProjectListItem {
   approved_variations: number
   estimated_cost: number
   awaiting_seconds: number
+  progress_percent: number
+  tasks_total: number
+  tasks_completed: number
+  milestones_total: number
+  milestones_done: number
   members: ProjectMember[]
   events: ProjectEvent[]
 }
