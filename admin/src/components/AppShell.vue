@@ -47,8 +47,10 @@ async function refreshInbox() {
   catch { /* non-fatal */ }
 }
 onMounted(refreshInbox)
-// Refresh when navigating away from the inbox (items may have been handled).
-watch(() => route.name, (_, prev) => { if (prev === 'inbox') refreshInbox() })
+// Keep the badge live: re-check the count on every navigation, so it reflects
+// both newly-arrived items (arriving at the inbox) and ones just handled
+// (leaving it). One lightweight request per route change.
+watch(() => route.name, () => refreshInbox())
 
 async function doLogout() {
   await auth.logout()

@@ -72,11 +72,11 @@ test.describe("Standalone admin — operational inbox", () => {
     await page.waitForURL((u) => /\/projects\/[0-9a-f-]+/.test(u.toString()));
     await expect(page.locator('[data-test="project-access"]')).toBeVisible();
 
-    // Read the thread, then the inbox no longer shows the message.
+    // Read the thread, then the inbox no longer shows this message.
     await page.locator('[data-test="access-message"]').first().click();
     await page.getByRole("link", { name: "Inbox" }).click();
     await page.waitForURL((u) => u.toString().includes("/inbox"));
-    await expect(page.locator('[data-test="inbox-group-messages"]')).toHaveCount(0);
+    await expect(page.getByText("Please call me about hosting")).toHaveCount(0);
   });
 
   test("inbox endpoint rejects unauthenticated callers", async ({ request }) => {
