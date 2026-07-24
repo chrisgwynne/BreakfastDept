@@ -64,6 +64,13 @@ test.describe("Standalone admin — website editing", () => {
     const preview = await context.request.get("/breakfast-admin/preview/page/home");
     expect(preview.status()).toBe(200);
     expect(await preview.text()).toContain(uniq);
+    // Security regression (audit): the in-memory draft preview renders
+    // author-controlled content, so it must not be framable/sniffable/cached and
+    // must not leak the admin URL via Referer.
+    expect(preview.headers()["x-frame-options"]).toBe("DENY");
+    expect(preview.headers()["x-content-type-options"]).toBe("nosniff");
+    expect(preview.headers()["referrer-policy"]).toBe("no-referrer");
+    expect(preview.headers()["cache-control"]).toContain("no-store");
 
     // Discard leaves the live site untouched.
     const [discardRes] = await Promise.all([

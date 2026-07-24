@@ -584,8 +584,19 @@ Kirby::plugin('breakfast/platform', [
                     return new \Kirby\Http\Response($e->getMessage(), 'text/plain', $e->status);
                 }
 
+                // The rendered page carries the site layout's nonce-based CSP
+                // (site/snippets/layouts/header.php emits SecurityHeaders during
+                // render), so we do NOT set a second, conflicting CSP here — that
+                // would break the page's own nonce'd scripts. We add the
+                // framing/sniffing/referrer/caching protections the render path
+                // does not, so an authored draft cannot be clickjacked, sniffed,
+                // cached, or leak the admin URL via Referer.
                 return new \Kirby\Http\Response($html, 'text/html', 200, [
-                    'X-Robots-Tag' => 'noindex, nofollow',
+                    'X-Robots-Tag'           => 'noindex, nofollow',
+                    'X-Frame-Options'        => 'DENY',
+                    'X-Content-Type-Options' => 'nosniff',
+                    'Referrer-Policy'        => 'no-referrer',
+                    'Cache-Control'          => 'private, no-store, max-age=0',
                 ]);
             },
         ],

@@ -44,6 +44,11 @@
 /test-results/
 /playwright/.cache/
 
+# Local tooling phars fetched on-demand (not vendored)
+/phpunit.phar
+/phpstan.phar
+/php-cs-fixer.phar
+
 # OS / editor noise
 .DS_Store
 Thumbs.db

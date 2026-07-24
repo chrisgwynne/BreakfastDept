@@ -39,9 +39,15 @@ final class WebhookDispatcher
         '255.255.255.255/32',
     ];
 
-    /** IPv6 ranges an outbound webhook must never reach. */
+    /**
+     * IPv6 ranges an outbound webhook must never reach. 6to4 (2002::/16) is
+     * blocked outright (deprecated; embeds an arbitrary IPv4 that could be
+     * internal). IPv4-mapped (::ffff:0:0/96), IPv4-compatible (::/96) and NAT64
+     * (64:ff9b::/96) are unwrapped to their embedded IPv4 in embeddedV4() and
+     * checked against BLOCKED_V4 instead.
+     */
     private const BLOCKED_V6 = [
-        '::1/128', '::/128', 'fc00::/7', 'fe80::/10', 'fec0::/10', 'ff00::/8', '2001:db8::/32',
+        '::1/128', '::/128', 'fc00::/7', 'fe80::/10', 'fec0::/10', 'ff00::/8', '2001:db8::/32', '2002::/16',
     ];
 
     /** @var null|callable(string,string,array<string,string>):array{status:int,error:?string} */
@@ -386,7 +392,9 @@ final class WebhookDispatcher
         if ($bin === false || strlen($bin) !== 16) {
             return null;
         }
-        if (self::ipInCidr($ip, '::ffff:0:0/96') || self::ipInCidr($ip, '64:ff9b::/96')) {
+        // IPv4-mapped, IPv4-compatible (::/96, e.g. ::7f00:1 = 127.0.0.1) and
+        // NAT64 all carry the embedded IPv4 in the low 4 bytes.
+        if (self::ipInCidr($ip, '::ffff:0:0/96') || self::ipInCidr($ip, '64:ff9b::/96') || self::ipInCidr($ip, '::/96')) {
             $v4 = @inet_ntop(substr($bin, 12, 4));
 
             return $v4 !== false ? $v4 : null;

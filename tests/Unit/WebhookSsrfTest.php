@@ -27,7 +27,11 @@ final class WebhookSsrfTest extends TestCase
             '198.18.0.1', '255.255.255.255', '224.0.0.1',
             '::1', '::', 'fe80::1', 'fc00::1', 'fd00::abcd', 'ff02::1',
             '::ffff:127.0.0.1', '::ffff:169.254.169.254', '::ffff:10.0.0.1',
-            '64:ff9b::7f00:1', // NAT64-wrapped 127.0.0.1
+            '64:ff9b::7f00:1',   // NAT64-wrapped 127.0.0.1
+            '::7f00:1',          // IPv4-compatible 127.0.0.1
+            '::0a00:1',          // IPv4-compatible 10.0.0.1
+            '2002:7f00:1::1',    // 6to4 wrapping 127.0.0.1 (whole 2002::/16 blocked)
+            '2002:a00:1::',      // 6to4 wrapping 10.0.0.1
         ]);
     }
 
