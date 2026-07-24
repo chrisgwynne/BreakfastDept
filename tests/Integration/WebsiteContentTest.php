@@ -70,6 +70,9 @@ final class WebsiteContentTest extends TestCase
 
         Database::reset();
         Platform::reset();
+        // Kirby caches blueprint definitions statically by name; clear it so this
+        // temp site's blueprints aren't shadowed by another test's real ones.
+        \Kirby\Cms\Blueprint::$loaded = [];
 
         $this->kirby = new App([
             'roots' => [
@@ -101,6 +104,7 @@ final class WebsiteContentTest extends TestCase
     {
         Database::reset();
         Platform::reset();
+        \Kirby\Cms\Blueprint::$loaded = [];
         $this->rrmdir($this->tmp);
         App::destroy();
         restore_error_handler();
