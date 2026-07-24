@@ -349,6 +349,8 @@ final class Portal
                 'uuid' => (string) $f['uuid'], 'display_name' => (string) $f['display_name'], 'category' => (string) ($f['category'] ?? ''),
                 'extension' => (string) ($f['extension'] ?? ''), 'byte_size' => (int) ($f['byte_size'] ?? 0), 'current_version' => (int) ($f['current_version'] ?? 1),
             ], $files),
+            'feedback' => $this->feedbackForIdentity($identityUuid, $projectUuid),
+            'has_approved' => $this->db()->one("SELECT uuid FROM portal_feedback WHERE project_uuid = :p AND identity_uuid = :i AND kind = 'approval' LIMIT 1", ['p' => $projectUuid, 'i' => $identityUuid]) !== null,
         ];
     }
 
@@ -367,6 +369,102 @@ final class Portal
         if ($projectUuid === '' || !$this->canAccessProject($identityUuid, $projectUuid)) {
             throw new PortalException(403, 'You don’t have access to this file.');
         }
+    }
+
+    // ==================================================================
+    // Feedback & approvals (client voice → delivery)
+    // ==================================================================
+
+    /**
+     * The client submits feedback or a formal sign-off on a granted project.
+     * Access is enforced; the item is attributed, audited and mirrored onto the
+     * contact's CRM timeline. Approvals carry evidence and are immutable.
+     *
+     * @param array<string,mixed> $data kind, body, approved_label, ip_hash, user_agent
+     * @return array<string,mixed>
+     */
+    public function submitFeedback(string $identityUuid, string $projectUuid, array $data): array
+    {
+        if (!$this->canAccessProject($identityUuid, $projectUuid)) {
+            throw new PortalException(403, 'You don’t have access to this project.');
+        }
+        $identity = $this->findIdentity($identityUuid);
+        if ($identity === null) {
+            throw new PortalException(404, 'Identity not found.');
+        }
+        $kind = in_array((string) ($data['kind'] ?? 'comment'), ['comment', 'approval'], true) ? (string) $data['kind'] : 'comment';
+        $body = trim((string) ($data['body'] ?? ''));
+        if ($kind === 'comment' && $body === '') {
+            throw new PortalException(422, 'Enter your feedback.');
+        }
+        $uuid = Uuid::v4();
+        $now = Clock::nowIso();
+        $name = trim((string) ($identity['display_name'] ?? '')) ?: (string) ($identity['email'] ?? 'Client');
+        $this->db()->run(
+            'INSERT INTO portal_feedback (uuid, project_uuid, identity_uuid, kind, body, author_name, status, approved_label, ip_hash, user_agent, created_at)
+             VALUES (:uuid, :p, :i, :kind, :body, :name, \'open\', :label, :ip, :ua, :now)',
+            [
+                'uuid' => $uuid, 'p' => $projectUuid, 'i' => $identityUuid, 'kind' => $kind, 'body' => $body, 'name' => $name,
+                'label' => (string) ($data['approved_label'] ?? ($kind === 'approval' ? 'Project sign-off' : '')),
+                'ip' => (string) ($data['ip_hash'] ?? ''), 'ua' => substr((string) ($data['user_agent'] ?? ''), 0, 255), 'now' => $now,
+            ]
+        );
+        $this->event($identityUuid, 'feedback_' . $kind, $projectUuid, (string) ($data['ip_hash'] ?? ''));
+
+        $summary = $kind === 'approval' ? 'Client signed off the project' : 'Client left feedback';
+        $contact = (string) ($identity['contact_uuid'] ?? '');
+        if ($contact !== '') {
+            $this->platform->activities()->record('contact', $contact, 'portal.feedback_' . $kind, $summary, 'client', null, ['project' => $projectUuid, 'feedback' => $uuid]);
+        }
+        $this->platform->projects()->logEvent($projectUuid, 'portal_feedback', $summary . ($body !== '' ? ': ' . mb_substr($body, 0, 140) : ''), 'portal:' . $identityUuid);
+        $this->platform->audit()->event('portal.feedback_' . $kind, 'project', $projectUuid, 'portal:' . $identityUuid, ['feedback' => $uuid]);
+
+        return $this->db()->one('SELECT * FROM portal_feedback WHERE uuid = :u', ['u' => $uuid]) ?? [];
+    }
+
+    /**
+     * A client's own feedback thread for a project (their submissions only).
+     *
+     * @return list<array<string,mixed>>
+     */
+    public function feedbackForIdentity(string $identityUuid, string $projectUuid): array
+    {
+        return $this->db()->all(
+            'SELECT uuid, kind, body, status, approved_label, created_at FROM portal_feedback WHERE project_uuid = :p AND identity_uuid = :i ORDER BY created_at DESC LIMIT 100',
+            ['p' => $projectUuid, 'i' => $identityUuid]
+        );
+    }
+
+    /**
+     * All portal feedback on a project (staff view).
+     *
+     * @return list<array<string,mixed>>
+     */
+    public function feedbackForProject(string $projectUuid): array
+    {
+        return $this->db()->all(
+            'SELECT * FROM portal_feedback WHERE project_uuid = :p ORDER BY created_at DESC LIMIT 200',
+            ['p' => $projectUuid]
+        );
+    }
+
+    /**
+     * Staff move a feedback item's status (open → acknowledged → resolved).
+     *
+     * @return array<string,mixed>
+     */
+    public function setFeedbackStatus(string $feedbackUuid, string $status, string $actor): array
+    {
+        if (!in_array($status, ['open', 'acknowledged', 'resolved'], true)) {
+            throw new PortalException(422, 'Unknown status.');
+        }
+        $fb = $this->db()->one('SELECT project_uuid FROM portal_feedback WHERE uuid = :u', ['u' => $feedbackUuid]);
+        if ($fb === null) {
+            throw new PortalException(404, 'Feedback not found.');
+        }
+        $this->db()->run('UPDATE portal_feedback SET status = :s, handled_by = :actor, handled_at = :now WHERE uuid = :u', ['s' => $status, 'actor' => $actor, 'now' => Clock::nowIso(), 'u' => $feedbackUuid]);
+
+        return $this->db()->one('SELECT * FROM portal_feedback WHERE uuid = :u', ['u' => $feedbackUuid]) ?? [];
     }
 
     // ==================================================================

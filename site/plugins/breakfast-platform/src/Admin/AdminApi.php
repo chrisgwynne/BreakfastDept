@@ -2252,6 +2252,19 @@ final class AdminApi
 
                 return ['identity' => $result['identity'], 'url' => $result['url']];
             }
+            // Portal feedback: GET /portal/feedback?project=X, POST /portal/feedback/<uuid>/status
+            if ($id === 'feedback') {
+                $fbId = $seg[2] ?? '';
+                if ($fbId === '' && $method === 'GET') {
+                    return ['items' => $svc->feedbackForProject((string) ($this->query()['project'] ?? ''))];
+                }
+                if ($fbId !== '' && ($seg[3] ?? '') === 'status' && $method === 'POST') {
+                    $requireManage();
+
+                    return ['feedback' => $svc->setFeedbackStatus($fbId, (string) ($this->body()['status'] ?? ''), $actor)];
+                }
+                throw new ApiException(404, 'Unknown portal feedback endpoint.', 'not_found');
+            }
             if ($id === '') {
                 if ($method === 'POST') {
                     $requireManage();

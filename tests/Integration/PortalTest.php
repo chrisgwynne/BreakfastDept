@@ -227,6 +227,47 @@ final class PortalTest extends TestCase
         $this->assertSame(['shared.png'], $names);
     }
 
+    public function testClientFeedbackAndSignOffAreRecordedAndSurfaced(): void
+    {
+        $p = breakfast();
+        // Feedback on a project without a grant is refused.
+        try {
+            $p->portal()->submitFeedback($this->identity, $this->projectA, ['kind' => 'comment', 'body' => 'hi']);
+            $this->fail('expected feedback without a grant to be denied');
+        } catch (PortalException $e) {
+            $this->assertSame(403, $e->status);
+        }
+
+        $p->portal()->grantAccess($this->identity, 'project', $this->projectA, 'viewer', 'staff@breakfast');
+        // Empty comment rejected.
+        try {
+            $p->portal()->submitFeedback($this->identity, $this->projectA, ['kind' => 'comment', 'body' => '   ']);
+            $this->fail('expected empty comment rejection');
+        } catch (PortalException $e) {
+            $this->assertSame(422, $e->status);
+        }
+
+        $comment = $p->portal()->submitFeedback($this->identity, $this->projectA, ['kind' => 'comment', 'body' => 'Looks great, one tweak on the header.']);
+        $this->assertSame('comment', (string) $comment['kind']);
+        $this->assertSame('open', (string) $comment['status']);
+
+        $approval = $p->portal()->submitFeedback($this->identity, $this->projectA, ['kind' => 'approval', 'ip_hash' => 'iphash', 'user_agent' => 'UA']);
+        $this->assertSame('approval', (string) $approval['kind']);
+
+        // Staff see both on the project; the client's own thread shows them too.
+        $this->assertCount(2, $p->portal()->feedbackForProject($this->projectA));
+        $this->assertTrue($p->portal()->portalProject($this->identity, $this->projectA)['has_approved']);
+
+        // The client's contact timeline carries the sign-off.
+        $contact = (string) $p->portal()->findIdentity($this->identity)['contact_uuid'];
+        $types = array_map(static fn (array $a): string => (string) $a['type'], $p->activities()->forEntity('contact', $contact, 50));
+        $this->assertContains('portal.feedback_approval', $types);
+
+        // Staff can move a feedback item through its lifecycle.
+        $resolved = $p->portal()->setFeedbackStatus((string) $comment['uuid'], 'resolved', 'staff@breakfast');
+        $this->assertSame('resolved', (string) $resolved['status']);
+    }
+
     private function rrmdir(string $dir): void
     {
         if (!is_dir($dir)) {

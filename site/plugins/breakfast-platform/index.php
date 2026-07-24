@@ -1150,6 +1150,34 @@ Kirby::plugin('breakfast/platform', [
             },
         ],
 
+        // Client submits feedback or a sign-off on a granted project
+        // (POST /portal/project/<uuid>/feedback). Access enforced by the session
+        // + a live grant.
+        [
+            'pattern' => 'portal/project/(:any)/feedback',
+            'method'  => 'POST',
+            'action'  => function (string $projectUuid) {
+                $identity = breakfast()->portal()->identityFromSession((string) ($_COOKIE['bf_portal'] ?? ''));
+                if ($identity === null) {
+                    return new \Kirby\Http\Response('Please sign in.', 'text/plain', 401, ['X-Robots-Tag' => 'noindex, nofollow']);
+                }
+                $ipHash = hash('sha256', (string) (kirby()->option('breakfast.webhookSecret', '') ?? '') . '|' . (string) (kirby()->visitor()->ip() ?? ''));
+                try {
+                    breakfast()->portal()->submitFeedback((string) $identity['uuid'], $projectUuid, [
+                        'kind' => (string) get('kind', 'comment'),
+                        'body' => (string) get('body', ''),
+                        'approved_label' => (string) get('approved_label', ''),
+                        'ip_hash' => $ipHash,
+                        'user_agent' => (string) (kirby()->request()->header('User-Agent') ?? ''),
+                    ]);
+                } catch (\Breakfast\Platform\Portal\PortalException $e) {
+                    return new \Kirby\Http\Response($e->getMessage(), 'text/plain', $e->status, ['X-Robots-Tag' => 'noindex, nofollow']);
+                }
+
+                return \Kirby\Http\Response::redirect(rtrim((string) kirby()->site()->url(), '/') . '/portal/project/' . $projectUuid);
+            },
+        ],
+
         // Client download of a shared (client-visible) project file. Guarded by
         // the portal session AND a live project grant; streams via the same
         // integrity-checked library path staff use.

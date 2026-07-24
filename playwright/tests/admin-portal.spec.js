@@ -69,6 +69,28 @@ test.describe("Standalone admin — client portal", () => {
     await expect(clientPage.locator('[data-test="portal-project-view"]')).toContainText(projectName);
     await expect(clientPage.locator('[data-test="portal-project-view"]')).toContainText("Progress");
 
+    // The client leaves feedback and signs off (Phase 3.3).
+    await clientPage.locator('[data-test="portal-feedback-body"]').fill("Looks great — one tweak on the header please.");
+    await Promise.all([
+      clientPage.waitForURL((u) => u.toString().includes("/portal/project/")),
+      clientPage.locator('[data-test="portal-feedback-submit"]').click(),
+    ]);
+    await expect(clientPage.locator('[data-test="portal-feedback-item"]').first()).toBeVisible();
+    await Promise.all([
+      clientPage.waitForURL((u) => u.toString().includes("/portal/project/")),
+      clientPage.locator('[data-test="portal-approve"]').click(),
+    ]);
+    await expect(clientPage.locator('[data-test="portal-approved"]')).toBeVisible();
+
+    // Staff see the feedback + sign-off back in the Client access tab.
+    await page.getByRole("tab", { name: "Client access", exact: true }).click();
+    await expect(page.locator('[data-test="feedback-approval"]')).toBeVisible();
+    await expect(page.locator('[data-test="feedback-comment"]')).toContainText("tweak on the header");
+    await Promise.all([
+      page.waitForResponse((r) => /\/portal\/feedback\/[^/]+\/status$/.test(r.url()) && r.request().method() === "POST"),
+      page.locator('[data-test="feedback-resolve"]').first().click(),
+    ]);
+
     // The one-shot link cannot be replayed.
     await clientPage.goto(signInUrl);
     await expect(clientPage.locator('[data-test="portal-error"]')).toBeVisible();

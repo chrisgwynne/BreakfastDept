@@ -872,6 +872,17 @@
       "status": "implemented"
     },
     {
+      "id": "portal.feedback-status",
+      "label": "Handle portal feedback",
+      "resource": "portal",
+      "method": "POST",
+      "permission": "portal.manage",
+      "persistence": "Breakfast\\Platform\\Portal\\Portal::setFeedbackStatus",
+      "audit": "",
+      "playwright": "admin-portal.spec.js",
+      "status": "implemented"
+    },
+    {
       "id": "project.apply_template",
       "label": "Apply template to project",
       "resource": "projects",

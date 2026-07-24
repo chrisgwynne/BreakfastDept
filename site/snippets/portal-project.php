@@ -15,6 +15,8 @@ $ov = is_array($data['overview'] ?? null) ? $data['overview'] : [];
 $milestones = is_array($data['milestones'] ?? null) ? $data['milestones'] : [];
 $tasks = is_array($data['tasks'] ?? null) ? $data['tasks'] : [];
 $files = is_array($data['files'] ?? null) ? $data['files'] : [];
+$feedback = is_array($data['feedback'] ?? null) ? $data['feedback'] : [];
+$hasApproved = !empty($data['has_approved']);
 $byMilestone = [];
 $looseTasks = [];
 foreach ($tasks as $t) {
@@ -68,6 +70,16 @@ $statusLabel = static fn (string $s): string => ucfirst(str_replace('_', ' ', $s
   .file__meta { color:var(--muted); font-size:13px; }
   .file a { margin-left:auto; color:var(--ink); font-size:14px; text-decoration:none; border:1px solid var(--line); padding:6px 12px; border-radius:99px; }
   .empty { color:var(--muted); }
+  form.fb { margin-top:8px; }
+  textarea { width:100%; padding:11px 12px; border:1px solid var(--line); border-radius:8px; font:inherit; background:#fff; min-height:80px; }
+  .fbactions { display:flex; gap:10px; align-items:center; margin-top:10px; flex-wrap:wrap; }
+  .btn { border:none; padding:10px 18px; border-radius:99px; font-weight:600; cursor:pointer; font-size:14px; }
+  .btn--primary { background:var(--ink); color:#fff; }
+  .btn--approve { background:var(--butter); color:var(--ink); }
+  .approved { background:#e5f4ec; color:var(--ok); padding:14px; border-radius:10px; font-weight:600; }
+  .fbitem { border:1px solid var(--line); border-radius:10px; padding:12px 14px; margin-top:10px; background:var(--paper); }
+  .fbitem__meta { color:var(--muted); font-size:12px; margin-bottom:4px; }
+  .tag { font-size:11px; padding:1px 8px; border-radius:99px; background:#efe9db; color:var(--muted); }
 </style>
 </head>
 <body>
@@ -132,6 +144,42 @@ $statusLabel = static fn (string $s): string => ucfirst(str_replace('_', ' ', $s
           <a href="<?= $e($base) ?>/portal/file/<?= $e($f['uuid'] ?? '') ?>/download" data-test="portal-file-download">Download</a>
         </div>
       <?php endforeach; ?>
+    <?php endif; ?>
+
+    <h2>Feedback &amp; sign-off</h2>
+    <?php if ($hasApproved): ?>
+      <div class="approved" data-test="portal-approved">You’ve signed off this project. Thank you — we have it on record.</div>
+    <?php else: ?>
+      <form class="fb" method="post" action="<?= $e($base) ?>/portal/project/<?= $e($ov['uuid'] ?? '') ?>/feedback" data-test="portal-approve-form">
+        <input type="hidden" name="kind" value="approval">
+        <input type="hidden" name="approved_label" value="Project sign-off">
+        <p class="meta" style="margin:0 0 8px;">Happy with where things are? You can formally sign off the current state.</p>
+        <button type="submit" class="btn btn--approve" data-test="portal-approve">Sign off this project</button>
+      </form>
+    <?php endif; ?>
+
+    <form class="fb" method="post" action="<?= $e($base) ?>/portal/project/<?= $e($ov['uuid'] ?? '') ?>/feedback" data-test="portal-feedback-form" style="margin-top:16px;">
+      <input type="hidden" name="kind" value="comment">
+      <label for="fb-body" style="display:block;font-weight:600;margin-bottom:6px;">Leave feedback</label>
+      <textarea id="fb-body" name="body" placeholder="Share a comment or a question…" data-test="portal-feedback-body"></textarea>
+      <div class="fbactions">
+        <button type="submit" class="btn btn--primary" data-test="portal-feedback-submit">Send feedback</button>
+      </div>
+    </form>
+
+    <?php if (count($feedback)): ?>
+      <div style="margin-top:16px;">
+        <?php foreach ($feedback as $fb): ?>
+          <div class="fbitem" data-test="portal-feedback-item">
+            <div class="fbitem__meta">
+              <?= $e(substr((string) ($fb['created_at'] ?? ''), 0, 16)) ?>
+              <?php if ((string) ($fb['kind'] ?? '') === 'approval'): ?><span class="tag">sign-off</span><?php endif; ?>
+              <span class="tag"><?= $e(ucfirst((string) ($fb['status'] ?? 'open'))) ?></span>
+            </div>
+            <div><?= (string) ($fb['kind'] ?? '') === 'approval' ? $e($fb['approved_label'] ?? 'Signed off') : nl2br($e($fb['body'] ?? '')) ?></div>
+          </div>
+        <?php endforeach; ?>
+      </div>
     <?php endif; ?>
   </div>
 </body>

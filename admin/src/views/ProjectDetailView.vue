@@ -54,9 +54,18 @@ const portalEmail = ref('')
 const portalName = ref('')
 const portalBusy = ref('')
 const portalLink = ref('')
+interface PortalFeedback { uuid: string; kind: string; body: string; author_name: string; status: string; approved_label: string; created_at: string }
+const portalFeedback = ref<PortalFeedback[]>([])
 async function loadPortalAccess() {
   if (!project.value) return
   portalIdentities.value = (await api.get<{ items: PortalIdentity[] }>(`/portal?project=${project.value.id}`)).items
+  portalFeedback.value = (await api.get<{ items: PortalFeedback[] }>(`/portal/feedback?project=${project.value.id}`)).items
+}
+async function setFeedbackStatus(fb: PortalFeedback, status: string) {
+  portalBusy.value = fb.uuid
+  try { await api.post(`/portal/feedback/${fb.uuid}/status`, { status }); await loadPortalAccess() }
+  catch (e) { ui.toast(e instanceof ApiError ? e.message : 'Could not update') }
+  finally { portalBusy.value = '' }
 }
 async function inviteClient() {
   if (!project.value || !portalEmail.value.trim()) return
@@ -482,6 +491,24 @@ onMounted(load)
             </div>
             <p v-if="!portalIdentities.length" class="faint" style="padding:var(--sp-3)">No client access yet.</p>
           </div>
+
+          <div v-if="portalFeedback.length" class="fbwrap" data-test="portal-feedback">
+            <h3 class="faint" style="margin:var(--sp-4) 0 var(--sp-2)">Client feedback &amp; sign-offs</h3>
+            <div class="card list">
+              <div v-for="fb in portalFeedback" :key="fb.uuid" class="fbrow" :data-test="'feedback-' + fb.kind">
+                <div class="fbrow__main">
+                  <span class="fbrow__who">{{ fb.author_name }}<span v-if="fb.kind === 'approval'" class="chip">signed off</span></span>
+                  <span class="fbrow__body">{{ fb.kind === 'approval' ? (fb.approved_label || 'Project sign-off') : fb.body }}</span>
+                  <span class="fmeta faint">{{ fb.created_at.slice(0, 16) }}</span>
+                </div>
+                <span class="factions" v-if="canManage">
+                  <StatusPill :status="fb.status" />
+                  <button v-if="fb.status !== 'acknowledged' && fb.status !== 'resolved'" class="btn btn--sm" data-test="feedback-ack" :disabled="portalBusy === fb.uuid" @click="setFeedbackStatus(fb, 'acknowledged')">Acknowledge</button>
+                  <button v-if="fb.status !== 'resolved'" class="btn btn--sm" data-test="feedback-resolve" :disabled="portalBusy === fb.uuid" @click="setFeedbackStatus(fb, 'resolved')">Resolve</button>
+                </span>
+              </div>
+            </div>
+          </div>
         </section>
 
         <!-- Milestones -->
@@ -677,5 +704,10 @@ onMounted(load)
 .crtable { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
 .crtable td { padding: 4px 0; border-bottom: 1px solid var(--line); }
 .crtable__amt { text-align: right; white-space: nowrap; }
+.fbrow { display: flex; align-items: center; gap: var(--sp-3); padding: 10px var(--sp-3); }
+.fbrow + .fbrow { border-top: 1px solid var(--line); }
+.fbrow__main { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.fbrow__who { font-weight: 600; font-size: var(--text-sm); display: flex; align-items: center; gap: 6px; }
+.fbrow__body { font-size: var(--text-sm); }
 @media (max-width: 820px) { .cols { grid-template-columns: 1fr; } .grid2 { grid-template-columns: 1fr; } .crnew__item { grid-template-columns: 1fr; } }
 </style>
