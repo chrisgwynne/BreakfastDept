@@ -837,6 +837,10 @@ final class AdminApi
             if ($action === 'media') {
                 return $this->websiteMedia($method, $seg, $user, $id);
             }
+            // Content sections: GET/POST/PATCH/DELETE /website/page/:id/sections[/…]
+            if ($action === 'sections') {
+                return $this->websiteSections($method, $seg, $user, $id);
+            }
 
             if ($method === 'GET' && $action === '') {
                 return $svc->load($id);
@@ -901,6 +905,67 @@ final class AdminApi
             }
 
             throw new ApiException(404, 'Unknown media endpoint.', 'not_found');
+        } catch (\Breakfast\Platform\Website\WebsiteException $e) {
+            throw new ApiException($e->status, $e->getMessage(), 'website', $e->fields);
+        }
+    }
+
+    /**
+     * Website content-section routes (page-builder blocks):
+     *   GET    /website/page/:id/sections                 list + concurrency hash
+     *   POST   /website/page/:id/sections                 add {type, hash}
+     *   POST   /website/page/:id/sections/reorder         reorder {order[], hash}
+     *   PATCH  /website/page/:id/sections/:blockId         edit {text, hash}
+     *   DELETE /website/page/:id/sections/:blockId         delete {hash}
+     *
+     * @param list<string> $seg
+     * @return array<string,mixed>
+     */
+    private function websiteSections(string $method, array $seg, \Kirby\Cms\User $user, string $pageId): array
+    {
+        $svc     = new \Breakfast\Platform\Website\WebsiteSections($this->kirby, $this->platform);
+        $actor   = (string) $user->email();
+        $blockId = isset($seg[4]) ? rawurldecode((string) $seg[4]) : '';
+
+        $requireManage = function () use ($user): void {
+            if (!PanelGate::canManageWebsiteSections($user)) {
+                throw new ApiException(403, 'You can’t change website sections.', 'forbidden');
+            }
+        };
+
+        try {
+            if ($method === 'GET' && $blockId === '') {
+                if (!PanelGate::canViewWebsite($user)) {
+                    throw new ApiException(403, 'You can’t view the website.', 'forbidden');
+                }
+
+                return $svc->list($pageId);
+            }
+            $body = $this->body();
+            $hash = (string) ($body['hash'] ?? '');
+            if ($method === 'POST' && $blockId === 'reorder') {
+                $requireManage();
+                $order = array_values(array_map('strval', is_array($body['order'] ?? null) ? $body['order'] : []));
+
+                return $svc->reorder($pageId, $order, $hash, $actor);
+            }
+            if ($method === 'POST' && $blockId === '') {
+                $requireManage();
+
+                return $svc->add($pageId, (string) ($body['type'] ?? ''), $hash, $actor);
+            }
+            if ($method === 'PATCH' && $blockId !== '') {
+                $requireManage();
+
+                return $svc->updateSection($pageId, $blockId, (string) ($body['text'] ?? ''), $hash, $actor);
+            }
+            if ($method === 'DELETE' && $blockId !== '') {
+                $requireManage();
+
+                return $svc->remove($pageId, $blockId, $hash, $actor);
+            }
+
+            throw new ApiException(404, 'Unknown sections endpoint.', 'not_found');
         } catch (\Breakfast\Platform\Website\WebsiteException $e) {
             throw new ApiException($e->status, $e->getMessage(), 'website', $e->fields);
         }

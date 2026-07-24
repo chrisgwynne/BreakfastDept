@@ -3,7 +3,7 @@ import { onMounted, ref, reactive, computed } from 'vue'
 import { api, ApiError } from '@/lib/api'
 import { useAuth } from '@/stores/auth'
 import { useUi } from '@/stores/ui'
-import type { WebsiteIndex, WebsiteListItem, WebsiteEditor, WebsiteField, MediaFile, MediaList } from '@/lib/types'
+import type { WebsiteIndex, WebsiteListItem, WebsiteEditor, WebsiteField, MediaFile, MediaList, Section, SectionList } from '@/lib/types'
 import PageHeader from '@/components/PageHeader.vue'
 import DataState from '@/components/DataState.vue'
 import StatusPill from '@/components/StatusPill.vue'
@@ -50,6 +50,7 @@ async function open(item: WebsiteListItem) {
     for (const key of Object.keys(values)) delete values[key]
     applyEditor(ed)
     void loadMedia()
+    void loadSections()
   } catch (e) {
     ui.toast(e instanceof ApiError ? e.message : 'Could not open that page.')
   } finally {
@@ -60,6 +61,9 @@ async function open(item: WebsiteListItem) {
 function close() {
   editor.value = null
   media.value = []
+  sections.value = []
+  hasSections.value = false
+  editingSection.value = null
   clearErrors()
 }
 
@@ -115,6 +119,90 @@ async function deleteMedia(f: MediaFile) {
 function copyRef(f: MediaFile) {
   navigator.clipboard?.writeText(f.filename)
   ui.toast('Filename copied — paste it into an image field')
+}
+
+// --- content sections (page-builder blocks) ---
+const sections = ref<Section[]>([])
+const sectionHash = ref('')
+const addable = ref<string[]>([])
+const hasSections = ref(false)
+const sectionBusy = ref('')
+const editingSection = ref<string | null>(null)
+const sectionText = ref('')
+const addType = ref('text')
+async function loadSections() {
+  sections.value = []
+  hasSections.value = false
+  if (!editor.value || editor.value.kind !== 'page') return
+  try {
+    const res = await api.get<SectionList>(`/website/page/${editor.value.id}/sections`)
+    sections.value = res.sections
+    sectionHash.value = res.hash
+    addable.value = res.addable
+    hasSections.value = true
+  } catch { hasSections.value = false }
+}
+function applySections(res: SectionList) {
+  sections.value = res.sections
+  sectionHash.value = res.hash
+  addable.value = res.addable
+}
+async function addSection(type: string) {
+  if (!editor.value || sectionBusy.value) return
+  sectionBusy.value = 'add'
+  try {
+    applySections(await api.post<SectionList>(`/website/page/${editor.value.id}/sections`, { type, hash: sectionHash.value }))
+    ui.toast('Section added (draft)')
+    await refreshEditorStatus()
+  } catch (e) { ui.toast(e instanceof ApiError ? e.message : 'Could not add the section') }
+  finally { sectionBusy.value = '' }
+}
+async function moveSection(index: number, dir: -1 | 1) {
+  if (!editor.value || sectionBusy.value) return
+  const target = index + dir
+  if (target < 0 || target >= sections.value.length) return
+  const order = sections.value.map((s) => s.id)
+  ;[order[index], order[target]] = [order[target], order[index]]
+  sectionBusy.value = 'reorder'
+  try {
+    applySections(await api.post<SectionList>(`/website/page/${editor.value.id}/sections/reorder`, { order, hash: sectionHash.value }))
+    await refreshEditorStatus()
+  } catch (e) { ui.toast(e instanceof ApiError ? e.message : 'Could not reorder'); await loadSections() }
+  finally { sectionBusy.value = '' }
+}
+function startEditSection(s: Section) {
+  editingSection.value = s.id
+  sectionText.value = s.text
+}
+async function saveSection(id: string) {
+  if (!editor.value || sectionBusy.value) return
+  sectionBusy.value = id
+  try {
+    applySections(await api.patch<SectionList>(`/website/page/${editor.value.id}/sections/${id}`, { text: sectionText.value, hash: sectionHash.value }))
+    editingSection.value = null
+    ui.toast('Section updated (draft)')
+    await refreshEditorStatus()
+  } catch (e) { ui.toast(e instanceof ApiError ? e.message : 'Could not save the section') }
+  finally { sectionBusy.value = '' }
+}
+async function deleteSection(id: string) {
+  if (!editor.value || sectionBusy.value) return
+  if (!window.confirm('Delete this section from the draft?')) return
+  sectionBusy.value = id
+  try {
+    applySections(await api.del<SectionList>(`/website/page/${editor.value.id}/sections/${id}`, { hash: sectionHash.value }))
+    ui.toast('Section deleted (draft)')
+    await refreshEditorStatus()
+  } catch (e) { ui.toast(e instanceof ApiError ? e.message : 'Could not delete the section') }
+  finally { sectionBusy.value = '' }
+}
+// Section edits create a draft; reflect that in the editor's publish controls.
+async function refreshEditorStatus() {
+  if (!editor.value) return
+  try {
+    const ed = await api.get<WebsiteEditor>(`/website/page/${editor.value.id}`)
+    editor.value = { ...editor.value, status: ed.status, has_changes: ed.has_changes }
+  } catch { /* non-fatal */ }
 }
 
 function clearErrors() {
@@ -269,6 +357,39 @@ onMounted(load)
           </div>
         </div>
 
+        <!-- Content sections (page-builder blocks) -->
+        <div v-if="hasSections" class="sections">
+          <div class="media__head">
+            <p class="label">Sections</p>
+            <div v-if="canEdit && addable.length" class="addbar">
+              <select class="input addbar__sel" v-model="addType"><option v-for="t in addable" :key="t" :value="t">{{ t }}</option></select>
+              <button class="btn btn--sm" :disabled="sectionBusy === 'add'" @click="addSection(addType)"><NavIcon name="plus" /> Add</button>
+            </div>
+          </div>
+          <p v-if="!sections.length" class="faint sm">No sections yet — add one above.</p>
+          <div v-else class="seclist">
+            <div v-for="(s, i) in sections" :key="s.id" class="sec">
+              <div class="sec__row">
+                <span class="sec__type">{{ s.type }}</span>
+                <span class="sec__sum truncate">{{ s.summary || s.title }}</span>
+                <div class="sec__actions" v-if="canEdit">
+                  <button class="iconbtn" title="Move up" :disabled="i === 0 || !!sectionBusy" @click="moveSection(i, -1)">↑</button>
+                  <button class="iconbtn" title="Move down" :disabled="i === sections.length - 1 || !!sectionBusy" @click="moveSection(i, 1)">↓</button>
+                  <button v-if="s.editable" class="iconbtn" title="Edit" :disabled="!!sectionBusy" @click="startEditSection(s)"><NavIcon name="check" /></button>
+                  <button class="iconbtn iconbtn--danger" title="Delete" :disabled="!!sectionBusy" @click="deleteSection(s.id)">×</button>
+                </div>
+              </div>
+              <div v-if="editingSection === s.id" class="sec__edit">
+                <textarea class="textarea" rows="3" v-model="sectionText"></textarea>
+                <div class="sec__editbtns">
+                  <button class="btn btn--sm" @click="editingSection = null">Cancel</button>
+                  <button class="btn btn--sm btn--primary" :disabled="sectionBusy === s.id" @click="saveSection(s.id)">Save section</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- Media library for this page -->
         <div class="media">
           <div class="media__head">
@@ -349,6 +470,19 @@ onMounted(load)
 .mediaitem__actions { display: flex; gap: 2px; }
 .iconbtn--danger:hover { color: var(--danger-ink); }
 .sm { font-size: var(--text-sm); }
+
+.sections { margin-top: var(--sp-5); padding-top: var(--sp-4); border-top: 1px solid var(--line); }
+.addbar { display: flex; gap: var(--sp-2); align-items: center; }
+.addbar__sel { height: 34px; width: auto; text-transform: capitalize; }
+.seclist { display: grid; gap: var(--sp-2); }
+.sec { border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); }
+.sec__row { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: var(--sp-2); padding: 8px 10px; }
+.sec__type { font-size: var(--text-xs); font-weight: 650; text-transform: uppercase; letter-spacing: 0.03em;
+  color: var(--ink-3); background: var(--paper-2); padding: 2px 8px; border-radius: var(--r-pill); }
+.sec__sum { font-size: var(--text-sm); color: var(--ink-2); min-width: 0; }
+.sec__actions { display: flex; gap: 2px; }
+.sec__edit { padding: 0 10px 10px; display: grid; gap: var(--sp-2); }
+.sec__editbtns { display: flex; justify-content: flex-end; gap: var(--sp-2); }
 @media (max-width: 620px) { .media__grid { grid-template-columns: 1fr; } }
 .toggle { display: flex; align-items: center; gap: 10px; font-size: var(--text-base); font-weight: 500; padding: 6px 0; }
 .toggle input { width: 18px; height: 18px; }

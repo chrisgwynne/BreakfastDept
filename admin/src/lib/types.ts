@@ -341,6 +341,23 @@ export interface MediaList {
   max_bytes: number
 }
 
+export interface Section {
+  id: string
+  type: string
+  title: string
+  summary: string
+  editable: boolean
+  text: string
+}
+
+export interface SectionList {
+  id: string
+  field: string
+  sections: Section[]
+  hash: string
+  addable: string[]
+}
+
 // -- Invoicing -----------------------------------------------------------
 
 export interface InvoiceItem {
