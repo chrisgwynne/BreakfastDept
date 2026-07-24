@@ -183,6 +183,16 @@ final class Platform
         return $this->service(\Breakfast\Platform\Proposals\Proposals::class, fn () => new \Breakfast\Platform\Proposals\Proposals($this->db()));
     }
 
+    public function proposalDocuments(): \Breakfast\Platform\Proposals\ProposalDocumentService
+    {
+        return $this->service(\Breakfast\Platform\Proposals\ProposalDocumentService::class, fn () => new \Breakfast\Platform\Proposals\ProposalDocumentService(
+            $this->proposals(),
+            new \Breakfast\Platform\Proposals\ProposalPdfRenderer(),
+            $this->db(),
+            $this->storageDir() . '/proposals'
+        ));
+    }
+
     public function invoiceDocuments(): \Breakfast\Platform\Invoicing\InvoiceDocumentService
     {
         return $this->service(\Breakfast\Platform\Invoicing\InvoiceDocumentService::class, fn () => new \Breakfast\Platform\Invoicing\InvoiceDocumentService(

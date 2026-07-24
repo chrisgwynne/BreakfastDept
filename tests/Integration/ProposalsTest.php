@@ -193,6 +193,26 @@ final class ProposalsTest extends TestCase
         $this->assertContains('accepted', $types);
     }
 
+    public function testGeneratesARealStoredVerifiablePdf(): void
+    {
+        $p = $this->sentProposal();
+        $uuid = (string) $p['uuid'];
+
+        $after = breakfast()->proposalDocuments()->generate($uuid, 'admin@test');
+        $this->assertSame('generated', (string) $after['document_status']);
+        $this->assertSame(64, strlen((string) $after['document_hash']));
+
+        $dl = breakfast()->proposalDocuments()->download($uuid);
+        $this->assertSame('%PDF', substr($dl['bytes'], 0, 4), 'a real PDF binary is produced');
+        $this->assertGreaterThan(500, strlen($dl['bytes']));
+        $this->assertStringEndsWith('.pdf', $dl['filename']);
+
+        // Tamper detection.
+        $key = (string) breakfast()->proposals()->find($uuid)['document_key'];
+        file_put_contents($this->tmp . '/proposals/' . $key, '%PDF-not-original');
+        $this->assertProposalError(409, fn () => breakfast()->proposalDocuments()->download($uuid));
+    }
+
     /** A £3600 sent proposal (1 fixed £3000 +20% VAT, 1 optional, 1 recurring). */
     private function sentProposal(): array
     {
