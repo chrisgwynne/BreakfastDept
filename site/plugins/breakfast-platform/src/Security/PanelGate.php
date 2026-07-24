@@ -83,6 +83,29 @@ final class PanelGate
     }
 
     /**
+     * Granular invoice-PDF permissions. Downloading/previewing a generated
+     * document maps to invoice 'view'; generating a draft preview or first
+     * issued PDF maps to invoice 'manage'; regenerating an ISSUED invoice's
+     * document (which supersedes the current version while preserving the
+     * original) is admin-only, because it changes the official record set.
+     * Enforced server-side on every PDF route.
+     */
+    public static function canViewInvoicePdf(?User $user): bool
+    {
+        return self::canViewInvoices($user);
+    }
+
+    public static function canGenerateInvoicePdf(?User $user): bool
+    {
+        return self::canManageInvoices($user);
+    }
+
+    public static function canRegenerateInvoicePdf(?User $user): bool
+    {
+        return $user !== null && $user->isAdmin();
+    }
+
+    /**
      * Website content. Viewing the overview needs admin access; editing drafts
      * and publishing to the live site both require the 'manage' grant. Enforced
      * server-side on every website route.

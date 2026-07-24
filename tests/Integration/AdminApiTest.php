@@ -202,6 +202,23 @@ final class AdminApiTest extends TestCase
         $this->assertSame(404, $out['code']);
     }
 
+    public function testInvoicePdfVersionsEndpointIsRoutedForAnAdmin(): void
+    {
+        $this->kirby->impersonate('kirby');
+        // GET version listing routes and returns an items array (empty until a
+        // document is generated). Write flows (issue → generate, draft,
+        // regenerate) are proven at the service layer in InvoiceDocumentsTest
+        // and end to end in the Playwright invoice journeys.
+        $inv = breakfast()->invoices()->create([
+            'bill_to_name' => 'Roberts Cafe',
+            'items' => [['description' => 'Website', 'quantity' => 1, 'unit_price' => 1000, 'tax_rate' => 20]],
+        ], 'kirby@test');
+        $out = $this->call('invoices/' . (string) $inv['uuid'] . '/pdf/versions');
+        $this->assertSame(200, $out['code']);
+        $this->assertArrayHasKey('items', $out['data']);
+        $this->assertIsArray($out['data']['items']);
+    }
+
     public function testWebsiteEndpointsRequireAuth(): void
     {
         foreach (['website', 'website/page/home'] as $path) {

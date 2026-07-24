@@ -1145,8 +1145,16 @@ final class AdminApi
             }
             if ($method === 'POST' && $action === 'issue') {
                 $requireManage();
+                $issued = $svc->issue($id, $actor);
+                // Generate the immutable PDF synchronously from the frozen snapshot.
+                try {
+                    $this->platform->invoiceDocuments()->generateIssued($id, $actor);
+                } catch (\Breakfast\Platform\Invoicing\InvoiceException) {
+                    // Invoice stays issued; document_status is 'failed' and sending
+                    // remains blocked until a safe retry succeeds.
+                }
 
-                return ['invoice' => $this->invoiceRow($svc->issue($id, $actor), true)];
+                return ['invoice' => $this->invoiceRow($svc->find($id) ?? $issued, true)];
             }
             if ($method === 'POST' && $action === 'payment') {
                 $requireManage();
@@ -1163,11 +1171,53 @@ final class AdminApi
 
                 return $this->sendInvoice($id, $user);
             }
+            // PDF: POST /invoices/:id/pdf (draft), POST /invoices/:id/pdf/regenerate,
+            // GET /invoices/:id/pdf/versions. Binary download is a separate route.
+            if ($action === 'pdf') {
+                $docs = $this->platform->invoiceDocuments();
+                $sub2 = $seg[3] ?? '';
+                if ($method === 'POST' && $sub2 === '') {
+                    if (!PanelGate::canGenerateInvoicePdf($user)) {
+                        throw new ApiException(403, 'You can’t generate invoice documents.', 'forbidden');
+                    }
+
+                    return ['document' => $this->documentRow($docs->generateDraft($id, $actor))];
+                }
+                if ($method === 'POST' && $sub2 === 'regenerate') {
+                    if (!PanelGate::canRegenerateInvoicePdf($user)) {
+                        throw new ApiException(403, 'Only an administrator can regenerate an issued invoice’s document.', 'forbidden');
+                    }
+
+                    return ['document' => $this->documentRow($docs->regenerateIssued($id, $actor, (string) ($this->body()['reason'] ?? '')))];
+                }
+                if ($method === 'GET' && $sub2 === 'versions') {
+                    return ['items' => array_map([$this, 'documentRow'], $docs->versions($id))];
+                }
+            }
 
             throw new ApiException(404, 'Unknown invoice endpoint.', 'not_found');
         } catch (\Breakfast\Platform\Invoicing\InvoiceException $e) {
             throw new ApiException($e->status, $e->getMessage(), 'invoice');
         }
+    }
+
+    /**
+     * @param array<string,mixed> $d
+     * @return array<string,mixed>
+     */
+    private function documentRow(array $d): array
+    {
+        return [
+            'id'         => (string) ($d['uuid'] ?? ''),
+            'version'    => (int) ($d['version'] ?? 1),
+            'kind'       => (string) ($d['kind'] ?? 'issued'),
+            'filename'   => (string) ($d['filename'] ?? ''),
+            'byte_size'  => (int) ($d['byte_size'] ?? 0),
+            'sha256'     => (string) ($d['sha256'] ?? ''),
+            'renderer'   => (string) ($d['renderer'] ?? '') . ' ' . (string) ($d['renderer_version'] ?? ''),
+            'state'      => (string) ($d['state'] ?? ''),
+            'created_at' => (string) ($d['created_at'] ?? ''),
+        ];
     }
 
     /**
@@ -1263,6 +1313,8 @@ final class AdminApi
             $row['amount_paid']     = (int) ($r['amount_paid'] ?? 0) / 100;
             $row['seller_name']     = (string) ($r['seller_name'] ?? '');
             $row['payment_details'] = (string) ($r['payment_details'] ?? '');
+            $row['document_status'] = (string) ($r['document_status'] ?? 'none');
+            $row['pdf_ready']       = ((string) ($r['document_status'] ?? '')) === 'generated';
             $token = (string) ($r['public_token'] ?? '');
             $row['public_url']      = $token !== '' ? rtrim((string) $this->kirby->site()->url(), '/') . '/invoice/' . $token : '';
             $row['items'] = array_map(static fn (array $i): array => [

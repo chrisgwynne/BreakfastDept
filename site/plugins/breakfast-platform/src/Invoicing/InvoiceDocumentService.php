@@ -133,6 +133,50 @@ final class InvoiceDocumentService
     }
 
     /**
+     * Generate the missing immutable PDF for every issued invoice that does not
+     * yet have one. Idempotent: an invoice already carrying a generated issued
+     * document is skipped, so re-running is safe. In dry-run mode nothing is
+     * written — it only reports what would be generated.
+     *
+     * @return array{scanned:int,generated:int,skipped:int,failed:int,items:list<array{number:string,result:string}>}
+     */
+    public function backfill(bool $apply, string $actor): array
+    {
+        $scanned = 0;
+        $generated = 0;
+        $skipped = 0;
+        $failed = 0;
+        $items = [];
+
+        foreach ($this->invoices->needingPdfBackfill() as $inv) {
+            $scanned++;
+            $uuid = (string) ($inv['uuid'] ?? '');
+            $number = (string) ($inv['number'] ?? $uuid);
+
+            // Belt and braces: skip if an issued document already exists on disk.
+            if ($this->store->currentIssued($uuid) !== null) {
+                $skipped++;
+                $items[] = ['number' => $number, 'result' => 'skipped (already has a document)'];
+                continue;
+            }
+            if (!$apply) {
+                $items[] = ['number' => $number, 'result' => 'would generate'];
+                continue;
+            }
+            try {
+                $this->generateIssued($uuid, $actor);
+                $generated++;
+                $items[] = ['number' => $number, 'result' => 'generated'];
+            } catch (\Throwable $e) {
+                $failed++;
+                $items[] = ['number' => $number, 'result' => 'failed: ' . $e->getMessage()];
+            }
+        }
+
+        return ['scanned' => $scanned, 'generated' => $generated, 'skipped' => $skipped, 'failed' => $failed, 'items' => $items];
+    }
+
+    /**
      * @param array<string,mixed> $snapshot
      */
     private function filename(array $snapshot): string

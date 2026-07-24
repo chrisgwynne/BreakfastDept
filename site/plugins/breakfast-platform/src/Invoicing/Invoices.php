@@ -300,6 +300,23 @@ final class Invoices
         $this->db->run('UPDATE invoices SET document_status = :s, updated_at = :n WHERE uuid = :u', ['s' => $status, 'n' => Clock::nowIso(), 'u' => $uuid]);
     }
 
+    /**
+     * Issued invoices whose PDF has not been generated yet — everything with a
+     * frozen snapshot that is not already marked 'generated'. Used by the
+     * backfill CLI to render documents for invoices issued before the PDF
+     * pipeline existed (or whose generation previously failed).
+     *
+     * @return list<array<string,mixed>>
+     */
+    public function needingPdfBackfill(): array
+    {
+        return $this->db->all(
+            "SELECT uuid, number, document_status FROM invoices
+             WHERE snapshot <> '' AND COALESCE(document_status, 'none') <> 'generated'
+             ORDER BY issue_date ASC, number ASC"
+        );
+    }
+
     /** Record an immutable invoice event (public wrapper for the document service). */
     public function logEvent(string $uuid, string $type, string $detail, string $actor): void
     {

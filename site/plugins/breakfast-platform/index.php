@@ -456,6 +456,34 @@ Kirby::plugin('breakfast/platform', [
             },
         ],
 
+        // Authenticated invoice PDF download. Streams the stored PDF from the
+        // private store (outside the webroot) with an integrity check; ordinary
+        // downloads return the original issued file. Registered before the SPA
+        // catch-all. ?document=<uuid> selects a specific version.
+        [
+            'pattern' => 'breakfast-admin/invoices/(:any)/download',
+            'method'  => 'GET',
+            'action'  => function (string $id) {
+                $user = kirby()->user();
+                if (!\Breakfast\Platform\Security\PanelGate::canViewInvoicePdf($user)) {
+                    return new \Kirby\Http\Response('Not found', 'text/plain', 404);
+                }
+                try {
+                    $documentUuid = get('document');
+                    $result = breakfast()->invoiceDocuments()->download($id, is_string($documentUuid) ? $documentUuid : null);
+                } catch (\Breakfast\Platform\Invoicing\InvoiceException $e) {
+                    return new \Kirby\Http\Response($e->getMessage(), 'text/plain', $e->status);
+                }
+                $filename = preg_replace('/[^A-Za-z0-9.\-]/', '', (string) ($result['doc']['filename'] ?? 'invoice.pdf')) ?: 'invoice.pdf';
+
+                return new \Kirby\Http\Response($result['bytes'], 'application/pdf', 200, [
+                    'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+                    'X-Content-Type-Options' => 'nosniff',
+                    'Cache-Control' => 'private, no-store',
+                ]);
+            },
+        ],
+
         // The standalone Breakfast Admin application shell. The Vue SPA is built to
         // public/breakfast-admin/ (base=/breakfast-admin/). Real built assets are
         // served directly by the web server; every other in-app path (deep links

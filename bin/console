@@ -30,6 +30,9 @@ declare(strict_types=1);
  *   privacy:anonymise-contact <uuid> --confirm
  *   privacy:cleanup [--dry-run|--confirm]
  *
+ * Invoices
+ *   invoices:backfill-pdfs [--dry-run]     Generate missing PDFs for issued invoices
+ *
  * Retention
  *   retention:check                        Show what retention would remove
  *   retention:cleanup --dry-run            Preview (deletes nothing)
@@ -538,6 +541,30 @@ switch ($command) {
             $cal->markReminderSent((string) $event['uuid']);
         }
         out('calendar:reminders — ' . count($due) . ' due, ' . $sent . ' emailed.');
+        break;
+
+    case 'invoices:backfill-pdfs':
+        // Generate the immutable PDF for every issued invoice that doesn't have
+        // one yet (issued before the PDF pipeline existed, or a prior failure).
+        // Idempotent — invoices that already have a document are skipped, so
+        // re-running is safe. Use --dry-run to preview without writing anything.
+        $apply   = !flag($flags, 'dry-run');
+        $summary = $platform->invoiceDocuments()->backfill($apply, 'cli:backfill');
+        foreach ($summary['items'] as $row) {
+            out('  ' . str_pad((string) $row['number'], 18) . ' ' . (string) $row['result']);
+        }
+        out(sprintf(
+            'invoices:backfill-pdfs — %s: scanned %d, %s %d, skipped %d, failed %d.',
+            $apply ? 'applied' : 'dry-run',
+            (int) $summary['scanned'],
+            $apply ? 'generated' : 'would generate',
+            (int) ($apply ? $summary['generated'] : $summary['scanned'] - $summary['skipped']),
+            (int) $summary['skipped'],
+            (int) $summary['failed']
+        ));
+        if ((int) $summary['failed'] > 0) {
+            exit(1);
+        }
         break;
 
     case 'admin:action-check':

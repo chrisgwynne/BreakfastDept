@@ -178,6 +178,31 @@ final class InvoiceDocumentsTest extends TestCase
         }
     }
 
+    public function testBackfillGeneratesMissingPdfsIdempotentlyAndDryRunWritesNothing(): void
+    {
+        // Two issued invoices whose documents were never generated (simulating
+        // invoices issued before the PDF pipeline existed).
+        $a = (string) $this->issuedInvoice()['uuid'];
+        $b = (string) $this->issuedInvoice()['uuid'];
+
+        // Dry run reports both but writes nothing.
+        $preview = $this->docs->backfill(false, 'cli');
+        $this->assertSame(2, $preview['scanned']);
+        $this->assertSame(0, $preview['generated']);
+        $this->assertFalse(is_dir($this->tmp . '/invoices/' . $a), 'dry-run must not write files');
+
+        // Apply generates real documents for both.
+        $applied = $this->docs->backfill(true, 'cli');
+        $this->assertSame(2, $applied['generated']);
+        $this->assertSame(0, $applied['failed']);
+        $this->assertSame('%PDF', substr($this->docs->download($a)['bytes'], 0, 4));
+        $this->assertSame('%PDF', substr($this->docs->download($b)['bytes'], 0, 4));
+
+        // Idempotent: a second apply finds nothing left to do.
+        $again = $this->docs->backfill(true, 'cli');
+        $this->assertSame(0, $again['scanned']);
+    }
+
     /**
      * @return array<string,mixed>
      */
