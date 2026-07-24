@@ -250,6 +250,87 @@ final class CrmWriteTest extends TestCase
         $this->assertSame('archived', $p->enquiries()->find($eid)['status']);
     }
 
+    public function testEditCompanyPersistsFieldsAndAudits(): void
+    {
+        $p = breakfast();
+        $company = $this->write->createCompany(['name' => 'Roberts Cafe'], 'admin@test');
+        $uuid = (string) $company['uuid'];
+
+        $res = $this->write->editCompany($uuid, ['name' => 'Roberts Coffee', 'sector' => 'Hospitality', 'website' => 'roberts.example'], 'admin@test');
+        $this->assertSame('Roberts Coffee', (string) $res['company']['name']);
+        $this->assertSame('Hospitality', (string) $p->companies()->find($uuid)['industry']);
+        $this->assertNotEmpty($p->audit()->recent(10));
+    }
+
+    public function testArchiveAndRestoreCompanyHidesThenRestoresItWithRelationshipCounts(): void
+    {
+        $p = breakfast();
+        // A company with a linked contact — the archive must report the relationship.
+        $lead = $this->write->createLead(['name' => 'Dai Evans', 'email' => 'dai@evans.co', 'company' => 'Evans Joinery'], 'admin@test');
+        $uuid = (string) $p->contacts()->find((string) $lead['contact']['uuid'])['company_uuid'];
+
+        $archived = $this->write->archiveCompany($uuid, 'admin@test');
+        $this->assertGreaterThanOrEqual(1, (int) $archived['related']['contacts']);
+        $this->assertNotNull($p->companies()->find($uuid)['archived_at']);
+        $this->assertSame(0, $p->companies()->count(), 'archived companies drop out of the active count');
+        $this->assertSame(1, $p->companies()->count(true), 'but remain when archived are included');
+
+        $this->write->restoreCompany($uuid, 'admin@test');
+        $this->assertNull($p->companies()->find($uuid)['archived_at']);
+        $this->assertSame(1, $p->companies()->count());
+    }
+
+    public function testEditOpportunityUpdatesFields(): void
+    {
+        $opp = $this->write->createOpportunity(['title' => 'Website', 'stage' => 'new', 'value' => 1000], 'admin@test');
+        $uuid = (string) $opp['uuid'];
+
+        $res = $this->write->editOpportunity($uuid, ['title' => 'Website + SEO', 'value' => 250000, 'probability' => 60], 'admin@test');
+        $this->assertSame('Website + SEO', (string) $res['opportunity']['title']);
+        $this->assertSame(250000, (int) $res['opportunity']['estimated_value']);
+        $this->assertSame(60, (int) $res['opportunity']['probability']);
+    }
+
+    public function testCloseOpportunityWonLostAbandonedAndRestore(): void
+    {
+        $p = breakfast();
+
+        $won = (string) $this->write->createOpportunity(['title' => 'A', 'stage' => 'proposal'], 'admin@test')['uuid'];
+        $this->write->closeOpportunity($won, 'won', [], 'admin@test');
+        $this->assertSame('won', (string) $p->opportunities()->find($won)['stage']);
+        $this->assertNotEmpty($p->opportunities()->find($won)['won_at']);
+
+        $lost = (string) $this->write->createOpportunity(['title' => 'B', 'stage' => 'proposal'], 'admin@test')['uuid'];
+        $this->write->closeOpportunity($lost, 'lost', ['reason' => 'Budget'], 'admin@test');
+        $this->assertSame('lost', (string) $p->opportunities()->find($lost)['stage']);
+        $this->assertSame('Budget', (string) $p->opportunities()->find($lost)['lost_reason']);
+
+        $abandoned = (string) $this->write->createOpportunity(['title' => 'C', 'stage' => 'discovery'], 'admin@test')['uuid'];
+        $this->write->closeOpportunity($abandoned, 'abandoned', [], 'admin@test');
+        $this->assertNotNull($p->opportunities()->find($abandoned)['archived_at']);
+        $this->assertSame('abandoned', (string) $p->opportunities()->find($abandoned)['close_outcome']);
+
+        // Abandoned/archived opportunities leave the active pipeline but restore.
+        $activeIds = array_column($p->opportunities()->search(['limit' => 50]), 'uuid');
+        $this->assertNotContains($abandoned, $activeIds);
+
+        $this->write->restoreOpportunity($abandoned, 'admin@test');
+        $this->assertNull($p->opportunities()->find($abandoned)['archived_at']);
+        $activeIds = array_column($p->opportunities()->search(['limit' => 50]), 'uuid');
+        $this->assertContains($abandoned, $activeIds);
+    }
+
+    public function testCloseOpportunityRejectsUnknownOutcome(): void
+    {
+        $uuid = (string) $this->write->createOpportunity(['title' => 'X', 'stage' => 'new'], 'admin@test')['uuid'];
+        try {
+            $this->write->closeOpportunity($uuid, 'maybe', [], 'admin@test');
+            $this->fail('Expected a validation exception');
+        } catch (ApiException $e) {
+            $this->assertSame(422, $e->status);
+        }
+    }
+
     private function rrmdir(string $dir): void
     {
         if (!is_dir($dir)) {

@@ -118,7 +118,9 @@ export interface Company {
   website: string
   sector: string
   location: string
+  notes?: string
   contact_count: number
+  archived?: boolean
 }
 
 export interface Opportunity {
@@ -129,6 +131,8 @@ export interface Opportunity {
   probability: number
   contact: string
   next_action: string
+  archived?: boolean
+  close_outcome?: string
 }
 
 export interface Task {

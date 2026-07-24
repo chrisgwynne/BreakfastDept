@@ -419,6 +419,178 @@ final class CrmWrite
     }
 
     // ==================================================================
+    // Companies — edit / archive / restore
+    // ==================================================================
+
+    /**
+     * Edit an existing company's core fields.
+     *
+     * @param array<string,mixed> $in
+     * @return array<string,mixed>
+     */
+    public function editCompany(string $uuid, array $in, string $actor): array
+    {
+        if ($this->platform->companies()->find($uuid) === null) {
+            throw new ApiException(404, 'Company not found.', 'not_found');
+        }
+        if (array_key_exists('name', $in) && trim((string) $in['name']) === '') {
+            throw new ApiException(422, 'A company name is required.', 'invalid', ['name' => 'Required.']);
+        }
+
+        $map  = ['name' => 'name', 'website' => 'website', 'sector' => 'industry', 'size_band' => 'size_band', 'location' => 'address', 'notes' => 'notes'];
+        $data = [];
+        foreach ($map as $inKey => $col) {
+            if (array_key_exists($inKey, $in)) {
+                $data[$col] = $this->str($in, $inKey);
+            }
+        }
+
+        $updated = $this->platform->companies()->update($uuid, $data);
+        $this->platform->activities()->record('company', $uuid, 'company.updated', 'Company edited by ' . $actor, 'user', $actor, []);
+        $this->platform->audit()->event('company.updated', 'company', $uuid, $actor, ['fields' => array_keys($data)]);
+
+        return ['company' => $updated ?? []];
+    }
+
+    /**
+     * Archive a company (soft — kept and restorable). Linked contacts and
+     * opportunities are preserved; the relationship counts are surfaced so the
+     * UI can warn before archiving a company that still has active records.
+     *
+     * @return array<string,mixed>
+     */
+    public function archiveCompany(string $uuid, string $actor): array
+    {
+        if ($this->platform->companies()->find($uuid) === null) {
+            throw new ApiException(404, 'Company not found.', 'not_found');
+        }
+        $related = $this->platform->companies()->relatedCounts($uuid);
+        $company = $this->platform->companies()->archive($uuid);
+        $this->platform->activities()->record('company', $uuid, 'company.archived', 'Company archived by ' . $actor, 'user', $actor, $related);
+        $this->platform->audit()->event('company.archived', 'company', $uuid, $actor, $related);
+
+        return ['ok' => true, 'company' => $company ?? [], 'related' => $related];
+    }
+
+    /** @return array<string,mixed> */
+    public function restoreCompany(string $uuid, string $actor): array
+    {
+        if ($this->platform->companies()->find($uuid) === null) {
+            throw new ApiException(404, 'Company not found.', 'not_found');
+        }
+        $company = $this->platform->companies()->restore($uuid);
+        $this->platform->activities()->record('company', $uuid, 'company.restored', 'Company restored by ' . $actor, 'user', $actor, []);
+        $this->platform->audit()->event('company.restored', 'company', $uuid, $actor, []);
+
+        return ['ok' => true, 'company' => $company ?? []];
+    }
+
+    // ==================================================================
+    // Opportunities — edit / close / archive / restore
+    // ==================================================================
+
+    /**
+     * Edit an opportunity's core fields (not stage — that goes through move/close).
+     *
+     * @param array<string,mixed> $in
+     * @return array<string,mixed>
+     */
+    public function editOpportunity(string $uuid, array $in, string $actor): array
+    {
+        if ($this->platform->opportunities()->find($uuid) === null) {
+            throw new ApiException(404, 'Opportunity not found.', 'not_found');
+        }
+        if (array_key_exists('title', $in) && trim((string) $in['title']) === '') {
+            throw new ApiException(422, 'A title is required.', 'invalid', ['title' => 'Required.']);
+        }
+
+        $data = [];
+        foreach (['title', 'owner', 'next_action', 'notes'] as $f) {
+            if (array_key_exists($f, $in)) {
+                $data[$f] = $this->str($in, $f);
+            }
+        }
+        foreach (['estimated_value' => 'value', 'probability' => 'probability'] as $col => $inKey) {
+            if (array_key_exists($inKey, $in)) {
+                $data[$col] = max(0, (int) $in[$inKey]);
+            }
+        }
+        if (array_key_exists('expected_close_date', $in)) {
+            $data['expected_close_date'] = $this->str($in, 'expected_close_date') ?: null;
+        }
+        if (array_key_exists('next_action_date', $in)) {
+            $data['next_action_date'] = $this->str($in, 'next_action_date') ?: null;
+        }
+
+        $updated = $this->platform->opportunities()->update($uuid, $data);
+        $this->platform->activities()->record('opportunity', $uuid, 'opportunity.updated', 'Opportunity edited by ' . $actor, 'user', $actor, []);
+        $this->platform->audit()->event('opportunity.updated', 'opportunity', $uuid, $actor, ['fields' => array_keys($data)]);
+
+        return ['opportunity' => $updated ?? []];
+    }
+
+    /**
+     * Close an opportunity with a terminal outcome. won/lost move the pipeline
+     * stage (stamping won_at/lost_at); abandoned archives it with the outcome
+     * recorded. All are reversible via restore.
+     *
+     * @param array<string,mixed> $in
+     * @return array<string,mixed>
+     */
+    public function closeOpportunity(string $uuid, string $outcome, array $in, string $actor): array
+    {
+        if ($this->platform->opportunities()->find($uuid) === null) {
+            throw new ApiException(404, 'Opportunity not found.', 'not_found');
+        }
+        if (!in_array($outcome, ['won', 'lost', 'abandoned'], true)) {
+            throw new ApiException(422, 'Choose a valid outcome (won, lost or abandoned).', 'invalid', ['outcome' => 'Invalid.']);
+        }
+        $reason = trim((string) ($in['reason'] ?? ''));
+
+        if ($outcome === 'abandoned') {
+            $result = $this->platform->opportunities()->archive($uuid, 'abandoned');
+        } else {
+            $this->platform->crm()->moveOpportunity($uuid, $outcome, 'user', $actor, $outcome === 'lost' ? ($reason ?: null) : null);
+            $result = $this->platform->opportunities()->update($uuid, ['close_outcome' => $outcome]);
+        }
+
+        $this->platform->activities()->record('opportunity', $uuid, 'opportunity.closed', 'Opportunity closed (' . $outcome . ')' . ($reason !== '' ? ': ' . $reason : '') . ' by ' . $actor, 'user', $actor, ['outcome' => $outcome]);
+        $this->platform->audit()->event('opportunity.closed', 'opportunity', $uuid, $actor, ['outcome' => $outcome, 'reason' => $reason]);
+
+        return ['ok' => true, 'opportunity' => $result ?? []];
+    }
+
+    /**
+     * Archive an opportunity without a win/loss outcome (e.g. tidy-up).
+     *
+     * @return array<string,mixed>
+     */
+    public function archiveOpportunity(string $uuid, string $actor): array
+    {
+        if ($this->platform->opportunities()->find($uuid) === null) {
+            throw new ApiException(404, 'Opportunity not found.', 'not_found');
+        }
+        $opp = $this->platform->opportunities()->archive($uuid);
+        $this->platform->activities()->record('opportunity', $uuid, 'opportunity.archived', 'Opportunity archived by ' . $actor, 'user', $actor, []);
+        $this->platform->audit()->event('opportunity.archived', 'opportunity', $uuid, $actor, []);
+
+        return ['ok' => true, 'opportunity' => $opp ?? []];
+    }
+
+    /** @return array<string,mixed> */
+    public function restoreOpportunity(string $uuid, string $actor): array
+    {
+        if ($this->platform->opportunities()->find($uuid) === null) {
+            throw new ApiException(404, 'Opportunity not found.', 'not_found');
+        }
+        $opp = $this->platform->opportunities()->restore($uuid);
+        $this->platform->activities()->record('opportunity', $uuid, 'opportunity.restored', 'Opportunity restored by ' . $actor, 'user', $actor, []);
+        $this->platform->audit()->event('opportunity.restored', 'opportunity', $uuid, $actor, []);
+
+        return ['ok' => true, 'opportunity' => $opp ?? []];
+    }
+
+    // ==================================================================
     // Helpers
     // ==================================================================
 

@@ -1,13 +1,14 @@
 <script setup lang="ts">
-import { onMounted, ref, computed, watch } from 'vue'
+import { onMounted, ref, reactive, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { api } from '@/lib/api'
+import { api, ApiError } from '@/lib/api'
 import type { Contact, Company, ListResponse } from '@/lib/types'
 import { useUi } from '@/stores/ui'
 import { useAuth } from '@/stores/auth'
 import PageHeader from '@/components/PageHeader.vue'
 import DataState from '@/components/DataState.vue'
 import StatusPill from '@/components/StatusPill.vue'
+import Sheet from '@/components/Sheet.vue'
 
 const router = useRouter()
 const ui = useUi()
@@ -16,6 +17,7 @@ const canManage = computed(() => auth.can('crm.manage') || auth.can('admin'))
 watch(() => [ui.version.contacts, ui.version.companies], () => load())
 const tab = ref<'contacts' | 'companies'>('contacts')
 const search = ref('')
+const showArchived = ref(false)
 
 const contacts = ref<Contact[]>([])
 const companies = ref<Company[]>([])
@@ -28,7 +30,7 @@ async function load() {
   try {
     const [c, co] = await Promise.all([
       api.get<ListResponse<Contact>>('/contacts'),
-      api.get<ListResponse<Company>>('/companies'),
+      api.get<ListResponse<Company>>('/companies' + (showArchived.value ? '?archived=1' : '')),
     ])
     contacts.value = c.items
     companies.value = co.items
@@ -37,6 +39,53 @@ async function load() {
   } finally {
     loading.value = false
   }
+}
+watch(showArchived, () => load())
+
+// --- company detail: edit + archive/restore ---
+const company = ref<Company | null>(null)
+const cForm = reactive({ name: '', website: '', sector: '', location: '', notes: '' })
+const cBusy = ref('')
+function openCompany(c: Company) {
+  company.value = c
+  Object.assign(cForm, { name: c.name, website: c.website, sector: c.sector, location: c.location, notes: c.notes ?? '' })
+}
+async function saveCompany() {
+  if (!company.value || cBusy.value) return
+  cBusy.value = 'save'
+  try {
+    const res = await api.patch<{ company: Company }>(`/companies/${company.value.id}`, { ...cForm })
+    company.value = res.company
+    ui.toast('Company updated')
+    await load()
+  } catch (e) { ui.toast(e instanceof ApiError ? e.message : 'Could not save the company') }
+  finally { cBusy.value = '' }
+}
+async function archiveCompany() {
+  if (!company.value || cBusy.value) return
+  const warn = company.value.contact_count > 0
+    ? `This company still has ${company.value.contact_count} linked contact${company.value.contact_count === 1 ? '' : 's'}. Archiving keeps them, but hides the company. Continue?`
+    : 'Archive this company? It will be hidden from the active list but kept and restorable.'
+  if (!window.confirm(warn)) return
+  cBusy.value = 'archive'
+  try {
+    await api.post(`/companies/${company.value.id}/archive`, {})
+    ui.toast('Company archived')
+    company.value = null
+    await load()
+  } catch (e) { ui.toast(e instanceof ApiError ? e.message : 'Could not archive the company') }
+  finally { cBusy.value = '' }
+}
+async function restoreCompany() {
+  if (!company.value || cBusy.value) return
+  cBusy.value = 'restore'
+  try {
+    await api.post(`/companies/${company.value.id}/restore`, {})
+    ui.toast('Company restored')
+    company.value = null
+    await load()
+  } catch (e) { ui.toast(e instanceof ApiError ? e.message : 'Could not restore the company') }
+  finally { cBusy.value = '' }
 }
 
 const filteredContacts = computed(() => {
@@ -75,6 +124,7 @@ onMounted(load)
         Contacts <span class="tab__n">{{ contacts.length }}</span></button>
       <button class="tab" :class="{ 'tab--active': tab === 'companies' }" @click="tab = 'companies'">
         Companies <span class="tab__n">{{ companies.length }}</span></button>
+      <label v-if="tab === 'companies'" class="arch"><input type="checkbox" v-model="showArchived" /> Show archived</label>
     </div>
 
     <!-- Contacts -->
@@ -100,18 +150,37 @@ onMounted(load)
                empty-title="No companies yet" empty-note="Companies group your contacts and opportunities."
                @retry="load">
       <div class="card list">
-        <div v-for="c in filteredCompanies" :key="c.id" class="rowitem rowitem--static">
+        <button v-for="c in filteredCompanies" :key="c.id" class="rowitem" @click="openCompany(c)">
           <span class="avatar avatar--sq">{{ initials(c.name) }}</span>
           <span class="rowitem__main">
-            <strong class="truncate">{{ c.name || 'Unnamed company' }}</strong>
-            <a v-if="c.website" class="faint truncate" :href="c.website" target="_blank" rel="noopener">{{ c.website }}</a>
-            <span v-else class="faint">{{ c.sector || '—' }}</span>
+            <strong class="truncate">{{ c.name || 'Unnamed company' }}<span v-if="c.archived" class="archtag">Archived</span></strong>
+            <span class="faint truncate">{{ c.website || c.sector || '—' }}</span>
           </span>
           <span class="rowitem__col truncate">{{ c.location || '—' }}</span>
           <span class="rowitem__col faint num">{{ c.contact_count }} contact{{ c.contact_count === 1 ? '' : 's' }}</span>
-        </div>
+        </button>
       </div>
     </DataState>
+
+    <!-- Company detail: edit + archive/restore -->
+    <Sheet :open="!!company" eyebrow="Company" :title="company?.name || 'Company'" @close="company = null">
+      <template v-if="company">
+        <div v-if="company.archived" class="pill-arch">This company is archived.</div>
+        <div class="field"><label class="label">Name</label><input class="input" v-model="cForm.name" :disabled="!canManage" /></div>
+        <div class="field"><label class="label">Website</label><input class="input" v-model="cForm.website" :disabled="!canManage" /></div>
+        <div class="cf__row">
+          <div class="field"><label class="label">Sector</label><input class="input" v-model="cForm.sector" :disabled="!canManage" /></div>
+          <div class="field"><label class="label">Location</label><input class="input" v-model="cForm.location" :disabled="!canManage" /></div>
+        </div>
+        <div class="field"><label class="label">Notes</label><textarea class="textarea" v-model="cForm.notes" rows="3" :disabled="!canManage"></textarea></div>
+        <p class="faint sm">{{ company.contact_count }} linked contact{{ company.contact_count === 1 ? '' : 's' }}.</p>
+      </template>
+      <template #footer v-if="canManage && company">
+        <button v-if="company.archived" class="btn btn--sm" :disabled="cBusy === 'restore'" @click="restoreCompany">Restore</button>
+        <button v-else class="btn btn--sm btn--danger" :disabled="cBusy === 'archive'" @click="archiveCompany">Archive</button>
+        <button class="btn btn--sm btn--primary" :disabled="cBusy === 'save'" @click="saveCompany">{{ cBusy === 'save' ? 'Saving…' : 'Save changes' }}</button>
+      </template>
+    </Sheet>
   </div>
 </template>
 
@@ -135,5 +204,9 @@ onMounted(load)
 .rowitem__main { display: grid; min-width: 0; }
 .rowitem__main strong { font-size: var(--text-base); }
 .rowitem__col { font-size: var(--text-sm); color: var(--ink-2); min-width: 0; }
+.arch { margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: var(--text-sm); color: var(--ink-3); }
+.archtag { margin-left: 8px; font-size: var(--text-xs); font-weight: 600; color: var(--ink-3); background: var(--paper-2); padding: 1px 7px; border-radius: var(--r-pill); }
+.pill-arch { font-size: var(--text-sm); color: var(--ink-2); background: var(--paper-2); border: 1px solid var(--line); border-radius: var(--r-md); padding: 8px var(--sp-3); margin-bottom: var(--sp-3); }
+.sm { font-size: var(--text-sm); margin-top: var(--sp-2); }
 @media (max-width: 720px) { .rowitem { grid-template-columns: 32px 1fr auto; } .rowitem__col:nth-child(3) { display: none; } }
 </style>

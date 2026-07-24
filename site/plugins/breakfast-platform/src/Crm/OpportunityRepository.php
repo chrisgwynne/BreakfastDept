@@ -13,6 +13,7 @@ final class OpportunityRepository extends Repository
         'title', 'contact_uuid', 'company_uuid', 'enquiry_uuid', 'stage',
         'estimated_value', 'currency', 'probability', 'services', 'expected_close_date',
         'next_action', 'next_action_date', 'owner', 'lost_reason', 'won_at', 'lost_at', 'notes',
+        'archived_at', 'close_outcome',
     ];
 
     /**
@@ -111,6 +112,12 @@ final class OpportunityRepository extends Repository
             $where[] = "o.stage NOT IN ('won', 'lost')";
         }
 
+        // Archived opportunities are hidden from the active pipeline unless
+        // explicitly requested (e.g. an archive view).
+        if (empty($filters['include_archived'])) {
+            $where[] = 'o.archived_at IS NULL';
+        }
+
         if (!empty($filters['search'])) {
             $where[] = '(o.title LIKE :q OR c.display_name LIKE :q)';
             $params['q'] = '%' . strtolower((string) $filters['search']) . '%';
@@ -134,15 +141,42 @@ final class OpportunityRepository extends Repository
 
     public function countOpen(): int
     {
-        return (int) $this->db->scalar("SELECT COUNT(*) FROM opportunities WHERE stage NOT IN ('won','lost')");
+        return (int) $this->db->scalar("SELECT COUNT(*) FROM opportunities WHERE stage NOT IN ('won','lost') AND archived_at IS NULL");
     }
 
     /** Total estimated value (minor units) of open opportunities. */
     public function openPipelineValue(): int
     {
         return (int) $this->db->scalar(
-            "SELECT COALESCE(SUM(estimated_value), 0) FROM opportunities WHERE stage NOT IN ('won','lost')"
+            "SELECT COALESCE(SUM(estimated_value), 0) FROM opportunities WHERE stage NOT IN ('won','lost') AND archived_at IS NULL"
         );
+    }
+
+    /**
+     * Soft-archive an opportunity (kept, hidden from the pipeline, restorable).
+     *
+     * @return array<string,mixed>|null
+     */
+    public function archive(string $uuid, ?string $outcome = null): ?array
+    {
+        $this->db->run(
+            'UPDATE opportunities SET archived_at = :n, close_outcome = COALESCE(:o, close_outcome), updated_at = :n WHERE uuid = :u AND archived_at IS NULL',
+            ['n' => $this->now(), 'o' => $outcome, 'u' => $uuid]
+        );
+
+        return $this->find($uuid);
+    }
+
+    /**
+     * Restore an archived opportunity back into the active pipeline.
+     *
+     * @return array<string,mixed>|null
+     */
+    public function restore(string $uuid): ?array
+    {
+        $this->db->run('UPDATE opportunities SET archived_at = NULL, close_outcome = NULL, updated_at = :n WHERE uuid = :u', ['n' => $this->now(), 'u' => $uuid]);
+
+        return $this->find($uuid);
     }
 
     /** @return array<string,array{count:int,value:int}> keyed by stage */
@@ -150,7 +184,7 @@ final class OpportunityRepository extends Repository
     {
         $rows = $this->db->all(
             "SELECT stage, COUNT(*) AS n, COALESCE(SUM(estimated_value),0) AS v
-             FROM opportunities WHERE stage NOT IN ('won','lost') GROUP BY stage"
+             FROM opportunities WHERE stage NOT IN ('won','lost') AND archived_at IS NULL GROUP BY stage"
         );
 
         $out = [];
@@ -175,6 +209,7 @@ final class OpportunityRepository extends Repository
             "SELECT o.*, c.display_name AS contact_name FROM opportunities o
              LEFT JOIN contacts c ON c.uuid = o.contact_uuid
              WHERE o.stage NOT IN ('won','lost')
+               AND o.archived_at IS NULL
                AND (o.next_action_date IS NULL OR o.next_action_date < :now)
                AND o.updated_at < :cutoff
              ORDER BY o.updated_at ASC",

@@ -451,28 +451,53 @@ final class AdminApi
     {
         if ($method === 'POST' && !isset($seg[1])) {
             $actor = (string) $this->requireManage()->email();
-            $company = $this->crmWrite()->createCompany($this->body(), $actor);
 
-            return ['company' => [
-                'id'            => (string) ($company['uuid'] ?? ''),
-                'name'          => (string) ($company['name'] ?? ''),
-                'website'       => (string) ($company['website'] ?? ''),
-                'sector'        => (string) ($company['industry'] ?? ''),
-                'location'      => (string) ($company['address'] ?? ''),
-                'contact_count' => (int) ($company['contact_count'] ?? 0),
-            ]];
+            return ['company' => $this->companyRow($this->crmWrite()->createCompany($this->body(), $actor))];
         }
 
-        $items = $this->platform->companies()->all($this->perPage());
+        $id     = (string) ($seg[1] ?? '');
+        $action = (string) ($seg[2] ?? '');
+        if ($id !== '') {
+            if ($method === 'PATCH' && $action === '') {
+                $actor = (string) $this->requireManage()->email();
 
-        return ['items' => array_map(static fn (array $r): array => [
-            'id'            => (string) ($r['uuid'] ?? ''),
-            'name'          => (string) ($r['name'] ?? ''),
-            'website'       => (string) ($r['website'] ?? ''),
-            'sector'        => (string) ($r['sector'] ?? ''),
-            'location'      => (string) ($r['location'] ?? ''),
-            'contact_count' => (int) ($r['contact_count'] ?? 0),
-        ], $items), 'total' => $this->platform->companies()->count()];
+                return ['company' => $this->companyRow($this->crmWrite()->editCompany($id, $this->body(), $actor)['company'])];
+            }
+            if ($method === 'POST' && $action === 'archive') {
+                $actor = (string) $this->requireManage()->email();
+                $res   = $this->crmWrite()->archiveCompany($id, $actor);
+
+                return ['ok' => true, 'company' => $this->companyRow($res['company']), 'related' => $res['related']];
+            }
+            if ($method === 'POST' && $action === 'restore') {
+                $actor = (string) $this->requireManage()->email();
+
+                return ['ok' => true, 'company' => $this->companyRow($this->crmWrite()->restoreCompany($id, $actor)['company'])];
+            }
+        }
+
+        $includeArchived = ($this->query()['archived'] ?? '') === '1';
+        $items = $this->platform->companies()->all($this->perPage(), 0, $includeArchived);
+
+        return ['items' => array_map([$this, 'companyRow'], $items), 'total' => $this->platform->companies()->count($includeArchived)];
+    }
+
+    /**
+     * @param array<string,mixed> $c
+     * @return array<string,mixed>
+     */
+    private function companyRow(array $c): array
+    {
+        return [
+            'id'            => (string) ($c['uuid'] ?? ''),
+            'name'          => (string) ($c['name'] ?? ''),
+            'website'       => (string) ($c['website'] ?? ''),
+            'sector'        => (string) ($c['industry'] ?? ''),
+            'location'      => (string) ($c['address'] ?? ''),
+            'notes'         => (string) ($c['notes'] ?? ''),
+            'contact_count' => (int) ($c['contact_count'] ?? 0),
+            'archived'      => ($c['archived_at'] ?? null) !== null,
+        ];
     }
 
     /**
@@ -494,17 +519,52 @@ final class AdminApi
             ]];
         }
 
-        if ($method === 'POST' && ($seg[1] ?? '') !== '' && ($seg[2] ?? '') === 'move') {
-            if (!PanelGate::canManage($this->kirby->user())) {
-                throw new ApiException(403, 'You can’t change deals.', 'forbidden');
-            }
-            $stage = (string) ($this->body()['stage'] ?? '');
-            $moved = $this->platform->crm()->moveOpportunity($seg[1], $stage, 'user', (string) $this->kirby->user()?->email());
+        $id     = (string) ($seg[1] ?? '');
+        $action = (string) ($seg[2] ?? '');
+        if ($id !== '') {
+            $requireDeals = function (): string {
+                if (!PanelGate::canManage($this->kirby->user())) {
+                    throw new ApiException(403, 'You can’t change deals.', 'forbidden');
+                }
 
-            return ['opportunity' => $moved];
+                return (string) $this->kirby->user()?->email();
+            };
+
+            if ($method === 'POST' && $action === 'move') {
+                $actor = $requireDeals();
+                $stage = (string) ($this->body()['stage'] ?? '');
+                $moved = $this->platform->crm()->moveOpportunity($id, $stage, 'user', $actor);
+
+                return ['opportunity' => $moved];
+            }
+            if ($method === 'PATCH' && $action === '') {
+                $actor = $requireDeals();
+
+                return ['opportunity' => $this->opportunityRow($this->crmWrite()->editOpportunity($id, $this->body(), $actor)['opportunity'])];
+            }
+            if ($method === 'POST' && $action === 'close') {
+                $actor   = $requireDeals();
+                $outcome = (string) ($this->body()['outcome'] ?? '');
+
+                return $this->crmWrite()->closeOpportunity($id, $outcome, $this->body(), $actor);
+            }
+            if ($method === 'POST' && $action === 'archive') {
+                $actor = $requireDeals();
+
+                return $this->crmWrite()->archiveOpportunity($id, $actor);
+            }
+            if ($method === 'POST' && $action === 'restore') {
+                $actor = $requireDeals();
+
+                return $this->crmWrite()->restoreOpportunity($id, $actor);
+            }
         }
 
-        $items = $this->platform->opportunities()->search(['limit' => $this->perPage()]);
+        $filters = ['limit' => $this->perPage()];
+        if (($this->query()['archived'] ?? '') === '1') {
+            $filters['include_archived'] = true;
+        }
+        $items = $this->platform->opportunities()->search($filters);
 
         return ['items' => array_map([$this, 'opportunityRow'], $items), 'total' => count($items), 'stages' => $this->stagesList()];
     }
@@ -516,13 +576,15 @@ final class AdminApi
     private function opportunityRow(array $r): array
     {
         return [
-            'id'          => (string) ($r['uuid'] ?? ''),
-            'title'       => (string) ($r['title'] ?? ''),
-            'stage'       => (string) ($r['stage'] ?? ''),
-            'value'       => (int) ($r['estimated_value'] ?? 0),
-            'probability' => (int) ($r['probability'] ?? 0),
-            'contact'     => (string) ($r['contact_name'] ?? ''),
-            'next_action' => (string) ($r['next_action_date'] ?? ''),
+            'id'            => (string) ($r['uuid'] ?? ''),
+            'title'         => (string) ($r['title'] ?? ''),
+            'stage'         => (string) ($r['stage'] ?? ''),
+            'value'         => (int) ($r['estimated_value'] ?? 0),
+            'probability'   => (int) ($r['probability'] ?? 0),
+            'contact'       => (string) ($r['contact_name'] ?? ''),
+            'next_action'   => (string) ($r['next_action_date'] ?? ''),
+            'archived'      => ($r['archived_at'] ?? null) !== null,
+            'close_outcome' => (string) ($r['close_outcome'] ?? ''),
         ];
     }
 
