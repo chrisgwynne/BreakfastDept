@@ -572,6 +572,7 @@ export interface Project extends ProjectListItem {
   proposal_uuid: string
   contract_uuid: string
   opportunity_uuid: string
+  template_uuid: string
   tags: string[]
   approved_variations: number
   estimated_cost: number

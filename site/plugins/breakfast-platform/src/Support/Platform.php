@@ -207,6 +207,11 @@ final class Platform
         return $this->service(\Breakfast\Platform\Projects\ProjectConversion::class, fn () => new \Breakfast\Platform\Projects\ProjectConversion($this));
     }
 
+    public function projectTemplates(): \Breakfast\Platform\Projects\ProjectTemplates
+    {
+        return $this->service(\Breakfast\Platform\Projects\ProjectTemplates::class, fn () => new \Breakfast\Platform\Projects\ProjectTemplates($this->db()));
+    }
+
     public function milestones(): \Breakfast\Platform\Projects\Milestones
     {
         return $this->service(\Breakfast\Platform\Projects\Milestones::class, fn () => new \Breakfast\Platform\Projects\Milestones($this->db()));

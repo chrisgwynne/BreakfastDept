@@ -92,6 +92,7 @@ final class AdminApi
             'projects'      => $this->projects($method, $seg, $user),
             'milestones'    => $this->milestones($method, $seg, $user),
             'project-tasks' => $this->projectTasks($method, $seg, $user),
+            'project-templates' => $this->projectTemplatesApi($method, $seg, $user),
             'calendar'      => $this->calendar($method, $seg, $user),
             'search'        => $this->search(),
             'settings'      => $this->settings($method, $seg, $user),
@@ -2075,6 +2076,13 @@ final class AdminApi
                         $requireManage();
 
                         return ['task' => $this->platform->projectTasks()->create($id, $this->body(), $actor)];
+                    case 'apply-template':
+                        $requireManage();
+                        $body = $this->body();
+                        $applied = $this->platform->projectTemplates()->applyToProject($id, (string) ($body['template_uuid'] ?? ''), $actor, ((string) ($body['start_date'] ?? '')) ?: null);
+                        $svc->logEvent($id, 'template_applied', 'Applied template (v' . $applied['version'] . '): ' . $applied['milestones'] . ' milestones, ' . $applied['tasks'] . ' tasks', $actor);
+
+                        return ['applied' => $applied, 'project' => $this->projectRow($svc->find($id) ?? [], true)];
                 }
             }
             // Nested collections (GET): /projects/:id/milestones, /tasks, /board.
@@ -2258,6 +2266,55 @@ final class AdminApi
     }
 
     /**
+     * Project templates: GET list, GET /:id, POST create, POST /:id/version
+     * (new draft), POST /:id/publish. Managing requires the projects grant.
+     *
+     * @param list<string> $seg
+     * @return array<string,mixed>
+     */
+    private function projectTemplatesApi(string $method, array $seg, \Kirby\Cms\User $user): array
+    {
+        if (!PanelGate::canViewProjects($user)) {
+            throw new ApiException(403, 'You don’t have access to projects.', 'forbidden');
+        }
+        $manage = PanelGate::canManageProjects($user);
+        $svc    = $this->platform->projectTemplates();
+        $actor  = (string) $user->email();
+        $id     = $seg[1] ?? '';
+        try {
+            if ($id === '') {
+                if ($method === 'POST') {
+                    $this->requireProjectManage($manage);
+
+                    return ['template' => $svc->create($this->body(), $actor)];
+                }
+
+                return ['items' => $svc->list()];
+            }
+            $action = $seg[2] ?? '';
+            if ($method === 'GET' && $action === '') {
+                $t = $svc->find($id);
+                if ($t === null) {
+                    throw new ApiException(404, 'Template not found.', 'not_found');
+                }
+
+                return ['template' => $t];
+            }
+            $this->requireProjectManage($manage);
+            if ($method === 'POST' && $action === 'version') {
+                return ['template' => $svc->newDraftVersion($id, $actor)];
+            }
+            if ($method === 'POST' && $action === 'publish') {
+                return ['template' => $svc->publish($id, (int) ($this->body()['version'] ?? 0), $actor)];
+            }
+
+            throw new ApiException(404, 'Unknown template endpoint.', 'not_found');
+        } catch (\Breakfast\Platform\Projects\ProjectException $e) {
+            throw new ApiException($e->status, $e->getMessage(), 'project');
+        }
+    }
+
+    /**
      * Create a project manually or from a commercial record, and record the
      * creation on the CRM timeline + audit.
      *
@@ -2325,7 +2382,7 @@ final class AdminApi
         if (!$detail) {
             return $row;
         }
-        foreach (['project_type', 'service_category', 'description', 'internal_summary', 'client_summary', 'scope', 'exclusions', 'blocked_reason', 'cancel_reason', 'completed_at', 'proposal_uuid', 'contract_uuid', 'opportunity_uuid'] as $f) {
+        foreach (['project_type', 'service_category', 'description', 'internal_summary', 'client_summary', 'scope', 'exclusions', 'blocked_reason', 'cancel_reason', 'completed_at', 'proposal_uuid', 'contract_uuid', 'opportunity_uuid', 'template_uuid'] as $f) {
             $row[$f] = (string) ($p[$f] ?? '');
         }
         $row['tags'] = is_array($p['tags'] ?? null) ? $p['tags'] : [];

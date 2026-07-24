@@ -71,6 +71,28 @@ async function reloadProject() {
   project.value = (await api.get<{ project: Project }>(`/projects/${project.value.id}`)).project
 }
 
+// Apply a template (generates milestones + tasks with resolved dates).
+type Template = { uuid: string; name: string; current_version: number }
+const templates = ref<Template[]>([])
+const chosenTemplate = ref('')
+const applying = ref(false)
+async function loadTemplates() {
+  if (templates.value.length) return
+  templates.value = (await api.get<{ items: Template[] }>('/project-templates')).items.filter((t) => t.current_version > 0)
+}
+async function applyTemplate() {
+  if (!project.value || !chosenTemplate.value || applying.value) return
+  applying.value = true
+  try {
+    const res = await api.post<{ applied: { milestones: number; tasks: number } }>(`/projects/${project.value.id}/apply-template`, { template_uuid: chosenTemplate.value })
+    ui.toast(`Applied: ${res.applied.milestones} milestones, ${res.applied.tasks} tasks`)
+    await reloadProject()
+    if (tab.value === 'milestones') await loadMilestones()
+    if (tab.value === 'board') await loadBoard()
+  } catch (e) { ui.toast(e instanceof ApiError ? e.message : 'Could not apply the template') }
+  finally { applying.value = false }
+}
+
 // Mirrors the server state machine so only valid moves are offered.
 const TRANSITIONS: Record<string, string[]> = {
   draft: ['planning', 'onboarding', 'active', 'cancelled'],
@@ -215,6 +237,15 @@ onMounted(load)
             <p v-if="project.status === 'cancelled' && project.cancel_reason" class="reason">Cancelled: {{ project.cancel_reason }}</p>
             <p v-if="project.client_summary" class="summary">{{ project.client_summary }}</p>
 
+            <div v-if="canManage && !project.template_uuid" class="applytpl">
+              <label class="sr">Template</label>
+              <select class="input input--sm" v-model="chosenTemplate" data-test="template-select" @focus="loadTemplates">
+                <option value="">Apply a template…</option>
+                <option v-for="t in templates" :key="t.uuid" :value="t.uuid">{{ t.name }}</option>
+              </select>
+              <button class="btn btn--sm" data-test="apply-template" :disabled="!chosenTemplate || applying" @click="applyTemplate">{{ applying ? 'Applying…' : 'Apply' }}</button>
+            </div>
+
             <div v-if="canManage" class="actions">
               <button v-for="s in nextStates" :key="s" class="btn btn--sm" :class="{ 'btn--danger': s === 'cancelled', 'btn--primary': s === 'completed' || s === 'active' }" :disabled="busy === s" @click="setStatus(s)">
                 {{ label(s) }}
@@ -292,6 +323,7 @@ onMounted(load)
 .tab { padding: 8px var(--sp-3); font-size: var(--text-sm); font-weight: 550; color: var(--ink-3); border-bottom: 2px solid transparent; margin-bottom: -1px; }
 .tab:hover { color: var(--ink); } .tab--active { color: var(--ink); border-bottom-color: var(--purple); }
 .chip--warn { background: #f9ecd9; color: #9a6a00; }
+.applytpl { display: flex; gap: var(--sp-2); align-items: center; margin-top: var(--sp-4); padding-top: var(--sp-4); border-top: 1px solid var(--line); }
 .quickadd { display: flex; gap: var(--sp-2); margin-bottom: var(--sp-3); }
 .quickadd .input { flex: 1; }
 .input--sm { padding: 4px 8px; font-size: var(--text-sm); }
