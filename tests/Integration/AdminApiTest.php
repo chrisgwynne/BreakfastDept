@@ -234,6 +234,25 @@ final class AdminApiTest extends TestCase
         $this->assertSame(404, $out['code']);
     }
 
+    public function testBrevoSettingsRequireAuth(): void
+    {
+        $out = $this->call('settings/brevo');
+        $this->assertSame(401, $out['code']);
+    }
+
+    public function testBrevoOverviewNeverLeaksTheKeyForAnAdmin(): void
+    {
+        $this->kirby->impersonate('kirby');
+        // Seed a key through the service, then read the API overview.
+        breakfast()->brevoSettings()->setKey('xkeysib-APILEAKCHECK-0000abcd9999', 'kirby');
+
+        $out = $this->call('settings/brevo');
+        $this->assertSame(200, $out['code']);
+        $this->assertTrue($out['data']['brevo']['configured']);
+        $this->assertSame('••••9999', $out['data']['brevo']['key_hint']);
+        $this->assertStringNotContainsString('APILEAKCHECK', json_encode($out['data']) ?: '');
+    }
+
     private function rrmdir(string $dir): void
     {
         if (!is_dir($dir)) {

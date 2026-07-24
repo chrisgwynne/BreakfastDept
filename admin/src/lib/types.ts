@@ -348,6 +348,43 @@ export interface InvoiceSettings {
   default_notes: string
 }
 
+// -- Brevo integration settings ------------------------------------------
+
+export interface BrevoConfig {
+  enabled: boolean
+  sender_name: string
+  sender_email: string
+  reply_to_name: string
+  reply_to_email: string
+  base_url: string
+  marketing_list_id: string
+  track_opens: boolean
+  track_clicks: boolean
+  contact_sync: boolean
+}
+
+export interface BrevoOverview {
+  configured: boolean
+  source: 'settings' | 'env' | 'none'
+  key_hint: string | null
+  config: BrevoConfig
+  last_success: string
+  last_failure: string
+  env_managed: boolean
+}
+
+export interface BrevoTestStep {
+  key: string
+  label: string
+  ok: boolean
+  detail: string
+}
+
+export interface BrevoTestResult {
+  ok: boolean
+  steps: BrevoTestStep[]
+}
+
 // -- Hermes integration --------------------------------------------------
 
 export type HermesStatus = 'healthy' | 'attention' | 'degraded' | 'misconfigured' | 'disabled'
