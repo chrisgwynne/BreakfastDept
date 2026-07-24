@@ -27,6 +27,7 @@ final class BrevoApiMailProvider implements MailProvider
     public function __construct(
         private readonly array $config,
         private readonly HttpClient $http = new HttpClient(),
+        private readonly AttachmentResolver $attachments = new NullAttachmentResolver(),
     ) {
         if (($config['apiKey'] ?? '') === '') {
             throw new RuntimeException('Brevo API key is not configured');
@@ -129,6 +130,19 @@ final class BrevoApiMailProvider implements MailProvider
 
         // Idempotency + correlation without leaking PII.
         $payload['headers']['X-Breakfast-Message'] = $message->uuid;
+
+        // Resolve attachment REFERENCES to bytes and base64-encode them HERE, at
+        // send time — the queue only ever held the reference, never the blob.
+        $attachments = [];
+        foreach ($message->attachments as $ref) {
+            $file = $this->attachments->resolve($ref);
+            if ($file !== null) {
+                $attachments[] = ['name' => $file->filename, 'content' => $file->base64()];
+            }
+        }
+        if ($attachments !== []) {
+            $payload['attachment'] = $attachments;
+        }
 
         return $payload;
     }

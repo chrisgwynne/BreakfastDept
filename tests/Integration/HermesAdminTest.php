@@ -116,12 +116,13 @@ final class HermesAdminTest extends TestCase
     public function testScopeCatalogueGroupedAndComplete(): void
     {
         $scopes = $this->hermes()->scopes();
-        $this->assertSame(13, $scopes['total']);
+        $this->assertSame(17, $scopes['total']);
         $this->assertNotEmpty($scopes['groups']);
 
         $domains = array_column($scopes['groups'], 'domain');
         $this->assertContains('CRM', $domains);
         $this->assertContains('Content', $domains);
+        $this->assertContains('Calendar', $domains);
 
         // Every scope carries a risk + kind + description, and holders are listed.
         foreach ($scopes['groups'] as $group) {

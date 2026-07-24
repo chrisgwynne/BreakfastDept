@@ -4,6 +4,8 @@ import { useRouter } from 'vue-router'
 import { useAuth } from '@/stores/auth'
 import { ApiError } from '@/lib/api'
 import PageHeader from '@/components/PageHeader.vue'
+import BrevoSettings from '@/components/BrevoSettings.vue'
+import StripeSettings from '@/components/StripeSettings.vue'
 
 const auth = useAuth()
 const router = useRouter()
@@ -93,6 +95,9 @@ async function signOut() {
         <p class="note">Access is granted by an administrator and enforced on the server. If you need more,
           ask whoever set up your account.</p>
       </section>
+
+      <BrevoSettings v-if="auth.can('brevo.view')" class="span2" />
+      <StripeSettings v-if="auth.can('admin')" class="span2" />
     </div>
   </div>
 </template>
@@ -121,6 +126,8 @@ async function signOut() {
 .perm__tick { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%;
   background: var(--success-soft); color: var(--success-ink); font-size: 11px; font-weight: 700; }
 .note { font-size: var(--text-sm); color: var(--ink-3); line-height: 1.6; }
+
+.span2 { grid-column: 1 / -1; }
 
 @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } }
 </style>

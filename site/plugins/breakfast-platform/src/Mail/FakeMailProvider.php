@@ -15,10 +15,18 @@ final class FakeMailProvider implements MailProvider
     /** @var list<MailMessage> */
     public array $sent = [];
 
+    /** @var list<MailAttachment> attachments resolved during the last send() */
+    public array $lastAttachments = [];
+
     /** @var list<MailResult> queued outcomes; falls back to accepted */
     private array $scripted = [];
 
     private int $counter = 0;
+
+    public function __construct(
+        private readonly AttachmentResolver $attachments = new NullAttachmentResolver(),
+    ) {
+    }
 
     public function name(): string
     {
@@ -33,6 +41,16 @@ final class FakeMailProvider implements MailProvider
     public function send(MailMessage $message): MailResult
     {
         $this->sent[] = $message;
+
+        // Resolve attachment references exactly as a real provider would, so
+        // tests can assert the genuine PDF bytes were produced at send time.
+        $this->lastAttachments = [];
+        foreach ($message->attachments as $ref) {
+            $file = $this->attachments->resolve($ref);
+            if ($file !== null) {
+                $this->lastAttachments[] = $file;
+            }
+        }
 
         if ($this->scripted !== []) {
             return array_shift($this->scripted);

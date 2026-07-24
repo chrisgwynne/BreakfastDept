@@ -13,12 +13,16 @@
 !/public/media/.gitkeep
 
 # Operational storage — sessions, cache, logs, sqlite, private uploads, queue
+# Encrypted-secret master key — MUST NEVER be committed.
+/storage/secret.key
 /storage/sessions/*
 /storage/cache/*
+/site/cache/*
 /storage/logs/*
 /storage/accounts/*
 /storage/database/*.sqlite
 /storage/database/*.sqlite-*
+/storage/database/.migrate.lock
 /storage/uploads/*
 /storage/queue/*
 /storage/client-previews/*
@@ -39,6 +43,11 @@
 /playwright-report/
 /test-results/
 /playwright/.cache/
+
+# Local tooling phars fetched on-demand (not vendored)
+/phpunit.phar
+/phpstan.phar
+/php-cs-fixer.phar
 
 # OS / editor noise
 .DS_Store
@@ -63,3 +72,10 @@ Thumbs.db
 /admin/*.tsbuildinfo
 /admin/tsconfig.tsbuildinfo
 /public/breakfast-admin/
+/storage/invoices/*
+/storage/proposals/*
+/storage/contracts/*
+/storage/receipts/*
+/storage/client-files/*
+/storage/vault-keys/*
+/storage/change-requests/*

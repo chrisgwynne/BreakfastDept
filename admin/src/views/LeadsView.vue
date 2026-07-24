@@ -1,18 +1,26 @@
 <script setup lang="ts">
-import { onMounted, ref, computed } from 'vue'
-import { api } from '@/lib/api'
+import { onMounted, ref, computed, watch } from 'vue'
+import { api, ApiError } from '@/lib/api'
 import type { Enquiry, ListResponse } from '@/lib/types'
+import { useUi } from '@/stores/ui'
+import { useAuth } from '@/stores/auth'
 import PageHeader from '@/components/PageHeader.vue'
 import DataState from '@/components/DataState.vue'
 import StatusPill from '@/components/StatusPill.vue'
 import Sheet from '@/components/Sheet.vue'
+import NavIcon from '@/components/NavIcon.vue'
 
+const ui = useUi()
+const auth = useAuth()
+const canManage = computed(() => auth.can('crm.manage') || auth.can('admin'))
 const items = ref<Enquiry[]>([])
 const total = ref(0)
 const loading = ref(true)
 const error = ref<string | null>(null)
 const filter = ref<string>('')
 const selected = ref<Enquiry | null>(null)
+// Reload real data whenever a lead is created anywhere in the app.
+watch(() => ui.version.leads, () => load())
 
 const FILTERS = [
   { key: '', label: 'All' },
@@ -45,12 +53,48 @@ function when(iso: string): string {
   return isNaN(d.getTime()) ? iso : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
+const busy = ref('')
+
+async function convertLead() {
+  if (!selected.value || busy.value) return
+  busy.value = 'convert'
+  try {
+    await api.post(`/enquiries/${selected.value.id}/convert`, {})
+    ui.toast('Lead converted to opportunity')
+    selected.value = null
+    await load()
+  } catch (e) {
+    ui.toast(e instanceof ApiError ? e.message : 'Could not convert the lead.')
+  } finally {
+    busy.value = ''
+  }
+}
+
+async function archiveLead() {
+  if (!selected.value || busy.value) return
+  busy.value = 'archive'
+  try {
+    await api.post(`/enquiries/${selected.value.id}/archive`, {})
+    ui.toast('Lead archived')
+    selected.value = null
+    await load()
+  } catch (e) {
+    ui.toast(e instanceof ApiError ? e.message : 'Could not archive the lead.')
+  } finally {
+    busy.value = ''
+  }
+}
+
 onMounted(load)
 </script>
 
 <template>
   <div>
-    <PageHeader eyebrow="Inbox" title="Leads" :sub="`${total} enquir${total === 1 ? 'y' : 'ies'} received`" />
+    <PageHeader eyebrow="Inbox" title="Leads" :sub="`${total} enquir${total === 1 ? 'y' : 'ies'} received`">
+      <template #actions>
+        <button v-if="canManage" class="btn btn--sm btn--primary" @click="ui.openCreate('lead')"><NavIcon name="plus" /> New lead</button>
+      </template>
+    </PageHeader>
 
     <div class="tabs" role="tablist">
       <button v-for="f in FILTERS" :key="f.key" class="tab" :class="{ 'tab--active': filter === f.key }"
@@ -94,7 +138,12 @@ onMounted(load)
         </div>
       </template>
       <template #footer>
-        <a v-if="selected?.email" class="btn btn--primary btn--sm" :href="`mailto:${selected.email}`">Reply by email</a>
+        <a v-if="selected?.email" class="btn btn--sm" :href="`mailto:${selected.email}`">Reply by email</a>
+        <div class="grow"></div>
+        <button v-if="canManage && selected && !['converted', 'archived', 'spam'].includes(selected.status)"
+                class="btn btn--sm" :disabled="!!busy" @click="archiveLead">Archive</button>
+        <button v-if="canManage && selected && selected.status !== 'converted'"
+                class="btn btn--primary btn--sm" :disabled="!!busy" @click="convertLead">{{ busy === 'convert' ? 'Converting…' : 'Convert to opportunity' }}</button>
       </template>
     </Sheet>
   </div>

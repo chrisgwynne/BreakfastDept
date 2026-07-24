@@ -173,12 +173,192 @@ final class Platform
         return $this->service(Queue::class, fn () => new Queue($this->db(), $this->logger()));
     }
 
-    /** @return array<string,mixed> */
-    public function mailConfig(): array
+    public function invoices(): \Breakfast\Platform\Invoicing\Invoices
+    {
+        return $this->service(\Breakfast\Platform\Invoicing\Invoices::class, fn () => new \Breakfast\Platform\Invoicing\Invoices($this->db()));
+    }
+
+    public function proposals(): \Breakfast\Platform\Proposals\Proposals
+    {
+        return $this->service(\Breakfast\Platform\Proposals\Proposals::class, fn () => new \Breakfast\Platform\Proposals\Proposals($this->db()));
+    }
+
+    public function contracts(): \Breakfast\Platform\Contracts\Contracts
+    {
+        return $this->service(\Breakfast\Platform\Contracts\Contracts::class, fn () => new \Breakfast\Platform\Contracts\Contracts($this->db()));
+    }
+
+    public function contractDocuments(): \Breakfast\Platform\Contracts\ContractDocumentService
+    {
+        return $this->service(\Breakfast\Platform\Contracts\ContractDocumentService::class, fn () => new \Breakfast\Platform\Contracts\ContractDocumentService(
+            $this->contracts(),
+            new \Breakfast\Platform\Contracts\ContractPdfRenderer(),
+            $this->storageDir() . '/contracts'
+        ));
+    }
+
+    public function projects(): \Breakfast\Platform\Projects\Projects
+    {
+        return $this->service(\Breakfast\Platform\Projects\Projects::class, fn () => new \Breakfast\Platform\Projects\Projects($this->db()));
+    }
+
+    public function projectConversion(): \Breakfast\Platform\Projects\ProjectConversion
+    {
+        return $this->service(\Breakfast\Platform\Projects\ProjectConversion::class, fn () => new \Breakfast\Platform\Projects\ProjectConversion($this));
+    }
+
+    public function projectTemplates(): \Breakfast\Platform\Projects\ProjectTemplates
+    {
+        return $this->service(\Breakfast\Platform\Projects\ProjectTemplates::class, fn () => new \Breakfast\Platform\Projects\ProjectTemplates($this->db()));
+    }
+
+    public function vault(): \Breakfast\Platform\Vault\Vault
+    {
+        return $this->service(\Breakfast\Platform\Vault\Vault::class, fn () => new \Breakfast\Platform\Vault\Vault(
+            $this->db(),
+            new \Breakfast\Platform\Vault\VaultCrypto($this->storageDir() . '/vault-keys'),
+            $this->audit()
+        ));
+    }
+
+    public function files(): \Breakfast\Platform\Files\FileLibrary
+    {
+        return $this->service(\Breakfast\Platform\Files\FileLibrary::class, fn () => new \Breakfast\Platform\Files\FileLibrary(
+            $this->db(),
+            $this->storageDir() . '/client-files'
+        ));
+    }
+
+    public function onboardingTemplates(): \Breakfast\Platform\Onboarding\OnboardingTemplates
+    {
+        return $this->service(\Breakfast\Platform\Onboarding\OnboardingTemplates::class, fn () => new \Breakfast\Platform\Onboarding\OnboardingTemplates($this->db()));
+    }
+
+    public function onboarding(): \Breakfast\Platform\Onboarding\Onboarding
+    {
+        return $this->service(\Breakfast\Platform\Onboarding\Onboarding::class, fn () => new \Breakfast\Platform\Onboarding\Onboarding($this->db(), $this));
+    }
+
+    public function milestones(): \Breakfast\Platform\Projects\Milestones
+    {
+        return $this->service(\Breakfast\Platform\Projects\Milestones::class, fn () => new \Breakfast\Platform\Projects\Milestones($this->db()));
+    }
+
+    public function projectTasks(): \Breakfast\Platform\Projects\ProjectTasks
+    {
+        return $this->service(\Breakfast\Platform\Projects\ProjectTasks::class, fn () => new \Breakfast\Platform\Projects\ProjectTasks($this->db()));
+    }
+
+    public function changeRequests(): \Breakfast\Platform\ChangeRequests\ChangeRequests
+    {
+        return $this->service(\Breakfast\Platform\ChangeRequests\ChangeRequests::class, fn () => new \Breakfast\Platform\ChangeRequests\ChangeRequests(
+            $this,
+            $this->storageDir() . '/change-requests'
+        ));
+    }
+
+    public function portal(): \Breakfast\Platform\Portal\Portal
+    {
+        return $this->service(\Breakfast\Platform\Portal\Portal::class, fn () => new \Breakfast\Platform\Portal\Portal($this));
+    }
+
+    public function time(): \Breakfast\Platform\Time\TimeTracking
+    {
+        return $this->service(\Breakfast\Platform\Time\TimeTracking::class, fn () => new \Breakfast\Platform\Time\TimeTracking($this));
+    }
+
+    public function retainers(): \Breakfast\Platform\Retainers\Retainers
+    {
+        return $this->service(\Breakfast\Platform\Retainers\Retainers::class, fn () => new \Breakfast\Platform\Retainers\Retainers($this));
+    }
+
+    public function inbox(): \Breakfast\Platform\Operations\Inbox
+    {
+        return $this->service(\Breakfast\Platform\Operations\Inbox::class, fn () => new \Breakfast\Platform\Operations\Inbox($this));
+    }
+
+    public function reporting(): \Breakfast\Platform\Operations\Reporting
+    {
+        return $this->service(\Breakfast\Platform\Operations\Reporting::class, fn () => new \Breakfast\Platform\Operations\Reporting($this));
+    }
+
+    public function automation(): \Breakfast\Platform\Operations\Automation
+    {
+        return $this->service(\Breakfast\Platform\Operations\Automation::class, fn () => new \Breakfast\Platform\Operations\Automation($this));
+    }
+
+    public function stripeSettings(): \Breakfast\Platform\Payments\StripeSettings
+    {
+        return $this->service(\Breakfast\Platform\Payments\StripeSettings::class, fn () => new \Breakfast\Platform\Payments\StripeSettings(
+            $this->settings(),
+            $this->audit()
+        ));
+    }
+
+    public function payments(): \Breakfast\Platform\Payments\PaymentsService
+    {
+        return $this->service(\Breakfast\Platform\Payments\PaymentsService::class, fn () => new \Breakfast\Platform\Payments\PaymentsService(
+            $this,
+            $this->stripeSettings()
+        ));
+    }
+
+    public function proposalConversion(): \Breakfast\Platform\Proposals\ProposalConversion
+    {
+        return $this->service(\Breakfast\Platform\Proposals\ProposalConversion::class, fn () => new \Breakfast\Platform\Proposals\ProposalConversion($this));
+    }
+
+    public function proposalDocuments(): \Breakfast\Platform\Proposals\ProposalDocumentService
+    {
+        return $this->service(\Breakfast\Platform\Proposals\ProposalDocumentService::class, fn () => new \Breakfast\Platform\Proposals\ProposalDocumentService(
+            $this->proposals(),
+            new \Breakfast\Platform\Proposals\ProposalPdfRenderer(),
+            $this->db(),
+            $this->storageDir() . '/proposals'
+        ));
+    }
+
+    public function invoiceDocuments(): \Breakfast\Platform\Invoicing\InvoiceDocumentService
+    {
+        return $this->service(\Breakfast\Platform\Invoicing\InvoiceDocumentService::class, fn () => new \Breakfast\Platform\Invoicing\InvoiceDocumentService(
+            $this->invoices(),
+            new \Breakfast\Platform\Invoicing\InvoicePdfRenderer(),
+            new \Breakfast\Platform\Invoicing\InvoiceDocumentStore($this->db(), $this->storageDir() . '/invoices'),
+            $this->activities(),
+            $this->audit()
+        ));
+    }
+
+    /**
+     * The environment/config-sourced mail settings (no application overlay).
+     *
+     * @return array<string,mixed>
+     */
+    public function rawMailConfig(): array
     {
         $config = $this->config('mail', []);
 
         return is_array($config) ? $config : [];
+    }
+
+    /**
+     * The effective mail config: environment defaults with any application-managed
+     * Brevo settings (key, sender, base URL) overlaid on top, so a key configured
+     * from Settings actually takes effect. Falls back to the raw config if the
+     * settings store isn't available yet (e.g. before the schema exists).
+     *
+     * @return array<string,mixed>
+     */
+    public function mailConfig(): array
+    {
+        $config = $this->rawMailConfig();
+        try {
+            $overlay = $this->brevoSettings()->effectiveMailOverlay();
+        } catch (\Throwable) {
+            $overlay = [];
+        }
+
+        return array_merge($config, $overlay);
     }
 
     public function isProduction(): bool
@@ -188,7 +368,22 @@ final class Platform
 
     public function mailProvider(): MailProvider
     {
-        return $this->service(MailProvider::class, fn () => MailProviderFactory::make($this->mailConfig(), $this->isProduction()));
+        return $this->service(MailProvider::class, fn () => MailProviderFactory::make($this->mailConfig(), $this->isProduction(), $this->attachmentResolver()));
+    }
+
+    /**
+     * Resolves persisted attachment references (e.g. "invoice:<uuid>") to real
+     * file bytes at send time. Wired into the mail provider so the queue only
+     * ever stores a reference, never a base64 blob.
+     */
+    public function attachmentResolver(): \Breakfast\Platform\Mail\AttachmentResolver
+    {
+        return $this->service(\Breakfast\Platform\Mail\AttachmentResolver::class, fn () => new \Breakfast\Platform\Mail\CompositeAttachmentResolver(
+            new \Breakfast\Platform\Invoicing\InvoiceAttachmentResolver(
+                new \Breakfast\Platform\Invoicing\InvoiceDocumentStore($this->db(), $this->storageDir() . '/invoices')
+            ),
+            new \Breakfast\Platform\Contracts\ContractAttachmentResolver($this->contractDocuments())
+        ));
     }
 
     public function outbound(): OutboundMessageRepository
@@ -249,6 +444,31 @@ final class Platform
     public function audit(): AuditLog
     {
         return $this->service(AuditLog::class, fn () => new AuditLog($this->db()));
+    }
+
+    public function calendar(): \Breakfast\Platform\Calendar\CalendarService
+    {
+        return $this->service(\Breakfast\Platform\Calendar\CalendarService::class, fn () => new \Breakfast\Platform\Calendar\CalendarService(
+            $this->db(),
+            $this->activities()
+        ));
+    }
+
+    public function settings(): \Breakfast\Platform\Settings\SettingsStore
+    {
+        return $this->service(\Breakfast\Platform\Settings\SettingsStore::class, fn () => new \Breakfast\Platform\Settings\SettingsStore(
+            $this->db(),
+            new \Breakfast\Platform\Settings\SecretBox($this->storageDir())
+        ));
+    }
+
+    public function brevoSettings(): \Breakfast\Platform\Settings\BrevoSettings
+    {
+        return $this->service(\Breakfast\Platform\Settings\BrevoSettings::class, fn () => new \Breakfast\Platform\Settings\BrevoSettings(
+            $this->settings(),
+            $this->audit(),
+            $this->rawMailConfig()
+        ));
     }
 
     public function webhooks(): WebhookDispatcher
@@ -362,7 +582,8 @@ final class Platform
             $this->previewStorage(),
             $this->previewPasswords(),
             $this->previewActivity(),
-            $this->previewConfig()
+            $this->previewConfig(),
+            $this->activities()
         ));
     }
 

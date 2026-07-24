@@ -22,6 +22,8 @@ const paths: Record<string, string> = {
   plug: 'M9 3v5M15 3v5M7 8h10v3a5 5 0 01-10 0zM12 16v5',
   key: 'M14 7a4 4 0 11-3.8 5.2L4 18.4V21h2.6l.9-.9M9 15l2-2',
   shield: 'M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z',
+  receipt: 'M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6M9 16h4',
+  calendar: 'M4 5h16v15H4zM4 9h16M8 3v4M16 3v4M8 13h.01M12 13h.01M16 13h.01M8 16h.01M12 16h.01',
 }
 defineProps<{ name: string }>()
 </script>

@@ -171,6 +171,135 @@ final class AdminApiTest extends TestCase
         $this->assertIsArray($out['data']['items']);
     }
 
+    public function testInvoiceEndpointsRequireAuth(): void
+    {
+        foreach (['invoices', 'invoices/settings'] as $path) {
+            $out = $this->call($path);
+            $this->assertSame(401, $out['code'], "$path must require authentication");
+        }
+    }
+
+    public function testInvoiceListAndSettingsAreShapedForAnAdmin(): void
+    {
+        $this->kirby->impersonate('kirby');
+
+        $list = $this->call('invoices');
+        $this->assertSame(200, $list['code']);
+        $this->assertArrayHasKey('items', $list['data']);
+        $this->assertIsArray($list['data']['items']);
+
+        $settings = $this->call('invoices/settings');
+        $this->assertSame(200, $settings['code']);
+        foreach (['currency', 'invoice_prefix', 'vat_registered', 'default_terms_days'] as $key) {
+            $this->assertArrayHasKey($key, $settings['data']['settings']);
+        }
+    }
+
+    public function testInvoiceDetailFor404Id(): void
+    {
+        $this->kirby->impersonate('kirby');
+        $out = $this->call('invoices/does-not-exist');
+        $this->assertSame(404, $out['code']);
+    }
+
+    public function testInvoicePdfVersionsEndpointIsRoutedForAnAdmin(): void
+    {
+        $this->kirby->impersonate('kirby');
+        // GET version listing routes and returns an items array (empty until a
+        // document is generated). Write flows (issue → generate, draft,
+        // regenerate) are proven at the service layer in InvoiceDocumentsTest
+        // and end to end in the Playwright invoice journeys.
+        $inv = breakfast()->invoices()->create([
+            'bill_to_name' => 'Roberts Cafe',
+            'items' => [['description' => 'Website', 'quantity' => 1, 'unit_price' => 1000, 'tax_rate' => 20]],
+        ], 'kirby@test');
+        $out = $this->call('invoices/' . (string) $inv['uuid'] . '/pdf/versions');
+        $this->assertSame(200, $out['code']);
+        $this->assertArrayHasKey('items', $out['data']);
+        $this->assertIsArray($out['data']['items']);
+    }
+
+    public function testWebsiteEndpointsRequireAuth(): void
+    {
+        foreach (['website', 'website/page/home'] as $path) {
+            $out = $this->call($path);
+            $this->assertSame(401, $out['code'], "$path must require authentication");
+        }
+    }
+
+    public function testWebsiteIndexAndPageLoadAreShaped(): void
+    {
+        $this->kirby->impersonate('kirby');
+
+        $index = $this->call('website');
+        $this->assertSame(200, $index['code']);
+        $ids = array_column($index['data']['items'], 'id');
+        $this->assertContains('site', $ids);
+        $this->assertContains('home', $ids);
+
+        $home = $this->call('website/page/home');
+        $this->assertSame(200, $home['code']);
+        $this->assertArrayHasKey('fields', $home['data']);
+        $this->assertArrayHasKey('readonly', $home['data']);
+        $this->assertIsArray($home['data']['fields']);
+    }
+
+    public function testWebsiteUnknownPageIs404(): void
+    {
+        $this->kirby->impersonate('kirby');
+        $out = $this->call('website/page/does-not-exist');
+        $this->assertSame(404, $out['code']);
+    }
+
+    public function testBrevoSettingsRequireAuth(): void
+    {
+        $out = $this->call('settings/brevo');
+        $this->assertSame(401, $out['code']);
+    }
+
+    public function testCalendarRequiresAuth(): void
+    {
+        $out = $this->call('calendar/events');
+        $this->assertSame(401, $out['code']);
+    }
+
+    public function testSearchRequiresAuth(): void
+    {
+        $out = $this->call('search');
+        $this->assertSame(401, $out['code']);
+    }
+
+    public function testSearchEndpointIsRoutedAndShapedForAnAdmin(): void
+    {
+        $this->kirby->impersonate('kirby');
+        $out = $this->call('search');
+        $this->assertSame(200, $out['code']);
+        $this->assertArrayHasKey('items', $out['data']);
+        $this->assertIsArray($out['data']['items']);
+    }
+
+    public function testCalendarRangeReturnsItemsForAnAdmin(): void
+    {
+        $this->kirby->impersonate('kirby');
+        $out = $this->call('calendar/events');
+        $this->assertSame(200, $out['code']);
+        $this->assertArrayHasKey('items', $out['data']);
+        $this->assertIsArray($out['data']['items']);
+    }
+
+    public function testBrevoOverviewNeverLeaksTheKeyForAnAdmin(): void
+    {
+        $this->kirby->impersonate('kirby');
+        // Seed a key through the service, then read the API overview.
+        breakfast()->brevoSettings()->setKey('xkeysib-APILEAKCHECK-0000abcd9999', 'kirby');
+
+        $out = $this->call('settings/brevo');
+        $this->assertSame(200, $out['code']);
+        $this->assertTrue($out['data']['brevo']['configured']);
+        $this->assertSame('••••9999', $out['data']['brevo']['key_hint']);
+        $this->assertStringNotContainsString('APILEAKCHECK', json_encode($out['data']) ?: '');
+    }
+
     private function rrmdir(string $dir): void
     {
         if (!is_dir($dir)) {

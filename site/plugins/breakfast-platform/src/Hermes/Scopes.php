@@ -18,6 +18,12 @@ final class Scopes
     public const CRM_TASKS     = 'crm:tasks';
     public const CRM_CLASSIFY  = 'crm:classify';
     public const CRM_EXPORT    = 'crm:export';
+    // CRM record creation — Hermes may CREATE new leads/contacts/companies through
+    // the same validated, transactional, audited service a human uses. It may
+    // never delete, merge, or edit protected/financial fields.
+    public const CRM_LEADS_CREATE     = 'crm:leads:create';
+    public const CRM_CONTACTS_CREATE  = 'crm:contacts:create';
+    public const CRM_COMPANIES_CREATE = 'crm:companies:create';
     public const WEBHOOKS_TEST = 'webhooks:test';
 
     // Client Previews — read/summarise/analyse and DRAFT only. Hermes may never
@@ -28,6 +34,11 @@ final class Scopes
     public const PREVIEWS_READ    = 'previews:read';
     public const PREVIEWS_ANALYSE = 'previews:analyse';
     public const PREVIEWS_DRAFT   = 'previews:draft';
+
+    // Calendar — Hermes may CREATE a tentative internal event (follow-up, reminder,
+    // proposed call) for human review. It may never invite external attendees,
+    // email clients, cancel/reschedule confirmed meetings, or delete events.
+    public const CALENDAR_CREATE = 'calendar:events:create';
 
     /** @return list<string> */
     public static function all(): array
@@ -41,11 +52,15 @@ final class Scopes
             self::CRM_TASKS,
             self::CRM_CLASSIFY,
             self::CRM_EXPORT,
+            self::CRM_LEADS_CREATE,
+            self::CRM_CONTACTS_CREATE,
+            self::CRM_COMPANIES_CREATE,
             self::WEBHOOKS_TEST,
             self::PREVIEWS_SUMMARY,
             self::PREVIEWS_READ,
             self::PREVIEWS_ANALYSE,
             self::PREVIEWS_DRAFT,
+            self::CALENDAR_CREATE,
         ];
     }
 

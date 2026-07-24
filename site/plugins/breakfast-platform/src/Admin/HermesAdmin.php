@@ -199,11 +199,15 @@ final class HermesAdmin
         Scopes::CRM_TASKS        => ['domain' => 'CRM',      'label' => 'Manage tasks',        'description' => 'Create and update follow-up tasks.',                                'risk' => 'medium', 'kind' => 'write'],
         Scopes::CRM_CLASSIFY     => ['domain' => 'CRM',      'label' => 'Classify enquiries',  'description' => 'Triage/classify incoming enquiries (status, spam, summary).',       'risk' => 'medium', 'kind' => 'write'],
         Scopes::CRM_EXPORT       => ['domain' => 'CRM',      'label' => 'Export CRM',          'description' => 'Read CRM data in bulk for export. Grant with care.',                'risk' => 'high',   'kind' => 'read'],
+        Scopes::CRM_LEADS_CREATE     => ['domain' => 'CRM',  'label' => 'Create leads',        'description' => 'Create a new lead (contact + optional company + enquiry) via the same validated, audited service a human uses. Never deletes, merges or edits existing records.', 'risk' => 'medium', 'kind' => 'write'],
+        Scopes::CRM_CONTACTS_CREATE  => ['domain' => 'CRM',  'label' => 'Create contacts',     'description' => 'Create a new contact (de-duplicated by email, optional company link). Never deletes or merges.', 'risk' => 'medium', 'kind' => 'write'],
+        Scopes::CRM_COMPANIES_CREATE => ['domain' => 'CRM',  'label' => 'Create companies',    'description' => 'Create (or find by name) a company. Never deletes or merges.',       'risk' => 'medium', 'kind' => 'write'],
         Scopes::WEBHOOKS_TEST    => ['domain' => 'Webhooks', 'label' => 'Test webhooks',       'description' => 'Trigger a harmless test webhook to verify wiring.',                 'risk' => 'low',    'kind' => 'write'],
         Scopes::PREVIEWS_SUMMARY => ['domain' => 'Previews', 'label' => 'Previews summary',    'description' => 'Read client-preview counts by status.',                            'risk' => 'low',    'kind' => 'read'],
         Scopes::PREVIEWS_READ    => ['domain' => 'Previews', 'label' => 'Read previews',       'description' => 'Read client-preview details and metadata.',                        'risk' => 'medium', 'kind' => 'read'],
         Scopes::PREVIEWS_ANALYSE => ['domain' => 'Previews', 'label' => 'Analyse previews',    'description' => 'Analyse client-preview content and engagement.',                    'risk' => 'medium', 'kind' => 'read'],
         Scopes::PREVIEWS_DRAFT   => ['domain' => 'Previews', 'label' => 'Draft previews',      'description' => 'Create an UNPUBLISHED preview draft awaiting human review. Never publishes, uploads files, sets passwords or sends invitations.', 'risk' => 'medium', 'kind' => 'draft'],
+        Scopes::CALENDAR_CREATE  => ['domain' => 'Calendar', 'label' => 'Create events',       'description' => 'Create a TENTATIVE internal calendar event (follow-up, reminder, proposed call) for review. Never invites external attendees, emails clients, cancels/reschedules confirmed meetings or deletes events.', 'risk' => 'medium', 'kind' => 'draft'],
     ];
 
     // ==================================================================

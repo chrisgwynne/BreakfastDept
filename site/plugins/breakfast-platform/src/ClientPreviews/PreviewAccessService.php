@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Breakfast\Platform\ClientPreviews;
 
+use Breakfast\Platform\Crm\ActivityRepository;
 use Breakfast\Platform\Support\Clock;
 
 /**
@@ -31,8 +32,12 @@ final class PreviewAccessService
         private readonly PreviewPasswordService $passwords,
         private readonly PreviewActivityRepository $activity,
         private readonly array $config,
+        private readonly ?ActivityRepository $crmActivities = null,
     ) {
     }
+
+    /** Only bridge a "returned to view" event to the CRM after this quiet period. */
+    private const RETURN_AFTER_SECONDS = 6 * 3600;
 
     /**
      * @param array{token?:?string,ip?:?string,ua?:?string,referer_host?:?string} $context
@@ -98,7 +103,12 @@ final class PreviewAccessService
 
         $this->record($previewUuid, $versionUuid, $eventType, $requestPath, 200, $context, (int) ($preview['analytics_enabled'] ?? 1));
         if ($isEntry) {
+            // Capture the pre-increment state so the CRM bridge can tell a first
+            // view from a return, then record the page view.
+            $firstView  = (int) ($preview['view_count'] ?? 0) === 0;
+            $lastViewed = (string) ($preview['last_viewed_at'] ?? '');
             $this->previews->recordView($previewUuid);
+            $this->bridgeToCrm($preview, $firstView, $lastViewed);
         }
 
         return [
@@ -111,6 +121,50 @@ final class PreviewAccessService
             'version_uuid' => $versionUuid,
             'is_entry'     => $isEntry,
         ];
+    }
+
+    /**
+     * Bridge a meaningful preview page-view onto the linked client's CRM activity
+     * timeline. Only genuine page (entry) views reach here — never asset requests.
+     * A first-ever view is always recorded; a later view is only recorded after a
+     * quiet period, so a client re-reading the page doesn't spam the timeline.
+     * Failure-isolated: a CRM hiccup must never break serving the preview.
+     *
+     * @param array<string,mixed> $preview
+     */
+    private function bridgeToCrm(array $preview, bool $firstView, string $lastViewed): void
+    {
+        if ($this->crmActivities === null) {
+            return;
+        }
+        $contact = (string) ($preview['contact_uuid'] ?? '');
+        $company = (string) ($preview['company_uuid'] ?? '');
+        if ($contact === '' && $company === '') {
+            return; // unlinked internal preview — nothing to attach to
+        }
+
+        if (!$firstView) {
+            $ts = $lastViewed !== '' ? strtotime($lastViewed) : false;
+            if ($ts !== false && (time() - $ts) < self::RETURN_AFTER_SECONDS) {
+                return; // recent repeat view — don't add noise
+            }
+        }
+
+        $name    = (string) ($preview['client_display_name'] ?? $preview['name'] ?? 'preview');
+        $type    = $firstView ? 'preview.first_viewed' : 'preview.viewed';
+        $summary = $firstView ? "Client opened the “{$name}” preview for the first time" : "Client returned to the “{$name}” preview";
+        $meta    = ['preview' => (string) ($preview['uuid'] ?? '')];
+
+        try {
+            if ($contact !== '') {
+                $this->crmActivities->record('contact', $contact, $type, $summary, 'system', 'preview', $meta);
+            }
+            if ($company !== '') {
+                $this->crmActivities->record('company', $company, $type, $summary, 'system', 'preview', $meta);
+            }
+        } catch (\Throwable) {
+            // Never let CRM bridging affect the visitor's request.
+        }
     }
 
     /**

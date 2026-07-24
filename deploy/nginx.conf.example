@@ -14,6 +14,19 @@ server {
     root /var/www/breakfast/public;
     index index.php;
 
+    # Baseline security headers (server-level defence in depth; the app also
+    # emits a per-request CSP with a nonce on its HTML responses). `always` so
+    # they are sent on error responses too.
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy "geolocation=(), microphone=(), camera=(), payment=(), usb=(), interest-cohort=()" always;
+    # HSTS — safe here because this server block is HTTPS-only and HTTP is
+    # redirected. Add `; preload` only after submitting to the preload list.
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    # X-Powered-By is stripped from PHP-FPM responses via fastcgi_hide_header
+    # in the PHP location block below.
+
     # Deny access to anything that must never be public. With a public/ docroot
     # these paths are already unreachable; these rules are defence in depth.
     location ~ /\.(?!well-known) { deny all; }

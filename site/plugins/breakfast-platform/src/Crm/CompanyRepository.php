@@ -99,17 +99,58 @@ final class CompanyRepository extends Repository
     /**
      * @return array<int,array<string,mixed>>
      */
-    public function all(int $limit = 200, int $offset = 0): array
+    public function all(int $limit = 200, int $offset = 0, bool $includeArchived = false): array
     {
+        $where = $includeArchived ? '' : 'WHERE c.archived_at IS NULL';
+
         return $this->db->all(
             'SELECT c.*, (SELECT COUNT(*) FROM contacts WHERE company_uuid = c.uuid) AS contact_count
-             FROM companies c ORDER BY c.name COLLATE NOCASE ASC LIMIT :l OFFSET :o',
+             FROM companies c ' . $where . ' ORDER BY c.name COLLATE NOCASE ASC LIMIT :l OFFSET :o',
             ['l' => $limit, 'o' => $offset]
         );
     }
 
-    public function count(): int
+    public function count(bool $includeArchived = false): int
     {
-        return (int) $this->db->scalar('SELECT COUNT(*) FROM companies');
+        $where = $includeArchived ? '' : 'WHERE archived_at IS NULL';
+
+        return (int) $this->db->scalar('SELECT COUNT(*) FROM companies ' . $where);
+    }
+
+    /**
+     * Soft-archive a company (kept, hidden from active lists, restorable).
+     *
+     * @return array<string,mixed>|null
+     */
+    public function archive(string $uuid): ?array
+    {
+        $this->db->run('UPDATE companies SET archived_at = :n, updated_at = :n WHERE uuid = :u AND archived_at IS NULL', ['n' => $this->now(), 'u' => $uuid]);
+
+        return $this->find($uuid);
+    }
+
+    /**
+     * Restore a previously archived company.
+     *
+     * @return array<string,mixed>|null
+     */
+    public function restore(string $uuid): ?array
+    {
+        $this->db->run('UPDATE companies SET archived_at = NULL, updated_at = :n WHERE uuid = :u', ['n' => $this->now(), 'u' => $uuid]);
+
+        return $this->find($uuid);
+    }
+
+    /**
+     * Count of records linked to a company, for archive/relationship warnings.
+     *
+     * @return array{contacts:int,opportunities:int}
+     */
+    public function relatedCounts(string $uuid): array
+    {
+        return [
+            'contacts'      => (int) $this->db->scalar('SELECT COUNT(*) FROM contacts WHERE company_uuid = :u', ['u' => $uuid]),
+            'opportunities' => (int) $this->db->scalar('SELECT COUNT(*) FROM opportunities WHERE company_uuid = :u AND archived_at IS NULL', ['u' => $uuid]),
+        ];
     }
 }

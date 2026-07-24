@@ -1,10 +1,16 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, computed, watch } from 'vue'
 import { api, ApiError } from '@/lib/api'
 import type { EmailLog } from '@/lib/types'
+import { useUi } from '@/stores/ui'
+import { useAuth } from '@/stores/auth'
 import PageHeader from '@/components/PageHeader.vue'
 import DataState from '@/components/DataState.vue'
 import StatusPill from '@/components/StatusPill.vue'
+
+const ui = useUi()
+const auth = useAuth()
+const canSend = computed(() => auth.can('email.send') || auth.can('admin'))
 
 const data = ref<EmailLog | null>(null)
 const loading = ref(true)
@@ -29,12 +35,17 @@ function when(iso: string): string {
   return isNaN(d.getTime()) ? iso : d.toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
+watch(() => ui.version.emails, () => load())
 onMounted(load)
 </script>
 
 <template>
   <div>
-    <PageHeader eyebrow="Messages" title="Email" sub="Every message the studio has sent, and whether it landed." />
+    <PageHeader eyebrow="Messages" title="Email" sub="Every message the studio has sent, and whether it landed.">
+      <template #actions>
+        <button v-if="canSend" class="btn btn--sm btn--primary" @click="ui.openCreate('email')">Compose</button>
+      </template>
+    </PageHeader>
 
     <div v-if="data" class="bar">
       <div class="bar__stat"><span class="faint">Provider</span><strong>{{ data.provider || '—' }}</strong></div>

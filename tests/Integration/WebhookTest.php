@@ -80,4 +80,56 @@ final class WebhookTest extends PlatformTestCase
         $endpoint = $this->platform->db()->one('SELECT * FROM webhook_endpoints WHERE uuid = :u', ['u' => $endpointId]);
         $this->assertSame(1, (int) $endpoint['consecutive_fails']);
     }
+
+    /**
+     * SSRF guard (audit): a literal internal IP or a non-http(s) scheme is
+     * refused at registration, so an operator (or a scoped Hermes caller)
+     * cannot point a webhook at internal infrastructure.
+     */
+    public function testRegisterRejectsInternalAndNonHttpUrls(): void
+    {
+        $wh = $this->platform->webhooks();
+        foreach (['http://169.254.169.254/latest/meta-data/', 'http://127.0.0.1:9000/x', 'https://[::1]/x', 'file:///etc/passwd', 'gopher://10.0.0.1/'] as $bad) {
+            try {
+                $wh->registerEndpoint('Bad', $bad, ['*']);
+                $this->fail("expected rejection for $bad");
+            } catch (\InvalidArgumentException) {
+                $this->addToAssertionCount(1);
+            }
+        }
+        // Nothing was persisted.
+        $this->assertCount(0, $this->platform->db()->all('SELECT * FROM webhook_endpoints'));
+    }
+
+    /**
+     * Even if a hostile row reaches delivery (host resolving to an internal
+     * address), the real HTTP path resolves + validates and blocks the request
+     * rather than connecting. We assert the guard returns the blocked marker by
+     * driving the resolver through a link-local literal that bypasses the
+     * registration guard via the DB directly.
+     */
+    public function testDeliverBlocksHostResolvingToInternalAddress(): void
+    {
+        // Insert an endpoint row directly (bypassing registration) with an
+        // internal literal host, as a crafted/compromised row would look.
+        $wh = $this->platform->webhooks();
+        $wh->registerEndpoint('Legit', 'https://example.test/hook', ['*']);
+        // Rewrite its URL to an internal target after the fact.
+        $this->platform->db()->run("UPDATE webhook_endpoints SET url = 'http://127.0.0.1:9/x'");
+        $wh->dispatch('task.created', ['id' => 't1']);
+        $delivery = $this->platform->db()->one('SELECT * FROM webhook_deliveries');
+
+        // Real HTTP path (no fake client) must block, not connect → recorded as
+        // a failed attempt with the blocked marker, and it throws for retry.
+        WebhookDispatcher::useHttpClient(null);
+        try {
+            $wh->deliver($delivery['uuid']);
+            $this->fail('expected a RuntimeException (blocked delivery)');
+        } catch (\RuntimeException) {
+            $this->addToAssertionCount(1);
+        }
+        $after = $this->platform->db()->one('SELECT * FROM webhook_deliveries WHERE uuid = :u', ['u' => $delivery['uuid']]);
+        $this->assertSame('blocked_url', $after['last_error']);
+        $this->assertNotSame('delivered', $after['status']);
+    }
 }

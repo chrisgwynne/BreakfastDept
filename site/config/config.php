@@ -48,11 +48,13 @@ return [
     // platform plugin, which makes the old `/panel` location return 404).
     'panel' => [
         'slug'    => $panelSlug,
-        // Panel self-signup installer. ON by default so the first admin can be
-        // created from the web with no config editing. It is self-securing:
-        // Kirby only shows it while there are ZERO users, so it closes itself the
-        // moment your account exists. Set PANEL_INSTALL=false to force it off.
-        'install' => Env::bool('PANEL_INSTALL', true),
+        // Panel self-signup installer. Fail-closed: OFF in production by default
+        // (keyed off APP_ENV, not a hostname-loaded override), ON only in
+        // development so the first admin can be created without config editing.
+        // It is additionally self-securing — Kirby only renders it while there
+        // are ZERO users. Set PANEL_INSTALL=true to force it on for a one-off
+        // production bootstrap, then unset it.
+        'install' => Env::bool('PANEL_INSTALL', $isProduction === false),
         // No branded menu / home / CSS: the day-to-day admin is the standalone
         // Breakfast Admin app at /breakfast-admin. The Kirby Panel here is the
         // vanilla, undisclosed super-admin console only.
@@ -61,9 +63,22 @@ return [
     // Secure session cookies. HTTPS-only in production.
     'cookie' => [
         'samesite' => 'Lax',
+        // Mark cookies Secure in production so they are never sent over plain
+        // HTTP (the site is HTTPS-only there).
+        'secure' => $isProduction,
     ],
     'auth' => [
         'methods' => ['password' => ['2fa' => false]],
+    ],
+
+    // Explicit admin/Panel session lifetimes (rather than relying on framework
+    // defaults). A normal login expires 2h after creation and after 30 min of
+    // inactivity; a "remember me" login lasts 14 days (no inactivity timeout).
+    // All three are env-tunable so an operator can tighten them further.
+    'session' => [
+        'durationNormal' => Env::int('SESSION_DURATION', 7200),          // absolute lifetime of a normal session
+        'timeout'        => Env::int('SESSION_TIMEOUT', 1800),           // inactivity timeout for a normal session
+        'durationLong'   => Env::int('SESSION_DURATION_LONG', 1209600),  // "remember me" absolute lifetime
     ],
 
     // Content cache — safe for public pages; the Panel/CRM/API are never cached.

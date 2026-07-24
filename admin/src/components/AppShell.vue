@@ -1,22 +1,34 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter, RouterLink, RouterView } from 'vue-router'
+import { api } from '@/lib/api'
 import { useAuth } from '@/stores/auth'
 import NavIcon from '@/components/NavIcon.vue'
 import CommandPalette from '@/components/CommandPalette.vue'
+import NewMenu from '@/components/NewMenu.vue'
+import CreateForms from '@/components/CreateForms.vue'
+import { useUi } from '@/stores/ui'
 
 const auth = useAuth()
 const route = useRoute()
 const router = useRouter()
+const ui = useUi()
 const palette = ref<InstanceType<typeof CommandPalette> | null>(null)
 
 const nav = [
   { to: '/', name: 'dashboard', label: 'Dashboard', icon: 'grid' },
+  { to: '/inbox', name: 'inbox', label: 'Inbox', icon: 'inbox' },
   { to: '/leads', name: 'leads', label: 'Leads', icon: 'inbox' },
   { to: '/crm', name: 'crm', label: 'CRM', icon: 'users' },
   { to: '/pipeline', name: 'pipeline', label: 'Pipeline', icon: 'columns' },
   { to: '/tasks', name: 'tasks', label: 'Tasks', icon: 'check' },
+  { to: '/calendar', name: 'calendar', label: 'Calendar', icon: 'calendar', perm: 'calendar.view' },
   { to: '/previews', name: 'previews', label: 'Client Previews', icon: 'window' },
+  { to: '/projects', name: 'projects', label: 'Projects', icon: 'grid' },
+  { to: '/proposals', name: 'proposals', label: 'Proposals', icon: 'columns', perm: 'crm.manage' },
+  { to: '/contracts', name: 'contracts', label: 'Contracts', icon: 'check', perm: 'crm.manage' },
+  { to: '/invoices', name: 'invoices', label: 'Invoices', icon: 'receipt', perm: 'invoices.view' },
+  { to: '/vault', name: 'vault', label: 'Vault', icon: 'cog', perm: 'crm.manage' },
   { to: '/email', name: 'email', label: 'Email', icon: 'mail' },
   { to: '/website', name: 'website', label: 'Website', icon: 'globe' },
   { to: '/reports', name: 'reports', label: 'Reports', icon: 'chart' },
@@ -27,6 +39,18 @@ const visibleNav = computed(() => nav.filter((n) => !n.perm || auth.can(n.perm))
 
 const mobileOpen = ref(false)
 const menuOpen = ref(false)
+
+// Live inbox badge — the count of items needing staff action.
+const inboxCount = ref(0)
+async function refreshInbox() {
+  try { inboxCount.value = (await api.get<{ summary: { total: number } }>('/inbox')).summary.total }
+  catch { /* non-fatal */ }
+}
+onMounted(refreshInbox)
+// Keep the badge live: re-check the count on every navigation, so it reflects
+// both newly-arrived items (arriving at the inbox) and ones just handled
+// (leaving it). One lightweight request per route change.
+watch(() => route.name, () => refreshInbox())
 
 async function doLogout() {
   await auth.logout()
@@ -47,6 +71,7 @@ async function doLogout() {
           :class="{ 'navlink--active': route.name === item.name }" @click="mobileOpen = false">
           <NavIcon :name="item.icon" class="navlink__icon" />
           <span>{{ item.label }}</span>
+          <span v-if="item.name === 'inbox' && inboxCount > 0" class="navbadge" data-test="inbox-badge">{{ inboxCount }}</span>
         </RouterLink>
       </nav>
       <RouterLink to="/settings" class="navlink navlink--foot" @click="mobileOpen = false">
@@ -67,8 +92,7 @@ async function doLogout() {
           <kbd>⌘K</kbd>
         </button>
         <div class="grow"></div>
-        <button class="btn btn--sm btn--primary topbar__new" @click="palette?.open()"><NavIcon name="plus" /><span>New</span></button>
-        <button class="iconbtn" aria-label="Notifications"><NavIcon name="bell" /></button>
+        <NewMenu />
         <div class="acct">
           <button class="acct__btn" @click="menuOpen = !menuOpen" :aria-expanded="menuOpen">
             <span class="acct__avatar">{{ auth.user?.initials || '··' }}</span>
@@ -96,8 +120,20 @@ async function doLogout() {
     </div>
 
     <CommandPalette ref="palette" />
+    <CreateForms />
+
+    <!-- Accurate post-write feedback -->
+    <transition name="fade">
+      <div v-if="ui.toastMsg" class="app-toast">{{ ui.toastMsg }}</div>
+    </transition>
   </div>
 </template>
+
+<style>
+.app-toast { position: fixed; bottom: var(--sp-6); left: 50%; transform: translateX(-50%); z-index: var(--z-toast);
+  background: var(--ink); color: var(--paper); padding: 10px var(--sp-4); border-radius: var(--r-pill);
+  font-size: var(--text-sm); font-weight: 500; box-shadow: var(--sh-3); }
+</style>
 
 <style scoped>
 .shell { display: grid; grid-template-columns: var(--rail-w) 1fr; min-height: 100vh; background: var(--paper); }
@@ -116,6 +152,7 @@ async function doLogout() {
 .navlink:hover { background: var(--surface-2); color: var(--ink); text-decoration: none; }
 .navlink--active { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: var(--sh-1); }
 .navlink--active .navlink__icon { color: var(--purple); }
+.navbadge { margin-left: auto; background: var(--butter); color: var(--ink); font-size: 11px; font-weight: 700; border-radius: var(--r-pill); padding: 0 7px; min-width: 18px; text-align: center; }
 .navlink__icon { width: 18px; height: 18px; color: var(--ink-3); flex: none; }
 .navlink--foot { margin-top: auto; }
 

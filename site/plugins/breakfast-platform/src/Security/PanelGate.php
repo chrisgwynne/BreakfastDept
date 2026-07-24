@@ -67,6 +67,355 @@ final class PanelGate
         return $user !== null && $user->isAdmin();
     }
 
+    /**
+     * Invoicing. Viewing and managing invoices both require the CRM 'manage'
+     * grant (they contain financial + client billing data). Enforced server-side
+     * on every invoice route.
+     */
+    public static function canViewInvoices(?User $user): bool
+    {
+        return self::canManage($user);
+    }
+
+    public static function canManageInvoices(?User $user): bool
+    {
+        return self::canManage($user);
+    }
+
+    /**
+     * Granular invoice-PDF permissions. Downloading/previewing a generated
+     * document maps to invoice 'view'; generating a draft preview or first
+     * issued PDF maps to invoice 'manage'; regenerating an ISSUED invoice's
+     * document (which supersedes the current version while preserving the
+     * original) is admin-only, because it changes the official record set.
+     * Enforced server-side on every PDF route.
+     */
+    public static function canViewInvoicePdf(?User $user): bool
+    {
+        return self::canViewInvoices($user);
+    }
+
+    public static function canGenerateInvoicePdf(?User $user): bool
+    {
+        return self::canManageInvoices($user);
+    }
+
+    public static function canRegenerateInvoicePdf(?User $user): bool
+    {
+        return $user !== null && $user->isAdmin();
+    }
+
+    /**
+     * Proposals & quotes. Viewing and managing both require the CRM 'manage'
+     * grant (they carry commercial terms + client billing figures). Sending,
+     * withdrawing and converting are managing actions. Enforced server-side on
+     * every proposal route; the public client link is a separate, tokened path.
+     */
+    public static function canViewProposals(?User $user): bool
+    {
+        return self::canManage($user);
+    }
+
+    public static function canManageProposals(?User $user): bool
+    {
+        return self::canManage($user);
+    }
+
+    /**
+     * Contracts & e-signature. Viewing/managing require the CRM 'manage' grant.
+     * Voiding a contract, countersigning as Breakfast, and inspecting signature
+     * evidence are more sensitive — voiding + evidence are admin-only; the
+     * public signing link is a separate tokened path Hermes can never reach.
+     */
+    public static function canViewContracts(?User $user): bool
+    {
+        return self::canManage($user);
+    }
+
+    public static function canManageContracts(?User $user): bool
+    {
+        return self::canManage($user);
+    }
+
+    public static function canSignContractInternal(?User $user): bool
+    {
+        return self::canManage($user);
+    }
+
+    public static function canVoidContracts(?User $user): bool
+    {
+        return $user !== null && $user->isAdmin();
+    }
+
+    public static function canViewContractEvidence(?User $user): bool
+    {
+        return $user !== null && $user->isAdmin();
+    }
+
+    /**
+     * Online payments (Stripe). Viewing payments follows invoice viewing;
+     * creating a payment link follows invoice management. Configuring Stripe
+     * credentials and issuing refunds move real money / change secrets, so both
+     * are admin-only — and Hermes can reach none of them.
+     */
+    public static function canViewPayments(?User $user): bool
+    {
+        return self::canViewInvoices($user);
+    }
+
+    public static function canCreatePaymentLink(?User $user): bool
+    {
+        return self::canManageInvoices($user);
+    }
+
+    public static function canRefundPayments(?User $user): bool
+    {
+        return $user !== null && $user->isAdmin();
+    }
+
+    public static function canManageStripeSettings(?User $user): bool
+    {
+        return $user !== null && $user->isAdmin();
+    }
+
+    /**
+     * Projects (Phase 2 — Delivery). Viewing follows CRM access; creating,
+     * editing, status changes, team + archive/restore actions require the CRM
+     * 'manage' grant. Reasons for cancellation/blocking are enforced server-side.
+     */
+    public static function canViewProjects(?User $user): bool
+    {
+        return self::canAccess($user);
+    }
+
+    public static function canManageProjects(?User $user): bool
+    {
+        return self::canManage($user);
+    }
+
+    public static function canArchiveProjects(?User $user): bool
+    {
+        return self::canManage($user);
+    }
+
+    /**
+     * Onboarding. Viewing follows CRM access; managing templates, sending
+     * invitations and reviewing submissions require the 'manage' grant. The
+     * client fills onboarding through a separate tokened public route.
+     */
+    public static function canViewOnboarding(?User $user): bool
+    {
+        return self::canAccess($user);
+    }
+
+    public static function canManageOnboarding(?User $user): bool
+    {
+        return self::canManage($user);
+    }
+
+    /**
+     * Client file library. Viewing + uploading + editing follow the CRM grant;
+     * permanent deletion is admin-only (archive is the norm). Downloads are
+     * authenticated and access-logged.
+     */
+    public static function canViewFiles(?User $user): bool
+    {
+        return self::canAccess($user);
+    }
+
+    public static function canManageFiles(?User $user): bool
+    {
+        return self::canManage($user);
+    }
+
+    public static function canDeleteFiles(?User $user): bool
+    {
+        return $user !== null && $user->isAdmin();
+    }
+
+    /**
+     * Change requests + scope control. Viewing follows CRM access; creating,
+     * editing a draft, moving through the state machine and sending require the
+     * 'manage' grant. Applying an approved change to the project (which adds
+     * value, generates tasks and drafts an invoice) is admin-only. Clients
+     * decide through a separate tokened public route.
+     */
+    public static function canViewChangeRequests(?User $user): bool
+    {
+        return self::canAccess($user);
+    }
+
+    public static function canManageChangeRequests(?User $user): bool
+    {
+        return self::canManage($user);
+    }
+
+    public static function canApplyChangeRequests(?User $user): bool
+    {
+        return $user !== null && $user->isAdmin();
+    }
+
+    /**
+     * Client portal administration. Viewing which clients have portal access
+     * follows CRM access; creating an identity, granting/revoking project access,
+     * minting a sign-in link and suspending an account require the 'manage'
+     * grant. Clients themselves authenticate through a wholly separate,
+     * passwordless public flow — never through the staff gate.
+     */
+    public static function canViewPortalAdmin(?User $user): bool
+    {
+        return self::canAccess($user);
+    }
+
+    public static function canManagePortalAdmin(?User $user): bool
+    {
+        return self::canManage($user);
+    }
+
+    /**
+     * Time tracking. Viewing time follows CRM access; logging, editing a live or
+     * unbilled entry, running the timer and marking entries billed require the
+     * 'manage' grant. Billed entries are locked server-side and cannot be
+     * altered by anyone through the API.
+     */
+    public static function canViewTime(?User $user): bool
+    {
+        return self::canAccess($user);
+    }
+
+    public static function canManageTime(?User $user): bool
+    {
+        return self::canManage($user);
+    }
+
+    /**
+     * Retainers & recurring billing. Viewing follows CRM access; creating,
+     * editing, pausing/ending a retainer and running the billing scheduler
+     * require the 'manage' grant. Generated invoices are ordinary drafts subject
+     * to the invoicing permissions.
+     */
+    public static function canViewRetainers(?User $user): bool
+    {
+        return self::canAccess($user);
+    }
+
+    public static function canManageRetainers(?User $user): bool
+    {
+        return self::canManage($user);
+    }
+
+    /**
+     * Automation. Viewing rules follows CRM access; creating/editing rules and
+     * running the engine are admin-only — automation acts across the whole book
+     * and its effects (follow-up tasks, audit) are studio-wide.
+     */
+    public static function canViewAutomation(?User $user): bool
+    {
+        return self::canAccess($user);
+    }
+
+    public static function canManageAutomation(?User $user): bool
+    {
+        return $user !== null && $user->isAdmin();
+    }
+
+    /**
+     * Credential vault. Viewing MASKED metadata follows the CRM 'manage' grant;
+     * everything that touches a secret — create, edit a secret, reveal, copy,
+     * rotate keys, view the access log — is admin-only and requires step-up
+     * re-authentication at the point of reveal/copy. Hermes and the client
+     * portal can never reach any of this.
+     */
+    public static function canViewVaultMetadata(?User $user): bool
+    {
+        return self::canManage($user);
+    }
+
+    public static function canManageVault(?User $user): bool
+    {
+        return $user !== null && $user->isAdmin();
+    }
+
+    public static function canRevealVault(?User $user): bool
+    {
+        return $user !== null && $user->isAdmin();
+    }
+
+    /**
+     * Website content. Viewing the overview needs admin access; editing drafts
+     * and publishing to the live site both require the 'manage' grant. Enforced
+     * server-side on every website route.
+     */
+    public static function canViewWebsite(?User $user): bool
+    {
+        return self::canAccess($user);
+    }
+
+    public static function canEditWebsite(?User $user): bool
+    {
+        return self::canManage($user);
+    }
+
+    public static function canPublishWebsite(?User $user): bool
+    {
+        return self::canManage($user);
+    }
+
+    /**
+     * Website media library + section structure. Browsing maps to website
+     * 'view'; uploading/replacing/deleting media and adding/editing/reordering/
+     * deleting sections map to website 'edit'. Enforced server-side on every
+     * media and section route.
+     */
+    public static function canViewWebsiteMedia(?User $user): bool
+    {
+        return self::canViewWebsite($user);
+    }
+
+    public static function canManageWebsiteMedia(?User $user): bool
+    {
+        return self::canEditWebsite($user);
+    }
+
+    public static function canManageWebsiteSections(?User $user): bool
+    {
+        return self::canEditWebsite($user);
+    }
+
+    /**
+     * Brevo integration settings. Viewing, managing (key + config) and testing
+     * all require the 'manage' grant — this area exposes email deliverability
+     * configuration and a masked credential hint. Enforced server-side.
+     */
+    public static function canViewBrevo(?User $user): bool
+    {
+        return self::canManage($user);
+    }
+
+    public static function canManageBrevo(?User $user): bool
+    {
+        return self::canManage($user);
+    }
+
+    public static function canTestBrevo(?User $user): bool
+    {
+        return self::canManage($user);
+    }
+
+    /**
+     * Calendar. Viewing needs admin access; creating/editing/deleting events
+     * require the 'manage' grant. Enforced server-side on every calendar route.
+     */
+    public static function canViewCalendar(?User $user): bool
+    {
+        return self::canAccess($user);
+    }
+
+    public static function canManageCalendar(?User $user): bool
+    {
+        return self::canManage($user);
+    }
+
     private static function allowed(?User $user, string $action): bool
     {
         if ($user === null) {

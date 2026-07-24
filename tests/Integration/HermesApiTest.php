@@ -109,6 +109,69 @@ final class HermesApiTest extends PlatformTestCase
         $this->assertContains('hermes', array_column($activity, 'actor_type'));
     }
 
+    public function testHermesCanCreateTentativeCalendarEventWithScope(): void
+    {
+        $path = '/calendar/events';
+        $body = json_encode(['title' => 'Proposed call', 'starts_at' => '2026-09-01T10:00:00Z', 'ends_at' => '2026-09-01T10:30:00Z']) ?: '';
+
+        $headers = $this->signedHeaders('POST', $path, $body);
+        $res = $this->api([Scopes::CALENDAR_CREATE])->handle('POST', $path, $body, $headers);
+
+        $this->assertSame(201, $res['status']);
+        // Hermes-created events are always tentative (awaiting human confirmation).
+        $this->assertSame('tentative', $res['body']['event']['status']);
+    }
+
+    public function testHermesCalendarCreateDeniedWithoutScope(): void
+    {
+        $path = '/calendar/events';
+        $body = json_encode(['title' => 'Nope', 'starts_at' => '2026-09-01T10:00:00Z', 'ends_at' => '2026-09-01T10:30:00Z']) ?: '';
+
+        $headers = $this->signedHeaders('POST', $path, $body);
+        $res = $this->api([Scopes::CRM_SUMMARY])->handle('POST', $path, $body, $headers);
+
+        $this->assertSame(403, $res['status']);
+    }
+
+    public function testHermesCanCreateLeadWithScopeThroughTheRealService(): void
+    {
+        $path = '/crm/leads';
+        $body = json_encode(['name' => 'Hermes Lead', 'email' => 'hermes-lead@ex.co', 'company' => 'Acme']) ?: '';
+
+        $headers = $this->signedHeaders('POST', $path, $body);
+        $res = $this->api([Scopes::CRM_LEADS_CREATE])->handle('POST', $path, $body, $headers);
+
+        $this->assertSame(201, $res['status']);
+        $this->assertNotEmpty($res['body']['lead']['uuid']);
+        // It's a real, persisted record created by the same service a human uses.
+        $this->assertSame(1, $this->platform->enquiries()->count());
+        $this->assertSame(1, $this->platform->contacts()->count());
+    }
+
+    public function testHermesLeadCreateDeniedWithoutScope(): void
+    {
+        $path = '/crm/leads';
+        $body = json_encode(['name' => 'Nope', 'email' => 'no@ex.co']) ?: '';
+
+        $headers = $this->signedHeaders('POST', $path, $body);
+        $res = $this->api([Scopes::CRM_READ])->handle('POST', $path, $body, $headers);
+
+        $this->assertSame(403, $res['status']);
+        $this->assertSame(0, $this->platform->enquiries()->count());
+    }
+
+    public function testHermesContactCreateValidationErrorSurfacesSafely(): void
+    {
+        $path = '/crm/contacts';
+        $body = json_encode(['email' => 'not-an-email']) ?: '';
+
+        $headers = $this->signedHeaders('POST', $path, $body);
+        $res = $this->api([Scopes::CRM_CONTACTS_CREATE])->handle('POST', $path, $body, $headers);
+
+        $this->assertSame(422, $res['status']);
+        $this->assertArrayHasKey('email', $res['body']['fields']);
+    }
+
     public function testAuditTrailWritten(): void
     {
         $headers = $this->signedHeaders('GET', '/crm/summary', '');

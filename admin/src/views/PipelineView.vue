@@ -1,13 +1,17 @@
 <script setup lang="ts">
-import { onMounted, ref, computed } from 'vue'
-import { api } from '@/lib/api'
+import { onMounted, ref, reactive, computed, watch } from 'vue'
+import { api, ApiError } from '@/lib/api'
 import type { Opportunity, OpportunitiesResponse, StageRef } from '@/lib/types'
 import { useAuth } from '@/stores/auth'
+import { useUi } from '@/stores/ui'
 import PageHeader from '@/components/PageHeader.vue'
 import DataState from '@/components/DataState.vue'
+import Sheet from '@/components/Sheet.vue'
 
 const auth = useAuth()
+const ui = useUi()
 const canManage = computed(() => auth.can('crm.manage') || auth.can('admin'))
+watch(() => ui.version.deals, () => load())
 
 const items = ref<Opportunity[]>([])
 const stages = ref<StageRef[]>([])
@@ -30,6 +34,55 @@ async function load() {
   } finally {
     loading.value = false
   }
+}
+
+// --- opportunity detail: edit / close / archive / restore ---
+const deal = ref<Opportunity | null>(null)
+const dForm = reactive({ title: '', value: '', probability: '', next_action: '' })
+const dBusy = ref('')
+function openDeal(o: Opportunity) {
+  deal.value = o
+  Object.assign(dForm, { title: o.title, value: String(o.value ?? ''), probability: String(o.probability ?? ''), next_action: o.next_action ?? '' })
+}
+async function saveDeal() {
+  if (!deal.value || dBusy.value) return
+  dBusy.value = 'save'
+  try {
+    await api.patch(`/opportunities/${deal.value.id}`, {
+      title: dForm.title,
+      value: parseInt(dForm.value || '0', 10) || 0,
+      probability: parseInt(dForm.probability || '0', 10) || 0,
+      next_action: dForm.next_action,
+    })
+    flash('Opportunity updated')
+    deal.value = null
+    await load()
+  } catch (e) { flash(e instanceof ApiError ? e.message : 'Could not save the opportunity', true) }
+  finally { dBusy.value = '' }
+}
+async function closeDeal(outcome: 'won' | 'lost' | 'abandoned') {
+  if (!deal.value || dBusy.value) return
+  let reason = ''
+  if (outcome === 'lost') { reason = window.prompt('Reason this deal was lost? (optional)') ?? ''; }
+  dBusy.value = outcome
+  try {
+    await api.post(`/opportunities/${deal.value.id}/close`, { outcome, reason })
+    flash(`Marked ${outcome}`)
+    deal.value = null
+    await load()
+  } catch (e) { flash(e instanceof ApiError ? e.message : 'Could not close the opportunity', true) }
+  finally { dBusy.value = '' }
+}
+async function archiveDeal() {
+  if (!deal.value || dBusy.value) return
+  dBusy.value = 'archive'
+  try {
+    await api.post(`/opportunities/${deal.value.id}/archive`, {})
+    flash('Opportunity archived')
+    deal.value = null
+    await load()
+  } catch (e) { flash(e instanceof ApiError ? e.message : 'Could not archive', true) }
+  finally { dBusy.value = '' }
 }
 
 const byStage = computed<Record<string, Opportunity[]>>(() => {
@@ -84,7 +137,11 @@ onMounted(load)
 <template>
   <div>
     <PageHeader eyebrow="Deals" title="Pipeline"
-                :sub="canManage ? 'Drag a card to move it between stages.' : 'Your opportunities by stage.'" />
+                :sub="canManage ? 'Drag a card to move it between stages.' : 'Your opportunities by stage.'">
+      <template #actions>
+        <button v-if="canManage" class="btn btn--sm btn--primary" @click="ui.openCreate('deal')">New opportunity</button>
+      </template>
+    </PageHeader>
 
     <DataState :loading="loading" :error="error" :empty="!items.length" :rows="3"
                empty-title="No opportunities yet" empty-note="Convert a lead to start a deal in your pipeline."
@@ -100,7 +157,7 @@ onMounted(load)
           <div class="col__cards">
             <article v-for="o in byStage[s.key]" :key="o.id" class="deal" :draggable="canManage"
                      :class="{ 'deal--drag': dragId === o.id }"
-                     @dragstart="onDragStart(o.id)" @dragend="dragId = null">
+                     @dragstart="onDragStart(o.id)" @dragend="dragId = null" @click="openDeal(o)">
               <p class="deal__title truncate">{{ o.title || 'Untitled deal' }}</p>
               <p v-if="o.contact" class="deal__contact truncate">{{ o.contact }}</p>
               <div class="deal__foot">
@@ -113,6 +170,32 @@ onMounted(load)
         </section>
       </div>
     </DataState>
+
+    <!-- Opportunity detail: edit + close + archive -->
+    <Sheet :open="!!deal" eyebrow="Opportunity" :title="deal?.title || 'Deal'" @close="deal = null">
+      <template v-if="deal">
+        <div class="field"><label class="label">Title</label><input class="input" v-model="dForm.title" :disabled="!canManage" /></div>
+        <div class="cf__row">
+          <div class="field"><label class="label">Value (£)</label><input class="input" v-model="dForm.value" inputmode="numeric" :disabled="!canManage" /></div>
+          <div class="field"><label class="label">Probability (%)</label><input class="input" v-model="dForm.probability" inputmode="numeric" :disabled="!canManage" /></div>
+        </div>
+        <div class="field"><label class="label">Next action</label><input class="input" v-model="dForm.next_action" :disabled="!canManage" /></div>
+        <p class="faint sm">Stage: {{ stages.find((s) => s.key === deal?.stage)?.label ?? deal.stage }}</p>
+
+        <div v-if="canManage" class="closebar">
+          <p class="label">Close this deal</p>
+          <div class="closebar__btns">
+            <button class="btn btn--sm" :disabled="!!dBusy" @click="closeDeal('won')">Won</button>
+            <button class="btn btn--sm" :disabled="!!dBusy" @click="closeDeal('lost')">Lost</button>
+            <button class="btn btn--sm" :disabled="!!dBusy" @click="closeDeal('abandoned')">Abandon</button>
+          </div>
+        </div>
+      </template>
+      <template #footer v-if="canManage && deal">
+        <button class="btn btn--sm btn--danger" :disabled="dBusy === 'archive'" @click="archiveDeal">Archive</button>
+        <button class="btn btn--sm btn--primary" :disabled="dBusy === 'save'" @click="saveDeal">{{ dBusy === 'save' ? 'Saving…' : 'Save changes' }}</button>
+      </template>
+    </Sheet>
 
     <transition name="fade">
       <div v-if="toast" class="toast">{{ toast }}</div>
@@ -141,6 +224,10 @@ onMounted(load)
 .deal__value { font-size: var(--text-sm); font-weight: 600; }
 .deal__prob { font-size: var(--text-xs); color: var(--purple-ink); background: var(--purple-soft); padding: 1px 7px; border-radius: var(--r-pill); }
 .col__empty { text-align: center; color: var(--ink-4); font-size: var(--text-sm); padding: var(--sp-4) 0; }
+.deal { cursor: pointer; }
+.closebar { margin-top: var(--sp-4); padding-top: var(--sp-3); border-top: 1px solid var(--line); }
+.closebar__btns { display: flex; gap: var(--sp-2); margin-top: var(--sp-2); }
+.sm { font-size: var(--text-sm); margin-top: var(--sp-2); }
 
 .toast { position: fixed; bottom: var(--sp-6); left: 50%; transform: translateX(-50%); z-index: var(--z-toast);
   background: var(--ink); color: var(--paper); padding: 10px var(--sp-4); border-radius: var(--r-pill);

@@ -30,6 +30,9 @@ declare(strict_types=1);
  *   privacy:anonymise-contact <uuid> --confirm
  *   privacy:cleanup [--dry-run|--confirm]
  *
+ * Invoices
+ *   invoices:backfill-pdfs [--dry-run]     Generate missing PDFs for issued invoices
+ *
  * Retention
  *   retention:check                        Show what retention would remove
  *   retention:cleanup --dry-run            Preview (deletes nothing)
@@ -55,7 +58,6 @@ declare(strict_types=1);
 use Breakfast\Platform\Hermes\Scopes;
 use Breakfast\Platform\Mail\BrevoAdmin;
 use Breakfast\Platform\Mail\EmailAddress;
-use Breakfast\Platform\Mail\HttpClient;
 use Breakfast\Platform\Mail\MailMessage;
 use Breakfast\Platform\Queue\Worker;
 use Breakfast\Platform\Support\Clock;
@@ -147,7 +149,7 @@ switch ($command) {
         (new Worker($platform))->work($sleep);
         break;
 
-    // ----- Mail ------------------------------------------------------------
+        // ----- Mail ------------------------------------------------------------
     case 'mail:check':
         $provider = (string) ($mailConfig['provider'] ?? 'smtp');
         $ok       = true;
@@ -211,7 +213,7 @@ switch ($command) {
         ($row['status'] ?? '') === 'accepted' ? out('OK') : fail('Test email was not accepted (' . ($row['status'] ?? '') . ').');
         break;
 
-    // ----- Brevo -----------------------------------------------------------
+        // ----- Brevo -----------------------------------------------------------
     case 'brevo:webhook:status':
         $admin = new BrevoAdmin(['apiKey' => (string) ($brevo['apiKey'] ?? ''), 'baseUrl' => (string) ($brevo['baseUrl'] ?? '')]);
         if ($admin->configured() === false) {
@@ -301,7 +303,7 @@ switch ($command) {
         out($dryRun ? 'Dry run. OK' : ($res['ok'] ? 'Synced. OK' : 'Sync failed (' . $res['detail'] . ').'));
         break;
 
-    // ----- Privacy ---------------------------------------------------------
+        // ----- Privacy ---------------------------------------------------------
     case 'privacy:export-contact':
         $uuid = $args[0] ?? fail('Usage: privacy:export-contact <uuid>');
         $data = (new PrivacyService($platform))->exportContact($uuid);
@@ -325,7 +327,7 @@ switch ($command) {
         out($apply ? 'Cleaned up. OK' : 'Dry run (pass --confirm to apply). OK');
         break;
 
-    // ----- Client Previews -------------------------------------------------
+        // ----- Client Previews -------------------------------------------------
     case 'previews:expire':
         $r = $platform->previewExpiry()->expireDue();
         out('Expired: ' . $r['expired']);
@@ -459,7 +461,7 @@ switch ($command) {
         out('OK');
         break;
 
-    // ----- Retention -------------------------------------------------------
+        // ----- Retention -------------------------------------------------------
     case 'retention:check':
         out('Retention plan (nothing is deleted):');
         foreach ($platform->retention()->plan() as $key => $info) {
@@ -483,7 +485,7 @@ switch ($command) {
         out($apply ? 'Cleaned up. OK' : 'Dry run (pass --confirm to apply). OK');
         break;
 
-    // ----- Diagnostics -----------------------------------------------------
+        // ----- Diagnostics -----------------------------------------------------
     case 'app:check':
         require $base . '/site/plugins/breakfast-platform/checks/app_check.php';
         break;
@@ -514,6 +516,244 @@ switch ($command) {
         }
         out('# Add this line to your .env (keep the secret private):');
         out('HERMES_KEY_' . $id . '=' . implode(',', $scopes) . '|' . base64_encode(random_bytes(32)));
+        break;
+
+    case 'calendar:reminders':
+        // Fire due, unsent event reminders. Internal only: a reminder for an
+        // event assigned to a studio email is queued to that address through the
+        // normal mail pipeline; client-facing reminders are never sent here.
+        // Safe to run on a schedule (idempotent — each reminder fires once).
+        $cal  = $platform->calendar();
+        $due  = $cal->dueReminders(\Breakfast\Platform\Support\Clock::nowIso());
+        $sent = 0;
+        foreach ($due as $event) {
+            $to = trim((string) ($event['assigned_to'] ?? ''));
+            if ($to !== '' && filter_var($to, FILTER_VALIDATE_EMAIL) !== false) {
+                $platform->crmMail()->send(
+                    $to,
+                    'Reminder: ' . (string) $event['title'],
+                    "Reminder for “" . (string) $event['title'] . "” at " . (string) $event['starts_at'] . ".",
+                    [],
+                    'system'
+                );
+                $sent++;
+            }
+            $cal->markReminderSent((string) $event['uuid']);
+        }
+        out('calendar:reminders — ' . count($due) . ' due, ' . $sent . ' emailed.');
+        break;
+
+    case 'retainers:run':
+        // Generate draft invoices for every active retainer whose period has
+        // elapsed, billing in arrears (fee + time overage) and locking the
+        // covered time. Idempotent per period — safe to run on a schedule.
+        // --as-of=YYYY-MM-DD bills as if run on that date (defaults to today).
+        $asOfFlag = $flags['as-of'] ?? null;
+        $asOf     = is_string($asOfFlag) && $asOfFlag !== '' ? $asOfFlag : date('Y-m-d');
+        $res      = $platform->retainers()->runDue($asOf, 'cli:retainers');
+        out(sprintf('retainers:run — as of %s: %d period(s) billed, %d draft invoice(s) created.', $asOf, (int) $res['periods'], (int) $res['invoices']));
+        break;
+
+    case 'automation:run':
+        // Evaluate every enabled automation rule and fire follow-up actions for
+        // newly-matching targets (overdue invoices, stalled onboarding, approved
+        // changes left unapplied). Idempotent per (rule, target) — safe on a
+        // schedule. --as-of=YYYY-MM-DD evaluates as if run on that date.
+        $asOfFlag = $flags['as-of'] ?? null;
+        $asOf     = is_string($asOfFlag) && $asOfFlag !== '' ? $asOfFlag : date('Y-m-d');
+        $res      = $platform->automation()->run($asOf, 'cli:automation');
+        out(sprintf('automation:run — as of %s: %d rule(s) evaluated, %d action(s) fired.', $asOf, (int) $res['rules'], (int) $res['fired']));
+        break;
+
+    case 'invoices:backfill-pdfs':
+        // Generate the immutable PDF for every issued invoice that doesn't have
+        // one yet (issued before the PDF pipeline existed, or a prior failure).
+        // Idempotent — invoices that already have a document are skipped, so
+        // re-running is safe. Use --dry-run to preview without writing anything.
+        $apply   = !flag($flags, 'dry-run');
+        $summary = $platform->invoiceDocuments()->backfill($apply, 'cli:backfill');
+        foreach ($summary['items'] as $row) {
+            out('  ' . str_pad((string) $row['number'], 18) . ' ' . (string) $row['result']);
+        }
+        out(sprintf(
+            'invoices:backfill-pdfs — %s: scanned %d, %s %d, skipped %d, failed %d.',
+            $apply ? 'applied' : 'dry-run',
+            (int) $summary['scanned'],
+            $apply ? 'generated' : 'would generate',
+            (int) ($apply ? $summary['generated'] : $summary['scanned'] - $summary['skipped']),
+            (int) $summary['skipped'],
+            (int) $summary['failed']
+        ));
+        if ((int) $summary['failed'] > 0) {
+            exit(1);
+        }
+        break;
+
+    case 'admin:action-check':
+        // Validate the frontend action registry (admin/action-registry.json): every
+        // registered production action must be fully implemented and have a routed
+        // API resource, a permission (for mutations) and a real persistence method.
+        // Fails CI if any action is a placeholder/mock/todo/unimplemented, or if its
+        // backend path is missing — so the UI can never ship a dead button.
+        $registryPath = $base . '/admin/action-registry.json';
+        if (!is_file($registryPath)) {
+            fail('action registry not found at ' . $registryPath);
+        }
+        $registry = json_decode((string) file_get_contents($registryPath), true);
+        if (!is_array($registry) || !is_array($registry['actions'] ?? null)) {
+            fail('action registry is not valid JSON.');
+        }
+        $resources = array_flip(is_array($registry['resources'] ?? null) ? $registry['resources'] : []);
+        $badStatus = ['placeholder', 'mock', 'todo', 'unimplemented', 'wip', ''];
+        $problems  = [];
+        foreach ($registry['actions'] as $a) {
+            $id = (string) ($a['id'] ?? '?');
+            $status = strtolower((string) ($a['status'] ?? ''));
+            if (in_array($status, $badStatus, true)) {
+                $problems[] = "{$id}: status is '{$status}' (must be implemented)";
+            }
+            if (!isset($resources[(string) ($a['resource'] ?? '')])) {
+                $problems[] = "{$id}: resource '" . ($a['resource'] ?? '') . "' is not a routed admin API resource";
+            }
+            $method = strtoupper((string) ($a['method'] ?? 'GET'));
+            if ($method !== 'GET' && trim((string) ($a['permission'] ?? '')) === '') {
+                $problems[] = "{$id}: mutating action has no required permission";
+            }
+            $persist = (string) ($a['persistence'] ?? '');
+            if ($persist !== '') {
+                [$cls, $mth] = array_pad(explode('::', $persist, 2), 2, '');
+                if (!class_exists($cls)) {
+                    $problems[] = "{$id}: persistence class {$cls} not found";
+                } elseif ($mth !== '' && !method_exists($cls, $mth)) {
+                    $problems[] = "{$id}: persistence method {$cls}::{$mth} not found";
+                }
+            } else {
+                $problems[] = "{$id}: no persistence service declared";
+            }
+            $pw = (string) ($a['playwright'] ?? '');
+            if ($pw !== '' && !is_file($base . '/playwright/tests/' . $pw)) {
+                $problems[] = "{$id}: referenced Playwright spec '{$pw}' does not exist";
+            }
+        }
+        // Every routed mutating resource should have at least one registered action.
+        foreach (array_keys($resources) as $res) {
+            if (in_array($res, ['session', 'dashboard', 'activities', 'reports', 'operations', 'previews', 'hermes', 'contract-templates', 'inbox'], true)) {
+                continue; // read-only or covered by their own suites
+            }
+            $has = array_filter($registry['actions'], static fn ($a) => ($a['resource'] ?? '') === $res);
+            if ($has === []) {
+                $problems[] = "resource '{$res}' has no registered action";
+            }
+        }
+        foreach ($registry['actions'] as $a) {
+            out('  [OK]   ' . str_pad((string) ($a['id'] ?? '?'), 20) . ' → ' . strtoupper((string) ($a['method'] ?? '')) . ' ' . ($a['resource'] ?? ''));
+        }
+        out('');
+        if ($problems !== []) {
+            foreach ($problems as $p) {
+                out('  [FAIL] ' . $p);
+            }
+            fail(count($problems) . ' action-registry problem(s) found.');
+        }
+        out('admin:action-check PASSED (' . count($registry['actions']) . ' actions verified)');
+        break;
+
+    case 'admin:functionality-check':
+        // Verify the standalone admin's real operations are wired end to end. With
+        // --read-only (safe in production) it only inspects; otherwise it proves a
+        // write path by creating a lead inside a transaction it then ROLLS BACK, so
+        // no data is left behind.
+        $readOnly = flag($flags, 'read-only') || $platform->isProduction();
+        $results  = [];
+        $record   = static function (string $label, bool $ok, string $detail = '') use (&$results): void {
+            $results[] = [$label, $ok, $detail];
+            out(($ok ? '  [OK]   ' : '  [FAIL] ') . $label . ($detail !== '' ? ' — ' . $detail : ''));
+        };
+
+        $record('Schema migrated', $platform->migrator()->hasPending() === false);
+        foreach (['contacts', 'companies', 'enquiries', 'opportunities', 'tasks', 'activities', 'queue', 'outbound', 'audit', 'crmMail', 'invoices', 'settings', 'brevoSettings', 'calendar'] as $svc) {
+            try {
+                $platform->{$svc}();
+                $record("Service: {$svc}", true);
+            } catch (\Throwable $e) {
+                $record("Service: {$svc}", false, $e->getMessage());
+            }
+        }
+        $record('Pipeline stages defined', count($platform->crm()->stages()) > 0);
+        $record('Write service present', class_exists(\Breakfast\Platform\Admin\CrmWrite::class));
+        $record('Admin API present', class_exists(\Breakfast\Platform\Admin\AdminApi::class));
+        $record('Hermes console present', class_exists(\Breakfast\Platform\Admin\HermesAdmin::class));
+        $record('Invoicing service present', class_exists(\Breakfast\Platform\Invoicing\Invoices::class));
+        $record('Website editor present', class_exists(\Breakfast\Platform\Website\WebsiteContent::class));
+        $record('Secret storage present', class_exists(\Breakfast\Platform\Settings\SecretBox::class));
+
+        // Website content is readable over the real Kirby model.
+        try {
+            $web = new \Breakfast\Platform\Website\WebsiteContent($kirby, $platform);
+            $record('Website content readable', count($web->index()['items']) > 0);
+        } catch (\Throwable $e) {
+            $record('Website content readable', false, $e->getMessage());
+        }
+
+        // Secret encryption round-trips (proves Brevo key storage works).
+        try {
+            $box = new \Breakfast\Platform\Settings\SecretBox($platform->storageDir());
+            $record('Secret encryption round-trips', $box->decrypt($box->encrypt('probe')) === 'probe');
+        } catch (\Throwable $e) {
+            $record('Secret encryption round-trips', false, $e->getMessage());
+        }
+
+        $routeFound = false;
+        foreach ($kirby->routes() as $route) {
+            $patterns = (array) ($route['pattern'] ?? '');
+            foreach ($patterns as $pattern) {
+                if (str_contains((string) $pattern, 'breakfast-admin/api/v1')) {
+                    $routeFound = true;
+                }
+            }
+        }
+        $record('Admin API route registered', $routeFound);
+        $record('Mail provider configured', (string) ($platform->mailConfig()['provider'] ?? '') !== '');
+
+        if (!$readOnly) {
+            $db = $platform->db();
+            $db->pdo()->beginTransaction();
+            try {
+                $lead = (new \Breakfast\Platform\Admin\CrmWrite($platform))->createLead(
+                    ['name' => 'Functionality Check', 'email' => 'functionality-check@example.test'],
+                    'cli'
+                );
+                $ok = !empty($lead['enquiry']['uuid']) && !empty($lead['contact']['uuid']);
+                $record('Lead creation persists (rolled back)', $ok);
+
+                $invoice = $platform->invoices()->create(
+                    ['bill_to_name' => 'Functionality Check', 'items' => [['description' => 'Check', 'quantity' => 1, 'unit_price' => 100]]],
+                    'cli'
+                );
+                $record('Invoice creation persists (rolled back)', (int) ($invoice['total'] ?? 0) === 10000);
+
+                $event = $platform->calendar()->create(
+                    ['title' => 'Functionality Check', 'starts_at' => '2030-01-01T10:00:00Z', 'ends_at' => '2030-01-01T10:30:00Z'],
+                    'cli'
+                );
+                $record('Calendar event persists (rolled back)', !empty($event['uuid']));
+            } catch (\Throwable $e) {
+                $record('Write path persists (rolled back)', false, $e->getMessage());
+            } finally {
+                if ($db->pdo()->inTransaction()) {
+                    $db->pdo()->rollBack();
+                }
+            }
+        } else {
+            out('  [skip] write checks (read-only/production)');
+        }
+
+        $failed = array_filter($results, static fn (array $r): bool => $r[1] === false);
+        out('');
+        if ($failed !== []) {
+            fail(count($failed) . ' functionality check(s) FAILED.');
+        }
+        out('admin:functionality-check PASSED (' . count($results) . ' checks)');
         break;
 
     case 'seed':

@@ -1,13 +1,16 @@
 <script setup lang="ts">
-import { onMounted, ref, computed } from 'vue'
+import { onMounted, ref, computed, watch } from 'vue'
 import { api } from '@/lib/api'
 import type { Task, ListResponse } from '@/lib/types'
 import { useAuth } from '@/stores/auth'
+import { useUi } from '@/stores/ui'
 import PageHeader from '@/components/PageHeader.vue'
 import DataState from '@/components/DataState.vue'
 
 const auth = useAuth()
+const ui = useUi()
 const canManage = computed(() => auth.can('crm.manage') || auth.can('admin'))
+watch(() => ui.version.tasks, () => load())
 
 const items = ref<Task[]>([])
 const loading = ref(true)
@@ -63,7 +66,11 @@ onMounted(load)
 
 <template>
   <div>
-    <PageHeader eyebrow="Work" title="Tasks" sub="What needs doing across the studio." />
+    <PageHeader eyebrow="Work" title="Tasks" sub="What needs doing across the studio.">
+      <template #actions>
+        <button v-if="canManage" class="btn btn--sm btn--primary" @click="ui.openCreate('task')">New task</button>
+      </template>
+    </PageHeader>
 
     <div class="tabs" role="tablist">
       <button class="tab" :class="{ 'tab--active': view === 'open' }" @click="view = 'open'">Open</button>
