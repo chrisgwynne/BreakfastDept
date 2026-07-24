@@ -31,8 +31,14 @@ final class PaymentsService
         return $this->platform->db();
     }
 
-    private function client(): StripeClient
+    private function client(): StripeGateway
     {
+        // Browser-test seam: a single-threaded dev server cannot make a live (or
+        // self-directed) HTTP call, so an explicit non-production flag swaps in an
+        // in-process fake. Production never takes this branch.
+        if (getenv('BF_STRIPE_MOCK') === '1' && !$this->platform->isProduction()) {
+            return new FakeStripeGateway();
+        }
         $key = $this->settings->secretKey();
         if ($key === '') {
             throw new PaymentException(409, 'Stripe is not configured.');

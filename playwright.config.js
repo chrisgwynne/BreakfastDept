@@ -36,6 +36,6 @@ module.exports = defineConfig({
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 30000,
-    env: { APP_ENV: "development", APP_DEBUG: "true" },
+    env: { APP_ENV: "development", APP_DEBUG: "true", BF_STRIPE_MOCK: "1" },
   },
 });

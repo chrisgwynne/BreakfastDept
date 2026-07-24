@@ -543,6 +543,7 @@ export interface StripeOverview {
   webhook_secret_hint: string
   success_url: string
   cancel_url: string
+  base_url: string
   has_secret: boolean
   has_webhook_secret: boolean
   last_webhook: string

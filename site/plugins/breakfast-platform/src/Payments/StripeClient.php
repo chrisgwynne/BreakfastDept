@@ -13,7 +13,7 @@ use Breakfast\Platform\Mail\HttpClient;
  * logged. Only the few endpoints the deposit workflow needs are wrapped:
  * Checkout Sessions (create/retrieve) and Refunds.
  */
-final class StripeClient
+final class StripeClient implements StripeGateway
 {
     public function __construct(
         private readonly string $secretKey,

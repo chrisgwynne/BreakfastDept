@@ -94,6 +94,7 @@ final class StripeSettings
             'webhook_secret_hint' => $this->settings->secretHint('stripe.webhook_secret.' . $mode),
             'success_url'      => $this->successUrl(),
             'cancel_url'       => $this->cancelUrl(),
+            'base_url'         => $this->baseUrl(),
             'has_secret'       => $this->secretKey() !== '',
             'has_webhook_secret' => $this->webhookSecret() !== '',
             'last_webhook'     => $this->settings->get('stripe.last_webhook'),
@@ -115,7 +116,7 @@ final class StripeSettings
         if (array_key_exists('enabled', $data)) {
             $this->settings->set('stripe.enabled', !empty($data['enabled']) ? '1' : '0', $actor);
         }
-        foreach (['currency', 'account_id', 'success_url', 'cancel_url'] as $f) {
+        foreach (['currency', 'account_id', 'success_url', 'cancel_url', 'base_url'] as $f) {
             if (array_key_exists($f, $data)) {
                 $this->settings->set('stripe.' . $f, (string) $data[$f], $actor);
             }

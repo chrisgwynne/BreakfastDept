@@ -384,10 +384,14 @@ Kirby::plugin('breakfast/platform', [
         // Stripe payment webhook. Verifies the signature against the RAW request
         // body (never the parsed form) with the endpoint signing secret, enforces
         // event idempotency, and reconciles verified payments to invoices. Its own
-        // auth (signature), NOT Hermes HMAC and NOT Panel session — and registered
-        // before the Hermes catch-all so it matches first.
+        // auth (signature), NOT Hermes HMAC and NOT Panel session.
+        //
+        // Deliberately NOT under the `api/` slug: Kirby reserves `/api/*` for its
+        // own API router, which swallows unknown paths there — so a non-api,
+        // top-level path is used, matched by the front-end router and stable for
+        // the Stripe dashboard endpoint URL.
         [
-            'pattern' => 'api/breakfast/v1/webhooks/stripe',
+            'pattern' => 'webhooks/stripe',
             'method'  => 'POST',
             'action'  => function () {
                 $platform = breakfast();

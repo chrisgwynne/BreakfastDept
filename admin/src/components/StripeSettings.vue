@@ -8,8 +8,8 @@ const ui = useUi()
 const loading = ref(true)
 const error = ref('')
 const overview = ref<StripeOverview | null>(null)
-const config = reactive<{ enabled: boolean; mode: string; currency: string; publishable_key: string; success_url: string; cancel_url: string }>({
-  enabled: false, mode: 'test', currency: 'GBP', publishable_key: '', success_url: '', cancel_url: '',
+const config = reactive<{ enabled: boolean; mode: string; currency: string; publishable_key: string; success_url: string; cancel_url: string; base_url: string }>({
+  enabled: false, mode: 'test', currency: 'GBP', publishable_key: '', success_url: '', cancel_url: '', base_url: '',
 })
 
 const newSecret = ref('')
@@ -38,6 +38,7 @@ function apply(ov: StripeOverview) {
   config.publishable_key = ov.publishable_key
   config.success_url = ov.success_url
   config.cancel_url = ov.cancel_url
+  config.base_url = ov.base_url
 }
 
 async function load() {
@@ -169,6 +170,7 @@ onMounted(load)
           <div class="field"><label class="label">Currency</label><input class="input" v-model="config.currency" /></div>
         </div>
         <div class="field"><label class="label">Publishable key</label><input class="input mono" v-model="config.publishable_key" placeholder="pk_…" /></div>
+        <div class="field"><label class="label">API base URL (advanced)</label><input class="input mono" v-model="config.base_url" data-test="stripe-base-url" placeholder="https://api.stripe.com/v1" /></div>
         <div class="two">
           <div class="field"><label class="label">Success URL (optional)</label><input class="input mono" v-model="config.success_url" placeholder="Defaults to the invoice page" /></div>
           <div class="field"><label class="label">Cancel URL (optional)</label><input class="input mono" v-model="config.cancel_url" /></div>
