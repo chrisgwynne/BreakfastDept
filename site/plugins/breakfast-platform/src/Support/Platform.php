@@ -197,6 +197,22 @@ final class Platform
         ));
     }
 
+    public function stripeSettings(): \Breakfast\Platform\Payments\StripeSettings
+    {
+        return $this->service(\Breakfast\Platform\Payments\StripeSettings::class, fn () => new \Breakfast\Platform\Payments\StripeSettings(
+            $this->settings(),
+            $this->audit()
+        ));
+    }
+
+    public function payments(): \Breakfast\Platform\Payments\PaymentsService
+    {
+        return $this->service(\Breakfast\Platform\Payments\PaymentsService::class, fn () => new \Breakfast\Platform\Payments\PaymentsService(
+            $this,
+            $this->stripeSettings()
+        ));
+    }
+
     public function proposalConversion(): \Breakfast\Platform\Proposals\ProposalConversion
     {
         return $this->service(\Breakfast\Platform\Proposals\ProposalConversion::class, fn () => new \Breakfast\Platform\Proposals\ProposalConversion($this));

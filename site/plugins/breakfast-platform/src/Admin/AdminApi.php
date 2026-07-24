@@ -88,6 +88,7 @@ final class AdminApi
             'proposals'     => $this->proposals($method, $seg, $user),
             'contracts'     => $this->contracts($method, $seg, $user),
             'contract-templates' => $this->contractTemplates($method, $seg, $user),
+            'payments'      => $this->payments($method, $seg, $user),
             'calendar'      => $this->calendar($method, $seg, $user),
             'search'        => $this->search(),
             'settings'      => $this->settings($method, $seg, $user),
@@ -1146,6 +1147,9 @@ final class AdminApi
     private function settings(string $method, array $seg, \Kirby\Cms\User $user): array
     {
         $area = $seg[1] ?? '';
+        if ($area === 'stripe') {
+            return $this->stripeSettings($method, $seg, $user);
+        }
         if ($area !== 'brevo') {
             throw new ApiException(404, 'Unknown settings area.', 'not_found');
         }
@@ -1191,6 +1195,64 @@ final class AdminApi
             throw new ApiException(404, 'Unknown settings endpoint.', 'not_found');
         } catch (\Breakfast\Platform\Settings\SettingsException $e) {
             throw new ApiException($e->status, $e->getMessage(), 'settings', $e->fields);
+        }
+    }
+
+    /**
+     * Stripe configuration. Viewing exposes only masked hints; storing keys,
+     * the webhook secret and toggling live mode are admin-only. The secret key
+     * and signing secret are write-only — never returned once stored. A live
+     * self-test hits Stripe's /account with the stored key.
+     *
+     * @param list<string> $seg
+     * @return array<string,mixed>
+     */
+    private function stripeSettings(string $method, array $seg, \Kirby\Cms\User $user): array
+    {
+        if (!PanelGate::canManageStripeSettings($user)) {
+            throw new ApiException(403, 'Only an administrator can manage payment settings.', 'forbidden');
+        }
+        $svc    = $this->platform->stripeSettings();
+        $actor  = (string) $user->email();
+        $action = $seg[2] ?? '';
+
+        try {
+            if ($method === 'GET' && $action === '') {
+                return ['stripe' => $svc->overview()];
+            }
+            if ($method === 'PUT' && $action === '') {
+                return ['stripe' => $svc->update($this->body(), $actor)];
+            }
+            if ($action === 'key') {
+                if ($method === 'POST') {
+                    $svc->setSecretKey((string) ($this->body()['secret_key'] ?? ''), $actor);
+
+                    return ['stripe' => $svc->overview()];
+                }
+                if ($method === 'DELETE') {
+                    $svc->clearSecret($actor);
+
+                    return ['stripe' => $svc->overview()];
+                }
+            }
+            if ($method === 'POST' && $action === 'webhook-secret') {
+                $svc->setWebhookSecret((string) ($this->body()['webhook_secret'] ?? ''), $actor);
+
+                return ['stripe' => $svc->overview()];
+            }
+            if ($method === 'POST' && $action === 'test') {
+                if ($svc->secretKey() === '') {
+                    throw new ApiException(409, 'Add a Stripe secret key first.', 'payment');
+                }
+                $client  = new \Breakfast\Platform\Payments\StripeClient($svc->secretKey(), $svc->baseUrl());
+                $account = $client->retrieveAccount();
+
+                return ['ok' => true, 'account_id' => (string) ($account['id'] ?? ''), 'business' => (string) ($account['business_profile']['name'] ?? ($account['email'] ?? ''))];
+            }
+
+            throw new ApiException(404, 'Unknown settings endpoint.', 'not_found');
+        } catch (\Breakfast\Platform\Payments\PaymentException $e) {
+            throw new ApiException($e->status, $e->getMessage(), 'payment');
         }
     }
 
@@ -1355,6 +1417,26 @@ final class AdminApi
                 $requireManage();
 
                 return ['invoice' => $this->invoiceRow($svc->recordPayment($id, $this->body(), $actor), true)];
+            }
+            if ($method === 'POST' && $action === 'payment-link') {
+                if (!PanelGate::canCreatePaymentLink($user)) {
+                    throw new ApiException(403, 'You can’t create payment links.', 'forbidden');
+                }
+                try {
+                    $siteUrl = rtrim((string) $this->kirby->site()->url(), '/');
+                    $link = $this->platform->payments()->createCheckout($id, $actor, $siteUrl);
+                } catch (\Breakfast\Platform\Payments\PaymentException $e) {
+                    throw new ApiException($e->status, $e->getMessage(), 'payment');
+                }
+
+                return ['link' => $link, 'invoice' => $this->invoiceRow($svc->find($id) ?? [], true)];
+            }
+            if ($method === 'GET' && $action === 'payments') {
+                if (!PanelGate::canViewPayments($user)) {
+                    throw new ApiException(403, 'You can’t view payments.', 'forbidden');
+                }
+
+                return ['items' => array_map([$this, 'paymentRow'], $this->platform->payments()->list(['invoice_uuid' => $id]))];
             }
             if ($method === 'POST' && $action === 'void') {
                 $requireManage();
@@ -1818,6 +1900,88 @@ final class AdminApi
     }
 
     /**
+     * Online payments (Stripe). Listing + viewing follow invoice viewing;
+     * refunding is admin-only. Payment links are created from the invoice route
+     * (POST /invoices/:id/payment-link) so the amount is always invoice-derived.
+     *
+     * @param list<string> $seg
+     * @return array<string,mixed>
+     */
+    private function payments(string $method, array $seg, \Kirby\Cms\User $user): array
+    {
+        if (!PanelGate::canViewPayments($user)) {
+            throw new ApiException(403, 'You don’t have access to payments.', 'forbidden');
+        }
+        $id = $seg[1] ?? '';
+        try {
+            if ($id === '' && $method === 'GET') {
+                $q = $this->query();
+
+                return ['items' => array_map([$this, 'paymentRow'], $this->platform->payments()->list(['status' => $q['status'] ?? null, 'limit' => $this->perPage()]))];
+            }
+            $action = $seg[2] ?? '';
+            if ($id !== '' && $method === 'GET' && $action === '') {
+                $p = $this->platform->payments()->find($id);
+                if ($p === null) {
+                    throw new ApiException(404, 'Payment not found.', 'not_found');
+                }
+
+                return ['payment' => $this->paymentRow($p, true)];
+            }
+            if ($id !== '' && $method === 'POST' && $action === 'refund') {
+                if (!PanelGate::canRefundPayments($user)) {
+                    throw new ApiException(403, 'Only an administrator can issue refunds.', 'forbidden');
+                }
+                $body   = $this->body();
+                $amount = (int) round(((float) ($body['amount'] ?? 0)) * 100);
+                $reason = (string) ($body['reason'] ?? '');
+
+                return $this->platform->payments()->refund($id, $amount, $reason, (string) $user->email());
+            }
+
+            throw new ApiException(404, 'Unknown payment endpoint.', 'not_found');
+        } catch (\Breakfast\Platform\Payments\PaymentException $e) {
+            throw new ApiException($e->status, $e->getMessage(), 'payment');
+        }
+    }
+
+    /**
+     * @param array<string,mixed> $p
+     * @return array<string,mixed>
+     */
+    private function paymentRow(array $p, bool $detail = false): array
+    {
+        $row = [
+            'id'              => (string) ($p['uuid'] ?? ''),
+            'invoice_uuid'    => (string) ($p['invoice_uuid'] ?? ''),
+            'status'          => (string) ($p['status'] ?? 'pending'),
+            'amount'          => (int) ($p['amount'] ?? 0) / 100,
+            'amount_refunded' => (int) ($p['amount_refunded'] ?? 0) / 100,
+            'currency'        => (string) ($p['currency'] ?? 'GBP'),
+            'method_summary'  => (string) ($p['method_summary'] ?? ''),
+            'receipt_number'  => (string) ($p['receipt_number'] ?? ''),
+            'mode'            => (string) ($p['mode'] ?? 'test'),
+            'created_at'      => (string) ($p['created_at'] ?? ''),
+            'paid_at'         => (string) ($p['paid_at'] ?? ''),
+        ];
+        if (!$detail) {
+            return $row;
+        }
+        $row['provider_payment_id'] = (string) ($p['provider_payment_id'] ?? '');
+        $row['failure_message']     = (string) ($p['failure_message'] ?? '');
+        $row['has_receipt']         = is_array($p['receipt'] ?? null) && $p['receipt'] !== [];
+        $row['events'] = array_map(static fn (array $e): array => [
+            'type' => (string) ($e['type'] ?? ''), 'detail' => (string) ($e['detail'] ?? ''), 'created_at' => (string) ($e['created_at'] ?? ''),
+        ], is_array($p['events'] ?? null) ? $p['events'] : []);
+        $row['refunds'] = array_map(static fn (array $r): array => [
+            'amount' => (int) ($r['amount'] ?? 0) / 100, 'reason' => (string) ($r['reason'] ?? ''),
+            'status' => (string) ($r['status'] ?? ''), 'created_at' => (string) ($r['created_at'] ?? ''),
+        ], is_array($p['refunds'] ?? null) ? $p['refunds'] : []);
+
+        return $row;
+    }
+
+    /**
      * @param array<string,mixed> $c
      * @return array<string,mixed>
      */
@@ -1998,6 +2162,7 @@ final class AdminApi
             $row['pdf_ready']       = ((string) ($r['document_status'] ?? '')) === 'generated';
             $token = (string) ($r['public_token'] ?? '');
             $row['public_url']      = $token !== '' ? rtrim((string) $this->kirby->site()->url(), '/') . '/invoice/' . $token : '';
+            $row['online_payments_enabled'] = $this->platform->stripeSettings()->enabled();
             $row['items'] = array_map(static fn (array $i): array => [
                 'description' => (string) ($i['description'] ?? ''),
                 'quantity'    => (int) ($i['quantity'] ?? 0) / 1000,

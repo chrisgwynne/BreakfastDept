@@ -29,6 +29,15 @@ $due      = (int) ($invoice['total'] ?? 0) - (int) ($invoice['amount_paid'] ?? 0
 $vatReg   = !empty($invoice['vat_registered']);
 $statusLabels = ['draft' => 'Draft', 'issued' => 'Issued', 'sent' => 'Sent', 'viewed' => 'Viewed', 'partial' => 'Part paid', 'paid' => 'Paid', 'void' => 'Void'];
 $status   = (string) ($invoice['status'] ?? 'draft');
+$token    = (string) ($invoice['public_token'] ?? '');
+// Online payment is offered only for a genuinely payable invoice on the signed
+// client link, and only when Stripe is configured + enabled. The amount is never
+// shown as an editable field — it is computed server-side at checkout.
+$payable  = $due > 0
+    && $token !== ''
+    && !in_array($status, ['draft', 'void', 'paid'], true)
+    && breakfast()->stripeSettings()->enabled();
+$justPaid = (string) get('paid', '') === '1';
 ?><!doctype html>
 <html lang="en-GB">
 <head>
@@ -70,11 +79,24 @@ $status   = (string) ($invoice['status'] ?? 'draft');
   .foot p { margin:6px 0 0; white-space:pre-line; }
   .actions { max-width:800px; margin:0 auto 24px; text-align:right; }
   .btn { display:inline-block; background:var(--ink); color:#fff; text-decoration:none; padding:10px 18px; border-radius:99px; font-weight:600; font-size:14px; border:none; cursor:pointer; }
-  @media print { body { background:#fff; } .sheet { margin:0; border:none; box-shadow:none; border-radius:0; padding:0; } .actions { display:none; } }
+  .btn--pay { background:var(--butter); color:var(--ink); }
+  .actions form { display:inline; margin:0; }
+  .paidbar { max-width:800px; margin:0 auto 16px; padding:12px 18px; background:#e5f4ec; color:#1c7a4a; border-radius:10px; font-weight:600; }
+  @media print { body { background:#fff; } .sheet { margin:0; border:none; box-shadow:none; border-radius:0; padding:0; } .actions, .paidbar { display:none; } }
 </style>
 </head>
 <body>
-  <div class="actions"><button class="btn" onclick="window.print()">Download / print PDF</button></div>
+  <?php if ($justPaid): ?>
+  <div class="paidbar">Thank you — your payment is being confirmed. This invoice updates automatically once the payment clears.</div>
+  <?php endif; ?>
+  <div class="actions">
+    <?php if ($payable): ?>
+    <form method="post" action="<?= $e(rtrim((string) kirby()->site()->url(), '/') . '/invoice/' . $token . '/pay') ?>">
+      <button class="btn btn--pay" type="submit">Pay <?= $e($money($due)) ?> now</button>
+    </form>
+    <?php endif; ?>
+    <button class="btn" onclick="window.print()">Download / print PDF</button>
+  </div>
   <div class="sheet">
     <div class="top">
       <div class="brand">

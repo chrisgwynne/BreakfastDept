@@ -70,3 +70,4 @@ Thumbs.db
 /storage/invoices/*
 /storage/proposals/*
 /storage/contracts/*
+/storage/receipts/*

@@ -381,6 +381,41 @@ Kirby::plugin('breakfast/platform', [
             },
         ],
 
+        // Stripe payment webhook. Verifies the signature against the RAW request
+        // body (never the parsed form) with the endpoint signing secret, enforces
+        // event idempotency, and reconciles verified payments to invoices. Its own
+        // auth (signature), NOT Hermes HMAC and NOT Panel session — and registered
+        // before the Hermes catch-all so it matches first.
+        [
+            'pattern' => 'api/breakfast/v1/webhooks/stripe',
+            'method'  => 'POST',
+            'action'  => function () {
+                $platform = breakfast();
+                $settings = $platform->stripeSettings();
+                $payload  = file_get_contents('php://input') ?: '';
+                $sig      = (string) (kirby()->request()->header('Stripe-Signature') ?? '');
+
+                try {
+                    $verifier = new \Breakfast\Platform\Payments\StripeWebhook($settings->webhookSecret());
+                    $event    = $verifier->constructEvent($payload, $sig);
+                } catch (\Breakfast\Platform\Payments\PaymentException $e) {
+                    // A failed signature must never be processed. 400 tells Stripe
+                    // to retry (transient) or that the secret is wrong (operator fix).
+                    return \Kirby\Http\Response::json(['error' => 'invalid_signature'], $e->status >= 400 && $e->status < 500 ? 400 : $e->status);
+                }
+
+                try {
+                    $platform->payments()->handleEvent($event);
+                } catch (\Throwable $e) {
+                    $platform->logger()->error('stripe', 'Webhook handling failed: ' . $e->getMessage());
+
+                    return \Kirby\Http\Response::json(['error' => 'processing_error'], 500);
+                }
+
+                return \Kirby\Http\Response::json(['received' => true], 200);
+            },
+        ],
+
         // Hermes integration API. Registered BEFORE Kirby's own /api so it is
         // matched first. Enforces its own HMAC auth + scopes; not Panel auth.
         [
@@ -532,6 +567,31 @@ Kirby::plugin('breakfast/platform', [
             },
         ],
 
+        // Authenticated staff download of a payment receipt PDF. Streams the
+        // stored receipt from the private store with an integrity check. Before
+        // the SPA catch-all.
+        [
+            'pattern' => 'breakfast-admin/payments/(:any)/receipt',
+            'method'  => 'GET',
+            'action'  => function (string $id) {
+                if (!\Breakfast\Platform\Security\PanelGate::canViewPayments(kirby()->user())) {
+                    return new \Kirby\Http\Response('Not found', 'text/plain', 404);
+                }
+                try {
+                    $result = breakfast()->payments()->downloadReceipt($id);
+                } catch (\Breakfast\Platform\Payments\PaymentException $e) {
+                    return new \Kirby\Http\Response($e->getMessage(), 'text/plain', $e->status);
+                }
+                $filename = preg_replace('/[^A-Za-z0-9.\-]/', '', $result['filename']) ?: 'receipt.pdf';
+
+                return new \Kirby\Http\Response($result['bytes'], 'application/pdf', 200, [
+                    'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+                    'X-Content-Type-Options' => 'nosniff',
+                    'Cache-Control' => 'private, no-store',
+                ]);
+            },
+        ],
+
         // The standalone Breakfast Admin application shell. The Vue SPA is built to
         // public/breakfast-admin/ (base=/breakfast-admin/). Real built assets are
         // served directly by the web server; every other in-app path (deep links
@@ -589,6 +649,35 @@ Kirby::plugin('breakfast/platform', [
                 }
 
                 return new \Kirby\Http\Response(snippet('invoice', ['invoice' => $inv], true), 'text/html');
+            },
+        ],
+
+        // Public client "pay now" action (/invoice/<token>/pay). Creates a Stripe
+        // Checkout Session for the invoice's outstanding balance (amount computed
+        // server-side, never supplied by the client) and redirects to Stripe's
+        // hosted page. The invoice is NEVER marked paid here — only a verified
+        // webhook does that. Placed before the GET view route.
+        [
+            'pattern' => 'invoice/(:any)/pay',
+            'method'  => 'POST',
+            'action'  => function (string $token) {
+                $platform = breakfast();
+                $inv = $platform->invoices()->findByToken($token);
+                if ($inv === null) {
+                    return new \Kirby\Http\Response('Not found', 'text/plain', 404);
+                }
+                try {
+                    $siteUrl = rtrim((string) kirby()->site()->url(), '/');
+                    $link = $platform->payments()->createCheckout((string) $inv['uuid'], 'client', $siteUrl);
+                } catch (\Breakfast\Platform\Payments\PaymentException $e) {
+                    return new \Kirby\Http\Response($e->getMessage(), 'text/plain', $e->status);
+                }
+                $url = (string) ($link['url'] ?? '');
+                if ($url === '') {
+                    return new \Kirby\Http\Response('Could not start the payment.', 'text/plain', 502);
+                }
+
+                return \Kirby\Http\Response::redirect($url, 303);
             },
         ],
 

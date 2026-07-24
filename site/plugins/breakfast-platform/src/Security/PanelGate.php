@@ -153,6 +153,32 @@ final class PanelGate
     }
 
     /**
+     * Online payments (Stripe). Viewing payments follows invoice viewing;
+     * creating a payment link follows invoice management. Configuring Stripe
+     * credentials and issuing refunds move real money / change secrets, so both
+     * are admin-only — and Hermes can reach none of them.
+     */
+    public static function canViewPayments(?User $user): bool
+    {
+        return self::canViewInvoices($user);
+    }
+
+    public static function canCreatePaymentLink(?User $user): bool
+    {
+        return self::canManageInvoices($user);
+    }
+
+    public static function canRefundPayments(?User $user): bool
+    {
+        return $user !== null && $user->isAdmin();
+    }
+
+    public static function canManageStripeSettings(?User $user): bool
+    {
+        return $user !== null && $user->isAdmin();
+    }
+
+    /**
      * Website content. Viewing the overview needs admin access; editing drafts
      * and publishing to the live site both require the 'manage' grant. Enforced
      * server-side on every website route.
