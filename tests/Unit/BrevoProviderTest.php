@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Breakfast\Tests\Unit;
 
+use Breakfast\Platform\Mail\AttachmentResolver;
 use Breakfast\Platform\Mail\BrevoApiMailProvider;
 use Breakfast\Platform\Mail\EmailAddress;
 use Breakfast\Platform\Mail\HttpClient;
 use Breakfast\Platform\Mail\HttpResponse;
+use Breakfast\Platform\Mail\MailAttachment;
 use Breakfast\Platform\Mail\MailMessage;
 use Breakfast\Platform\Mail\MailOutcome;
 use PHPUnit\Framework\TestCase;
@@ -58,6 +60,41 @@ final class BrevoProviderTest extends TestCase
         $this->assertSame('client@example.co.uk', $body['to'][0]['email']);
         $this->assertSame('reply@example.com', $body['replyTo']['email']);
         $this->assertArrayHasKey('X-Breakfast-Message', $body['headers']);
+    }
+
+    public function testAttachmentReferenceIsResolvedAndBase64EncodedIntoThePayload(): void
+    {
+        HttpClient::useTransport(function (string $m, string $u, array $h, ?string $b): HttpResponse {
+            $this->captured = ['method' => $m, 'url' => $u, 'headers' => $h, 'body' => $b];
+
+            return new HttpResponse(201, '{"messageId":"<x@brevo>"}');
+        });
+
+        // A resolver that turns the reference into a real (tiny) PDF at send time.
+        $resolver = new class () implements AttachmentResolver {
+            public function resolve(string $reference): ?MailAttachment
+            {
+                return $reference === 'invoice:abc'
+                    ? new MailAttachment('BREAKFAST-INV-1.pdf', "%PDF-1.7\nfake", 'application/pdf')
+                    : null;
+            }
+        };
+        $provider = new BrevoApiMailProvider(['apiKey' => 'k', 'baseUrl' => 'https://api.brevo.com/v3'], new HttpClient(), $resolver);
+
+        $message = new MailMessage(
+            messageType: 'crm_reply',
+            sender: EmailAddress::create('studio@example.com', 'Breakfast'),
+            to: [EmailAddress::create('client@example.co.uk', 'Client')],
+            subject: 'Invoice',
+            html: '<p>See attached</p>',
+            attachments: ['invoice:abc'],
+        );
+        $provider->send($message);
+
+        $body = json_decode((string) $this->captured['body'], true);
+        $this->assertArrayHasKey('attachment', $body, 'the PDF is attached at send time');
+        $this->assertSame('BREAKFAST-INV-1.pdf', $body['attachment'][0]['name']);
+        $this->assertSame(base64_encode("%PDF-1.7\nfake"), $body['attachment'][0]['content']);
     }
 
     public function testAcceptedResponseMapsMessageId(): void

@@ -40,9 +40,10 @@ final class CrmMailService
      * for expected conditions (suppression, invalid recipient).
      *
      * @param array{contact_uuid?:?string,enquiry_uuid?:?string,opportunity_uuid?:?string} $links
+     * @param list<string> $attachments storage references (never raw bytes), resolved at send time
      * @return array{ok:bool,error?:string,uuid?:string}
      */
-    public function send(string $toEmail, string $subject, string $body, array $links, ?string $actorEmail): array
+    public function send(string $toEmail, string $subject, string $body, array $links, ?string $actorEmail, array $attachments = []): array
     {
         $recipient = EmailAddress::tryCreate($toEmail);
         if ($recipient === null) {
@@ -73,6 +74,7 @@ final class CrmMailService
             params: ['message_body' => mb_substr($body, 0, 2000)],
             replyTo: $sender,
             tags: ['crm', 'reply'],
+            attachments: array_values(array_filter($attachments, static fn (string $a): bool => $a !== '')),
             contactUuid: $links['contact_uuid'] ?? null,
             enquiryUuid: $links['enquiry_uuid'] ?? null,
             opportunityUuid: $links['opportunity_uuid'] ?? null,

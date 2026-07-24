@@ -19,7 +19,7 @@ final class MailProviderFactory
     /**
      * @param array<string,mixed> $config the platform 'mail' config block
      */
-    public static function make(array $config, bool $isProduction): MailProvider
+    public static function make(array $config, bool $isProduction, AttachmentResolver $attachments = new NullAttachmentResolver()): MailProvider
     {
         if (self::$override !== null) {
             return self::$override;
@@ -28,19 +28,19 @@ final class MailProviderFactory
         $provider = (string) ($config['provider'] ?? 'smtp');
 
         return match ($provider) {
-            'brevo' => self::brevo($config, $isProduction),
-            'smtp'  => new SmtpMailProvider(is_array($config['smtp'] ?? null) ? $config['smtp'] : []),
-            'fake', 'null' => new FakeMailProvider(),
+            'brevo' => self::brevo($config, $isProduction, $attachments),
+            'smtp'  => new SmtpMailProvider(is_array($config['smtp'] ?? null) ? $config['smtp'] : [], $attachments),
+            'fake', 'null' => new FakeMailProvider($attachments),
             default => $isProduction
                 ? throw new RuntimeException('Unknown mail provider: ' . $provider)
-                : new FakeMailProvider(),
+                : new FakeMailProvider($attachments),
         };
     }
 
     /**
      * @param array<string,mixed> $config
      */
-    private static function brevo(array $config, bool $isProduction): MailProvider
+    private static function brevo(array $config, bool $isProduction, AttachmentResolver $attachments): MailProvider
     {
         $brevo  = is_array($config['brevo'] ?? null) ? $config['brevo'] : [];
         $apiKey = (string) ($brevo['apiKey'] ?? '');
@@ -51,7 +51,7 @@ final class MailProviderFactory
             }
 
             // Never send real email in dev/test with an unconfigured provider.
-            return new FakeMailProvider();
+            return new FakeMailProvider($attachments);
         }
 
         return new BrevoApiMailProvider([
@@ -59,7 +59,7 @@ final class MailProviderFactory
             'baseUrl'     => (string) ($brevo['baseUrl'] ?? 'https://api.brevo.com/v3'),
             'trackOpens'  => (bool) ($brevo['trackOpens'] ?? false),
             'trackClicks' => (bool) ($brevo['trackClicks'] ?? false),
-        ]);
+        ], new HttpClient(), $attachments);
     }
 
     /** @internal test seam: force a specific provider instance */

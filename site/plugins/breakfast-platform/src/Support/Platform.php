@@ -228,7 +228,19 @@ final class Platform
 
     public function mailProvider(): MailProvider
     {
-        return $this->service(MailProvider::class, fn () => MailProviderFactory::make($this->mailConfig(), $this->isProduction()));
+        return $this->service(MailProvider::class, fn () => MailProviderFactory::make($this->mailConfig(), $this->isProduction(), $this->attachmentResolver()));
+    }
+
+    /**
+     * Resolves persisted attachment references (e.g. "invoice:<uuid>") to real
+     * file bytes at send time. Wired into the mail provider so the queue only
+     * ever stores a reference, never a base64 blob.
+     */
+    public function attachmentResolver(): \Breakfast\Platform\Mail\AttachmentResolver
+    {
+        return $this->service(\Breakfast\Platform\Mail\AttachmentResolver::class, fn () => new \Breakfast\Platform\Invoicing\InvoiceAttachmentResolver(
+            new \Breakfast\Platform\Invoicing\InvoiceDocumentStore($this->db(), $this->storageDir() . '/invoices')
+        ));
     }
 
     public function outbound(): OutboundMessageRepository

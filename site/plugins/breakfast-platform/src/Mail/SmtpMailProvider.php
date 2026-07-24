@@ -17,8 +17,10 @@ final class SmtpMailProvider implements MailProvider
     /**
      * @param array<string,mixed> $config
      */
-    public function __construct(private readonly array $config = [])
-    {
+    public function __construct(
+        private readonly array $config = [],
+        private readonly AttachmentResolver $attachments = new NullAttachmentResolver(),
+    ) {
     }
 
     public function name(): string
@@ -32,17 +34,22 @@ final class SmtpMailProvider implements MailProvider
             return MailResult::temporary('kirby_mail_unavailable');
         }
 
+        // Resolve attachment references to real files on disk (Kirby's email
+        // component attaches by path). Written to temp files only at send time.
+        [$paths, $temps] = $this->materialiseAttachments($message);
+
         try {
             Kirby::instance()->email([
-                'transport' => $this->transport(),
-                'from'      => $message->sender->email,
-                'fromName'  => $message->sender->name ?? '',
-                'replyTo'   => $message->replyTo?->email,
-                'to'        => array_map(static fn (EmailAddress $a): string => $a->email, $message->to),
-                'cc'        => array_map(static fn (EmailAddress $a): string => $a->email, $message->cc),
-                'bcc'       => array_map(static fn (EmailAddress $a): string => $a->email, $message->bcc),
-                'subject'   => $message->subject,
-                'body'      => [
+                'transport'   => $this->transport(),
+                'from'        => $message->sender->email,
+                'fromName'    => $message->sender->name ?? '',
+                'replyTo'     => $message->replyTo?->email,
+                'to'          => array_map(static fn (EmailAddress $a): string => $a->email, $message->to),
+                'cc'          => array_map(static fn (EmailAddress $a): string => $a->email, $message->cc),
+                'bcc'         => array_map(static fn (EmailAddress $a): string => $a->email, $message->bcc),
+                'subject'     => $message->subject,
+                'attachments' => $paths,
+                'body'        => [
                     'html' => $message->html ?? nl2br(htmlspecialchars($message->text ?? '')),
                     'text' => $message->text ?? strip_tags($message->html ?? ''),
                 ],
@@ -50,6 +57,10 @@ final class SmtpMailProvider implements MailProvider
         } catch (Throwable $e) {
             // SMTP errors are generally transient; let the queue retry.
             return MailResult::temporary('smtp_error');
+        } finally {
+            foreach ($temps as $tmp) {
+                @unlink($tmp);
+            }
         }
 
         // SMTP has no message id; use the application UUID for correlation.
@@ -61,6 +72,34 @@ final class SmtpMailProvider implements MailProvider
         $ok = ($this->config['host'] ?? '') !== '';
 
         return ['ok' => $ok, 'detail' => $ok ? 'smtp configured' : 'smtp host missing'];
+    }
+
+    /**
+     * Write each resolved attachment to a temp file for Kirby's email component.
+     *
+     * @return array{0:list<string>,1:list<string>} [paths to attach, temp files to delete]
+     */
+    private function materialiseAttachments(MailMessage $message): array
+    {
+        $paths = [];
+        $temps = [];
+        foreach ($message->attachments as $ref) {
+            $file = $this->attachments->resolve($ref);
+            if ($file === null) {
+                continue;
+            }
+            $dir  = rtrim(sys_get_temp_dir(), '/') . '/bf-mail-att';
+            @mkdir($dir, 0700, true);
+            $safe = preg_replace('/[^A-Za-z0-9.\-]/', '_', $file->filename) ?: 'attachment.pdf';
+            $path = $dir . '/' . bin2hex(random_bytes(8)) . '-' . $safe;
+            if (file_put_contents($path, $file->bytes) !== false) {
+                @chmod($path, 0600);
+                $paths[] = $path;
+                $temps[] = $path;
+            }
+        }
+
+        return [$paths, $temps];
     }
 
     /** @return array<string,mixed> */

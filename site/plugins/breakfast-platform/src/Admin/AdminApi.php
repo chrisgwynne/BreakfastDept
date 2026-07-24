@@ -1238,6 +1238,11 @@ final class AdminApi
         if (($inv['status'] ?? 'draft') === 'draft' || ($inv['public_token'] ?? '') === '') {
             throw new ApiException(409, 'Issue the invoice before sending it.', 'invoice');
         }
+        // The genuine PDF must exist before we email it (document_pending gate):
+        // sending is blocked until generation has succeeded.
+        if ((string) ($inv['document_status'] ?? '') !== 'generated') {
+            throw new ApiException(409, 'The invoice PDF is still being generated (or failed). It can’t be emailed until the document is ready.', 'document_pending');
+        }
         $to = trim((string) ($this->body()['to'] ?? $inv['bill_to_email'] ?? ''));
         if (filter_var($to, FILTER_VALIDATE_EMAIL) === false) {
             throw new ApiException(422, 'Enter a valid client email address.', 'invalid', ['to' => 'Required.']);
@@ -1247,9 +1252,11 @@ final class AdminApi
         $number = (string) $inv['number'];
         $seller = (string) ($inv['seller_name'] ?? '') ?: 'Breakfast';
         $subject = 'Invoice ' . $number . ' from ' . $seller;
-        $body = "Hi,\n\nYour invoice {$number} is ready. You can view and download it here:\n{$url}\n\nThank you,\n{$seller}";
+        $body = "Hi,\n\nYour invoice {$number} is attached as a PDF. You can also view it online here:\n{$url}\n\nThank you,\n{$seller}";
 
-        $result = $this->platform->crmMail()->send($to, $subject, $body, [], (string) $user->email());
+        // Attach the immutable issued PDF by REFERENCE — the queue never holds
+        // the bytes; the worker resolves + base64-encodes it at send time.
+        $result = $this->platform->crmMail()->send($to, $subject, $body, [], (string) $user->email(), ['invoice:' . $id]);
         if (($result['ok'] ?? false) !== true) {
             $err = (string) ($result['error'] ?? 'send_failed');
             throw new ApiException(422, $err === 'recipient_suppressed' ? 'That recipient can’t be emailed.' : 'The invoice email couldn’t be queued.', $err);
