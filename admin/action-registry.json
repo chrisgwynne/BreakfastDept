@@ -35,7 +35,8 @@
     "operations",
     "time",
     "retainers",
-    "inbox"
+    "inbox",
+    "automation"
   ],
   "actions": [
     {
@@ -1510,6 +1511,50 @@
       "persistence": "Breakfast\\Platform\\Retainers\\Retainers::runRetainer",
       "audit": "retainer.billed",
       "playwright": "admin-retainers.spec.js",
+      "status": "implemented"
+    },
+    {
+      "id": "automation.create",
+      "label": "Create automation rule",
+      "resource": "automation",
+      "method": "POST",
+      "permission": "automation.manage",
+      "persistence": "Breakfast\\Platform\\Operations\\Automation::create",
+      "audit": "",
+      "playwright": "admin-automation.spec.js",
+      "status": "implemented"
+    },
+    {
+      "id": "automation.edit",
+      "label": "Edit automation rule",
+      "resource": "automation",
+      "method": "PATCH",
+      "permission": "automation.manage",
+      "persistence": "Breakfast\\Platform\\Operations\\Automation::update",
+      "audit": "",
+      "playwright": "admin-automation.spec.js",
+      "status": "implemented"
+    },
+    {
+      "id": "automation.delete",
+      "label": "Delete automation rule",
+      "resource": "automation",
+      "method": "DELETE",
+      "permission": "automation.manage",
+      "persistence": "Breakfast\\Platform\\Operations\\Automation::delete",
+      "audit": "",
+      "playwright": "",
+      "status": "implemented"
+    },
+    {
+      "id": "automation.run",
+      "label": "Run automation engine",
+      "resource": "automation",
+      "method": "POST",
+      "permission": "automation.manage",
+      "persistence": "Breakfast\\Platform\\Operations\\Automation::run",
+      "audit": "automation.fired",
+      "playwright": "admin-automation.spec.js",
       "status": "implemented"
     }
   ]

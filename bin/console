@@ -554,6 +554,17 @@ switch ($command) {
         out(sprintf('retainers:run — as of %s: %d period(s) billed, %d draft invoice(s) created.', $asOf, (int) $res['periods'], (int) $res['invoices']));
         break;
 
+    case 'automation:run':
+        // Evaluate every enabled automation rule and fire follow-up actions for
+        // newly-matching targets (overdue invoices, stalled onboarding, approved
+        // changes left unapplied). Idempotent per (rule, target) — safe on a
+        // schedule. --as-of=YYYY-MM-DD evaluates as if run on that date.
+        $asOfFlag = $flags['as-of'] ?? null;
+        $asOf     = is_string($asOfFlag) && $asOfFlag !== '' ? $asOfFlag : date('Y-m-d');
+        $res      = $platform->automation()->run($asOf, 'cli:automation');
+        out(sprintf('automation:run — as of %s: %d rule(s) evaluated, %d action(s) fired.', $asOf, (int) $res['rules'], (int) $res['fired']));
+        break;
+
     case 'invoices:backfill-pdfs':
         // Generate the immutable PDF for every issued invoice that doesn't have
         // one yet (issued before the PDF pipeline existed, or a prior failure).

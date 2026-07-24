@@ -305,6 +305,21 @@ final class PanelGate
     }
 
     /**
+     * Automation. Viewing rules follows CRM access; creating/editing rules and
+     * running the engine are admin-only — automation acts across the whole book
+     * and its effects (follow-up tasks, audit) are studio-wide.
+     */
+    public static function canViewAutomation(?User $user): bool
+    {
+        return self::canAccess($user);
+    }
+
+    public static function canManageAutomation(?User $user): bool
+    {
+        return $user !== null && $user->isAdmin();
+    }
+
+    /**
      * Credential vault. Viewing MASKED metadata follows the CRM 'manage' grant;
      * everything that touches a secret — create, edit a secret, reveal, copy,
      * rotate keys, view the access log — is admin-only and requires step-up

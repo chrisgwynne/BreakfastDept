@@ -98,6 +98,7 @@ final class AdminApi
             'time'          => $this->time($method, $seg, $user),
             'retainers'     => $this->retainers($method, $seg, $user),
             'inbox'         => $this->inbox($seg, $user),
+            'automation'    => $this->automation($method, $seg, $user),
             'onboarding'    => $this->onboarding($method, $seg, $user),
             'onboarding-templates' => $this->onboardingTemplatesApi($method, $seg, $user),
             'files'         => $this->files($method, $seg, $user),
@@ -2222,6 +2223,61 @@ final class AdminApi
             throw new ApiException(404, 'Unknown change-request endpoint.', 'not_found');
         } catch (\Breakfast\Platform\ChangeRequests\ChangeRequestException $e) {
             throw new ApiException($e->status, $e->getMessage(), 'change_request');
+        }
+    }
+
+    /**
+     * Automation (Phase 4). Viewing rules follows CRM access; creating/editing
+     * rules and running the engine are admin-only.
+     *
+     * @param list<string> $seg
+     * @return array<string,mixed>
+     */
+    private function automation(string $method, array $seg, \Kirby\Cms\User $user): array
+    {
+        if (!PanelGate::canViewAutomation($user)) {
+            throw new ApiException(403, 'You don’t have access to automation.', 'forbidden');
+        }
+        $svc   = $this->platform->automation();
+        $actor = (string) $user->email();
+        $id    = $seg[1] ?? '';
+        $requireManage = function () use ($user): void {
+            if (!PanelGate::canManageAutomation($user)) {
+                throw new ApiException(403, 'Only an administrator can change automation.', 'forbidden');
+            }
+        };
+
+        try {
+            if ($id === 'run' && $method === 'POST') {
+                $requireManage();
+
+                return ['result' => $svc->run((string) ($this->body()['as_of'] ?? date('Y-m-d')), $actor)];
+            }
+            if ($id === '') {
+                if ($method === 'POST') {
+                    $requireManage();
+
+                    return ['rule' => $svc->create($this->body(), $actor)];
+                }
+
+                return ['items' => $svc->list(), 'triggers' => \Breakfast\Platform\Operations\Automation::TRIGGERS];
+            }
+            if ($method === 'PATCH') {
+                $requireManage();
+                $body = $this->body();
+
+                return ['rule' => $svc->update($id, $body, $actor, array_key_exists('revision', $body) ? (int) $body['revision'] : null)];
+            }
+            if ($method === 'DELETE') {
+                $requireManage();
+                $svc->delete($id);
+
+                return ['ok' => true];
+            }
+
+            throw new ApiException(404, 'Unknown automation endpoint.', 'not_found');
+        } catch (\Breakfast\Platform\Operations\AutomationException $e) {
+            throw new ApiException($e->status, $e->getMessage(), 'automation');
         }
     }
 
