@@ -71,3 +71,4 @@ Thumbs.db
 /storage/proposals/*
 /storage/contracts/*
 /storage/receipts/*
+/storage/client-files/*

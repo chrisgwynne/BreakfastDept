@@ -95,6 +95,7 @@ final class AdminApi
             'project-templates' => $this->projectTemplatesApi($method, $seg, $user),
             'onboarding'    => $this->onboarding($method, $seg, $user),
             'onboarding-templates' => $this->onboardingTemplatesApi($method, $seg, $user),
+            'files'         => $this->files($method, $seg, $user),
             'calendar'      => $this->calendar($method, $seg, $user),
             'search'        => $this->search(),
             'settings'      => $this->settings($method, $seg, $user),
@@ -2277,6 +2278,142 @@ final class AdminApi
         if (!$manage) {
             throw new ApiException(403, 'You can’t change projects.', 'forbidden');
         }
+    }
+
+    /**
+     * Client file library. Upload/replace are multipart (field "file"); metadata
+     * comes from the multipart body. Downloads are a separate streaming route.
+     * Viewing/uploading follow the CRM grant; permanent delete is admin-only.
+     *
+     * @param list<string> $seg
+     * @return array<string,mixed>
+     */
+    private function files(string $method, array $seg, \Kirby\Cms\User $user): array
+    {
+        if (!PanelGate::canViewFiles($user)) {
+            throw new ApiException(403, 'You don’t have access to files.', 'forbidden');
+        }
+        $manage = PanelGate::canManageFiles($user);
+        $svc    = $this->platform->files();
+        $actor  = (string) $user->email();
+        $id     = $seg[1] ?? '';
+        $requireManage = function () use ($manage): void {
+            if (!$manage) {
+                throw new ApiException(403, 'You can’t change files.', 'forbidden');
+            }
+        };
+        $mbody = fn (string $k, string $d = ''): string => (string) ($this->kirby->request()->body()->get($k) ?? $d);
+        try {
+            if ($id === '') {
+                if ($method === 'POST') {
+                    $requireManage();
+                    $f = $this->uploadedFile();
+                    $links = [];
+                    if ($mbody('entity_type') !== '' && $mbody('entity_uuid') !== '') {
+                        $links[] = ['entity_type' => $mbody('entity_type'), 'entity_uuid' => $mbody('entity_uuid')];
+                    }
+                    $meta = [
+                        'display_name' => $mbody('display_name', (string) ($f['name'] ?? 'file')), 'category' => $mbody('category', 'general'),
+                        'project_uuid' => $mbody('project_uuid'), 'company_uuid' => $mbody('company_uuid'),
+                        'client_visible' => $mbody('client_visible') === '1', 'links' => $links,
+                    ];
+                    $file = $svc->upload((string) ($f['tmp_name'] ?? ''), (string) ($f['name'] ?? 'file'), (string) ($f['type'] ?? ''), $meta, $actor);
+                    if ($file['project_uuid'] ?? '') {
+                        $this->platform->projects()->logEvent((string) $file['project_uuid'], 'file_uploaded', 'File uploaded: ' . $file['display_name'], $actor);
+                    }
+
+                    return ['file' => $this->fileRow($file, true)];
+                }
+                $q = $this->query();
+
+                return ['items' => array_map(fn (array $r): array => $this->fileRow($r, false), $svc->list([
+                    'project_uuid' => $q['project'] ?? null, 'company_uuid' => $q['company'] ?? null,
+                    'category' => $q['category'] ?? null, 'include_archived' => ($q['archived'] ?? '') === '1', 'limit' => $this->perPage(),
+                ]))];
+            }
+            $action = $seg[2] ?? '';
+            if ($method === 'GET' && $action === '') {
+                $f = $svc->find($id);
+                if ($f === null) {
+                    throw new ApiException(404, 'File not found.', 'not_found');
+                }
+
+                return ['file' => $this->fileRow($f, true)];
+            }
+            $requireManage();
+            if ($method === 'POST') {
+                switch ($action) {
+                    case 'replace':
+                        $f = $this->uploadedFile();
+
+                        return ['file' => $this->fileRow($svc->replace($id, (string) ($f['tmp_name'] ?? ''), (string) ($f['name'] ?? 'file'), (string) ($f['type'] ?? ''), $mbody('change_note'), $actor), true)];
+                    case 'restore-version':
+                        return ['file' => $this->fileRow($svc->restoreVersion($id, (int) ($this->body()['version'] ?? 0), $actor), true)];
+                    case 'link':
+                        $body = $this->body();
+
+                        return ['file' => $this->fileRow($svc->link($id, (string) ($body['entity_type'] ?? ''), (string) ($body['entity_uuid'] ?? ''), $actor), true)];
+                    case 'unlink':
+                        $body = $this->body();
+                        $svc->unlink($id, (string) ($body['entity_type'] ?? ''), (string) ($body['entity_uuid'] ?? ''));
+
+                        return ['file' => $this->fileRow($svc->find($id) ?? [], true)];
+                    case 'archive':
+                        return ['file' => $this->fileRow($svc->archive($id, $actor), true)];
+                    case 'restore':
+                        return ['file' => $this->fileRow($svc->restore($id, $actor), true)];
+                    case 'delete':
+                        if (!PanelGate::canDeleteFiles($user)) {
+                            throw new ApiException(403, 'Only an administrator can permanently delete a file.', 'forbidden');
+                        }
+
+                        return $svc->delete($id, (string) ($this->body()['reason'] ?? ''), $actor);
+                }
+            }
+
+            throw new ApiException(404, 'Unknown file endpoint.', 'not_found');
+        } catch (\Breakfast\Platform\Files\FileException $e) {
+            throw new ApiException($e->status, $e->getMessage(), 'file');
+        }
+    }
+
+    /**
+     * @param array<string,mixed> $f
+     * @return array<string,mixed>
+     */
+    private function fileRow(array $f, bool $detail): array
+    {
+        $cur = is_array($f['current'] ?? null) ? $f['current'] : [];
+        $row = [
+            'id'             => (string) ($f['uuid'] ?? ''),
+            'display_name'   => (string) ($f['display_name'] ?? ''),
+            'category'       => (string) ($f['category'] ?? 'general'),
+            'current_version' => (int) ($f['current_version'] ?? 1),
+            'immutable'      => (int) ($f['immutable'] ?? 0) === 1,
+            'client_visible' => (int) ($f['client_visible'] ?? 0) === 1,
+            'archived'       => (int) ($f['archived'] ?? 0) === 1,
+            'project_uuid'   => (string) ($f['project_uuid'] ?? ''),
+            'reference_count' => (int) ($f['reference_count'] ?? 0),
+            'extension'      => (string) ($cur['extension'] ?? ''),
+            'byte_size'      => (int) ($cur['byte_size'] ?? 0),
+            'thumb_state'    => (string) ($cur['thumb_state'] ?? 'none'),
+            'tags'           => is_array($f['tags'] ?? null) ? $f['tags'] : [],
+            'updated_at'     => (string) ($f['updated_at'] ?? ''),
+        ];
+        if (!$detail) {
+            return $row;
+        }
+        $row['description'] = (string) ($f['description'] ?? '');
+        $row['source'] = (string) ($f['source'] ?? '');
+        $row['versions'] = array_map(static fn (array $v): array => [
+            'version' => (int) ($v['version'] ?? 0), 'original_name' => (string) ($v['original_name'] ?? ''), 'byte_size' => (int) ($v['byte_size'] ?? 0),
+            'change_note' => (string) ($v['change_note'] ?? ''), 'uploader' => (string) ($v['uploader'] ?? ''), 'created_at' => (string) ($v['created_at'] ?? ''),
+        ], is_array($f['versions'] ?? null) ? $f['versions'] : []);
+        $row['links'] = array_map(static fn (array $l): array => [
+            'entity_type' => (string) ($l['entity_type'] ?? ''), 'entity_uuid' => (string) ($l['entity_uuid'] ?? ''),
+        ], is_array($f['links'] ?? null) ? $f['links'] : []);
+
+        return $row;
     }
 
     /**

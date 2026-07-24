@@ -20,7 +20,7 @@ const loading = ref(true)
 const error = ref<string | null>(null)
 const busy = ref('')
 
-const tab = ref<'overview' | 'milestones' | 'board' | 'onboarding'>('overview')
+const tab = ref<'overview' | 'milestones' | 'board' | 'onboarding' | 'files'>('overview')
 type Milestone = { uuid: string; title: string; status: string; progress_percent: number; due_date: string; is_ready: boolean; blocked_by: string[] }
 type Task = { uuid: string; title: string; status: string; milestone_uuid: string | null; is_ready: boolean; revision: number }
 const milestones = ref<Milestone[]>([])
@@ -37,12 +37,48 @@ async function loadBoard() {
   if (!project.value) return
   board.value = (await api.get<{ columns: Record<string, Task[]> }>(`/projects/${project.value.id}/board`)).columns
 }
-async function switchTab(t: 'overview' | 'milestones' | 'board' | 'onboarding') {
+async function switchTab(t: 'overview' | 'milestones' | 'board' | 'onboarding' | 'files') {
   tab.value = t
   if (t === 'milestones') await loadMilestones()
   if (t === 'board') await loadBoard()
   if (t === 'onboarding') await loadOnboarding()
+  if (t === 'files') await loadFiles()
 }
+
+// --- Files ---
+interface ProjectFile { id: string; display_name: string; category: string; current_version: number; immutable: boolean; reference_count: number; extension: string; byte_size: number; thumb_state: string }
+const files = ref<ProjectFile[]>([])
+const fileInput = ref<HTMLInputElement | null>(null)
+const uploading = ref(false)
+async function loadFiles() {
+  if (!project.value) return
+  files.value = (await api.get<{ items: ProjectFile[] }>(`/files?project=${project.value.id}`)).items
+}
+function pickFile() { fileInput.value?.click() }
+async function onFilePicked(ev: Event) {
+  const input = ev.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file || !project.value) return
+  uploading.value = true
+  try {
+    const form = new FormData()
+    form.append('file', file)
+    form.append('project_uuid', project.value.id)
+    form.append('entity_type', 'project')
+    form.append('entity_uuid', project.value.id)
+    form.append('display_name', file.name)
+    await api.upload('/files', form)
+    ui.toast('File uploaded')
+    await loadFiles()
+  } catch (e) { ui.toast(e instanceof ApiError ? e.message : 'Upload failed') }
+  finally { uploading.value = false; input.value = '' }
+}
+function fileDownload(f: ProjectFile): string { return `/breakfast-admin/files/${f.id}/download` }
+async function archiveFile(f: ProjectFile) {
+  try { await api.post(`/files/${f.id}/archive`, {}); await loadFiles(); ui.toast('Archived') }
+  catch (e) { ui.toast(e instanceof ApiError ? e.message : 'Could not archive') }
+}
+function fileSize(n: number): string { return n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB' }
 
 // --- Onboarding ---
 interface OnbReview { uuid: string; question_key: string; target: string; existing_value: string; submitted_value: string; decision: string }
@@ -218,7 +254,29 @@ onMounted(load)
           <button class="tab" :class="{ 'tab--active': tab === 'milestones' }" role="tab" @click="switchTab('milestones')">Milestones</button>
           <button class="tab" :class="{ 'tab--active': tab === 'board' }" role="tab" @click="switchTab('board')">Board</button>
           <button class="tab" :class="{ 'tab--active': tab === 'onboarding' }" role="tab" @click="switchTab('onboarding')">Onboarding</button>
+          <button class="tab" :class="{ 'tab--active': tab === 'files' }" role="tab" @click="switchTab('files')">Files</button>
         </div>
+
+        <!-- Files -->
+        <section v-if="tab === 'files'" class="card card--pad" data-test="project-files">
+          <div v-if="canManage" class="quickadd">
+            <input ref="fileInput" type="file" hidden data-test="file-input" @change="onFilePicked" />
+            <button class="btn btn--sm btn--primary" data-test="file-upload" :disabled="uploading" @click="pickFile">{{ uploading ? 'Uploading…' : 'Upload file' }}</button>
+          </div>
+          <div class="card list">
+            <div v-for="f in files" :key="f.id" class="frow" :data-test="'file-' + f.category">
+              <img v-if="f.thumb_state === 'ready'" class="fthumb" :src="`/breakfast-admin/files/${f.id}/thumb`" alt="" />
+              <span v-else class="fthumb fthumb--none">{{ f.extension.toUpperCase() }}</span>
+              <span class="fname truncate">{{ f.display_name }}<span v-if="f.immutable" class="chip">locked</span></span>
+              <span class="fmeta faint">v{{ f.current_version }} · {{ fileSize(f.byte_size) }}<span v-if="f.reference_count"> · {{ f.reference_count }} link(s)</span></span>
+              <span class="factions">
+                <a class="pdflink" :href="fileDownload(f)" target="_blank" rel="noopener" data-test="file-download">Download</a>
+                <button v-if="canManage && !f.immutable" class="btn btn--sm" data-test="file-archive" @click="archiveFile(f)">Archive</button>
+              </span>
+            </div>
+            <p v-if="!files.length" class="faint" style="padding:var(--sp-3)">No files yet.</p>
+          </div>
+        </section>
 
         <!-- Onboarding -->
         <section v-if="tab === 'onboarding'" class="card card--pad" data-test="project-onboarding">
@@ -429,5 +487,12 @@ onMounted(load)
 .onb__reviews { background: var(--paper-2); border-radius: var(--r-md); padding: var(--sp-2) var(--sp-3); display: grid; gap: 6px; }
 .onb__review { display: flex; justify-content: space-between; gap: var(--sp-2); font-size: var(--text-sm); align-items: center; }
 .onb__decide { display: inline-flex; gap: 6px; }
+.frow { display: grid; grid-template-columns: 40px 1fr auto auto; align-items: center; gap: var(--sp-3); padding: 10px var(--sp-3); }
+.frow + .frow { border-top: 1px solid var(--line); }
+.fthumb { width: 40px; height: 40px; border-radius: var(--r-sm); object-fit: cover; background: var(--paper-2); display: grid; place-items: center; font-size: 10px; color: var(--ink-3); font-weight: 700; }
+.fname { font-size: var(--text-sm); display: flex; align-items: center; gap: 6px; }
+.fmeta { font-size: var(--text-xs); white-space: nowrap; }
+.factions { display: inline-flex; gap: var(--sp-2); align-items: center; }
+.chip { font-size: 10px; padding: 1px 6px; border-radius: var(--r-pill); background: var(--paper-2); color: var(--ink-3); }
 @media (max-width: 820px) { .cols { grid-template-columns: 1fr; } .grid2 { grid-template-columns: 1fr; } }
 </style>

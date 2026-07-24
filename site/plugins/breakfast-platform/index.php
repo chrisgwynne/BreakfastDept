@@ -596,6 +596,49 @@ Kirby::plugin('breakfast/platform', [
             },
         ],
 
+        // Authenticated staff download of a client-library file (a specific
+        // version via ?version=N). Streams from the private store with an
+        // integrity check + access-event record. Before the SPA catch-all.
+        [
+            'pattern' => 'breakfast-admin/files/(:any)/download',
+            'method'  => 'GET',
+            'action'  => function (string $id) {
+                $user = kirby()->user();
+                if (!\Breakfast\Platform\Security\PanelGate::canViewFiles($user)) {
+                    return new \Kirby\Http\Response('Not found', 'text/plain', 404);
+                }
+                try {
+                    $version = get('version');
+                    $result = breakfast()->files()->download($id, is_numeric($version) ? (int) $version : null, (string) $user->email());
+                } catch (\Breakfast\Platform\Files\FileException $e) {
+                    return new \Kirby\Http\Response($e->getMessage(), 'text/plain', $e->status);
+                }
+
+                return new \Kirby\Http\Response($result['bytes'], 'application/octet-stream', 200, [
+                    'Content-Disposition' => 'attachment; filename="' . $result['filename'] . '"',
+                    'X-Content-Type-Options' => 'nosniff',
+                    'Cache-Control' => 'private, no-store',
+                ]);
+            },
+        ],
+
+        // Authenticated staff thumbnail for a client-library image (safe, small).
+        [
+            'pattern' => 'breakfast-admin/files/(:any)/thumb',
+            'method'  => 'GET',
+            'action'  => function (string $id) {
+                if (!\Breakfast\Platform\Security\PanelGate::canViewFiles(kirby()->user())) {
+                    return new \Kirby\Http\Response('Not found', 'text/plain', 404);
+                }
+                $thumb = breakfast()->files()->thumbnail($id);
+                if ($thumb === null) {
+                    return new \Kirby\Http\Response('No thumbnail', 'text/plain', 404);
+                }
+
+                return new \Kirby\Http\Response($thumb['bytes'], 'image/jpeg', 200, ['Cache-Control' => 'private, max-age=300', 'X-Content-Type-Options' => 'nosniff']);
+            },
+        ],
+
         // The standalone Breakfast Admin application shell. The Vue SPA is built to
         // public/breakfast-admin/ (base=/breakfast-admin/). Real built assets are
         // served directly by the web server; every other in-app path (deep links

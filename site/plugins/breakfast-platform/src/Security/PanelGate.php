@@ -214,6 +214,26 @@ final class PanelGate
     }
 
     /**
+     * Client file library. Viewing + uploading + editing follow the CRM grant;
+     * permanent deletion is admin-only (archive is the norm). Downloads are
+     * authenticated and access-logged.
+     */
+    public static function canViewFiles(?User $user): bool
+    {
+        return self::canAccess($user);
+    }
+
+    public static function canManageFiles(?User $user): bool
+    {
+        return self::canManage($user);
+    }
+
+    public static function canDeleteFiles(?User $user): bool
+    {
+        return $user !== null && $user->isAdmin();
+    }
+
+    /**
      * Website content. Viewing the overview needs admin access; editing drafts
      * and publishing to the live site both require the 'manage' grant. Enforced
      * server-side on every website route.
