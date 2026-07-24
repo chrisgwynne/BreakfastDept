@@ -136,9 +136,10 @@ final class Contracts
             ]
         );
 
-        // Default parties: Breakfast (order 1) + client (order 2). Ordered signing.
-        $this->addParty($uuid, 'breakfast', (string) ($data['seller_name'] ?? 'Breakfast'), '', 1, true);
-        $this->addParty($uuid, 'client', (string) ($data['client_name'] ?? ''), (string) ($data['client_email'] ?? ''), 2, true);
+        // Default parties: the client signs first (order 1) through the hosted
+        // flow, then Breakfast countersigns (order 2) in the admin.
+        $this->addParty($uuid, 'client', (string) ($data['client_name'] ?? ''), (string) ($data['client_email'] ?? ''), 1, true);
+        $this->addParty($uuid, 'breakfast', (string) ($data['seller_name'] ?? 'Breakfast'), '', 2, true);
 
         $this->event($uuid, 'created', 'Contract drafted', $actor);
 
@@ -332,6 +333,7 @@ final class Contracts
             $snapshot = (string) $c['snapshot'];
             $hash     = hash('sha256', $snapshot);
             $now      = Clock::nowIso();
+            $method   = in_array(($evidence['method'] ?? 'typed'), ['typed', 'drawn'], true) ? (string) ($evidence['method'] ?? 'typed') : 'typed';
 
             $db->run(
                 'INSERT INTO contract_signatures
@@ -342,7 +344,7 @@ final class Contracts
                     'uuid' => Uuid::v4(), 'c' => $uuid, 'p' => $partyUuid, 'sv' => (int) $c['snapshot_version'],
                     'name' => $name, 'email' => trim((string) ($evidence['email'] ?? (string) $party['email'])),
                     'role' => (string) $party['role'], 'contact' => $this->nullable($c['contact_uuid'] ?? null),
-                    'method' => in_array(($evidence['method'] ?? 'typed'), ['typed', 'drawn'], true) ? (string) $evidence['method'] : 'typed',
+                    'method' => $method,
                     'wording' => mb_substr((string) ($evidence['wording'] ?? (string) $c['signature_wording']), 0, 1000),
                     'ip' => (string) ($evidence['ip_hash'] ?? ''), 'ua' => mb_substr((string) ($evidence['user_agent'] ?? ''), 0, 200),
                     'tok' => (string) ($evidence['token_id'] ?? ''), 'hash' => $hash, 'now' => $now,

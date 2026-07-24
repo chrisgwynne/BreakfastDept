@@ -508,6 +508,30 @@ Kirby::plugin('breakfast/platform', [
             },
         ],
 
+        // Authenticated staff download of a contract's stored PDF (unsigned or
+        // signed). Before the SPA catch-all.
+        [
+            'pattern' => 'breakfast-admin/contracts/(:any)/(unsigned|signed)/download',
+            'method'  => 'GET',
+            'action'  => function (string $id, string $which) {
+                if (!\Breakfast\Platform\Security\PanelGate::canViewContracts(kirby()->user())) {
+                    return new \Kirby\Http\Response('Not found', 'text/plain', 404);
+                }
+                try {
+                    $result = breakfast()->contractDocuments()->download($id, $which);
+                } catch (\Breakfast\Platform\Contracts\ContractException $e) {
+                    return new \Kirby\Http\Response($e->getMessage(), 'text/plain', $e->status);
+                }
+                $filename = preg_replace('/[^A-Za-z0-9.\-]/', '', $result['filename']) ?: 'contract.pdf';
+
+                return new \Kirby\Http\Response($result['bytes'], 'application/pdf', 200, [
+                    'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+                    'X-Content-Type-Options' => 'nosniff',
+                    'Cache-Control' => 'private, no-store',
+                ]);
+            },
+        ],
+
         // The standalone Breakfast Admin application shell. The Vue SPA is built to
         // public/breakfast-admin/ (base=/breakfast-admin/). Real built assets are
         // served directly by the web server; every other in-app path (deep links
@@ -641,6 +665,76 @@ Kirby::plugin('breakfast/platform', [
                 $svc->markViewed((string) $p['uuid']);
 
                 return new \Kirby\Http\Response(snippet('proposal', ['proposal' => $svc->find((string) $p['uuid']), 'token' => $token], true), 'text/html', 200, [
+                    'X-Robots-Tag' => 'noindex, nofollow',
+                ]);
+            },
+        ],
+
+        // Public client contract signing actions (POST). The unguessable token
+        // is the capability; signing is an explicit, evidenced act.
+        [
+            'pattern' => 'contract/(:any)/(sign|decline)',
+            'method'  => 'POST',
+            'action'  => function (string $token, string $verb) {
+                $svc = breakfast()->contracts();
+                $c   = $svc->findByToken($token);
+                if ($c === null) {
+                    return new \Kirby\Http\Response('Not found', 'text/plain', 404);
+                }
+                $uuid = (string) $c['uuid'];
+                try {
+                    if ($verb === 'decline') {
+                        $svc->decline($uuid, (string) get('reason', ''), 'client');
+                    } else {
+                        if ((string) get('consent', '') !== 'yes' || trim((string) get('name', '')) === '') {
+                            return new \Kirby\Http\Response('You must enter your name and confirm consent to sign.', 'text/plain', 422);
+                        }
+                        // The client party (order 1) signs through the hosted flow.
+                        $party = null;
+                        foreach (($c['parties'] ?? []) as $p) {
+                            if ((string) $p['role'] === 'client') {
+                                $party = (string) $p['uuid'];
+                                break;
+                            }
+                        }
+                        if ($party === null) {
+                            return new \Kirby\Http\Response('No client signatory.', 'text/plain', 409);
+                        }
+                        $ipHash = hash('sha256', (string) (kirby()->option('breakfast.webhookSecret', '') ?? '') . '|' . (string) (kirby()->visitor()->ip() ?? ''));
+                        $svc->sign($uuid, $party, [
+                            'name'       => (string) get('name', ''),
+                            'email'      => (string) get('email', (string) ($c['client_email'] ?? '')),
+                            'ip_hash'    => $ipHash,
+                            'user_agent' => (string) (kirby()->request()->header('User-Agent') ?? ''),
+                            'token_id'   => substr($token, 0, 8),
+                            'method'     => 'typed',
+                            'wording'    => (string) ($c['signature_wording'] ?? 'I agree to this contract.'),
+                        ]);
+                    }
+                } catch (\Breakfast\Platform\Contracts\ContractException $e) {
+                    return new \Kirby\Http\Response($e->getMessage(), 'text/plain', $e->status);
+                }
+
+                return \Kirby\Http\Response::redirect(rtrim((string) kirby()->site()->url(), '/') . '/contract/' . $token);
+            },
+        ],
+
+        // Signed client contract link (/contract/<token>). Viewing marks it
+        // viewed (never signed). No login required.
+        [
+            'pattern' => 'contract/(:any)',
+            'method'  => 'GET',
+            'action'  => function (string $token) {
+                $svc = breakfast()->contracts();
+                $c   = $svc->findByToken($token);
+                if ($c === null) {
+                    $error = kirby()->site()->errorPage();
+
+                    return new \Kirby\Http\Response($error !== null ? $error->render() : 'Not found', 'text/html', 404);
+                }
+                $svc->markViewed((string) $c['uuid']);
+
+                return new \Kirby\Http\Response(snippet('contract-sign', ['contract' => $svc->find((string) $c['uuid']), 'token' => $token], true), 'text/html', 200, [
                     'X-Robots-Tag' => 'noindex, nofollow',
                 ]);
             },

@@ -86,6 +86,8 @@ final class AdminApi
             'hermes'        => $this->hermes($method, $seg, $user),
             'invoices'      => $this->invoices($method, $seg, $user),
             'proposals'     => $this->proposals($method, $seg, $user),
+            'contracts'     => $this->contracts($method, $seg, $user),
+            'contract-templates' => $this->contractTemplates($method, $seg, $user),
             'calendar'      => $this->calendar($method, $seg, $user),
             'search'        => $this->search(),
             'settings'      => $this->settings($method, $seg, $user),
@@ -1546,6 +1548,331 @@ final class AdminApi
         ], is_array($p['acceptances'] ?? null) ? $p['acceptances'] : []);
 
         return $row;
+    }
+
+    // ==================================================================
+    // Contracts
+    // ==================================================================
+
+    /**
+     * @param list<string> $seg
+     * @return array<string,mixed>
+     */
+    private function contracts(string $method, array $seg, \Kirby\Cms\User $user): array
+    {
+        if (!PanelGate::canViewContracts($user)) {
+            throw new ApiException(403, 'You don’t have access to contracts.', 'forbidden');
+        }
+        $svc   = $this->platform->contracts();
+        $actor = (string) $user->email();
+        $id    = $seg[1] ?? '';
+
+        $requireManage = function () use ($user): void {
+            if (!PanelGate::canManageContracts($user)) {
+                throw new ApiException(403, 'You can’t change contracts.', 'forbidden');
+            }
+        };
+
+        try {
+            if ($id === '') {
+                if ($method === 'POST') {
+                    $requireManage();
+                    $body = $this->body();
+
+                    return ['contract' => $this->contractRow($this->createContract($body, $actor), true)];
+                }
+                $q = $this->query();
+
+                return ['items' => array_map(fn (array $r): array => $this->contractRow($r, false), $svc->list(['status' => $q['status'] ?? null, 'limit' => $this->perPage()]))];
+            }
+
+            $action = $seg[2] ?? '';
+            if ($method === 'GET' && $action === '') {
+                $c = $svc->find($id);
+                if ($c === null) {
+                    throw new ApiException(404, 'Contract not found.', 'not_found');
+                }
+
+                return ['contract' => $this->contractRow($c, true)];
+            }
+            if ($method === 'GET' && $action === 'evidence') {
+                if (!PanelGate::canViewContractEvidence($user)) {
+                    throw new ApiException(403, 'You can’t view signature evidence.', 'forbidden');
+                }
+                $c = $svc->find($id);
+
+                return ['evidence' => array_map([$this, 'signatureRow'], is_array($c['signatures'] ?? null) ? $c['signatures'] : [])];
+            }
+            if ($method === 'PATCH' && $action === '') {
+                $requireManage();
+
+                return ['contract' => $this->contractRow($svc->update($id, $this->body(), $actor), true)];
+            }
+            if ($method === 'POST') {
+                switch ($action) {
+                    case 'ready':
+                        $requireManage();
+
+                        return ['contract' => $this->contractRow($svc->markReady($id, $actor), true)];
+                    case 'send':
+                        $requireManage();
+
+                        return ['contract' => $this->contractRow($this->sendContract($id, $actor), true)];
+                    case 'remind':
+                        $requireManage();
+                        $this->emailContract($svc->find($id) ?? [], 'reminder');
+
+                        return ['contract' => $this->contractRow($svc->find($id) ?? [], true)];
+                    case 'withdraw':
+                        $requireManage();
+
+                        return ['contract' => $this->contractRow($svc->withdraw($id, $actor), true)];
+                    case 'supersede':
+                        $requireManage();
+
+                        return ['contract' => $this->contractRow($svc->supersede($id, (string) ($this->body()['reason'] ?? ''), $actor), true)];
+                    case 'void':
+                        if (!PanelGate::canVoidContracts($user)) {
+                            throw new ApiException(403, 'Only an administrator can void a contract.', 'forbidden');
+                        }
+
+                        return ['contract' => $this->contractRow($svc->void($id, (string) ($this->body()['reason'] ?? ''), $actor), true)];
+                    case 'sign-internal':
+                        if (!PanelGate::canSignContractInternal($user)) {
+                            throw new ApiException(403, 'You can’t countersign contracts.', 'forbidden');
+                        }
+                        $result = $svc->signInternal($id, ['name' => (string) ($this->body()['name'] ?? $user->name()->or($actor)->value()), 'email' => $actor, 'user_agent' => 'admin', 'wording' => 'Countersigned by Breakfast via the admin.']);
+                        $this->afterContractSignature($id, $actor, $result['completed']);
+
+                        return ['contract' => $this->contractRow($svc->find($id) ?? [], true), 'completed' => $result['completed']];
+                }
+            }
+
+            throw new ApiException(404, 'Unknown contract endpoint.', 'not_found');
+        } catch (\Breakfast\Platform\Contracts\ContractException $e) {
+            throw new ApiException($e->status, $e->getMessage(), 'contract');
+        }
+    }
+
+    /**
+     * Create a contract, pre-filling from an accepted proposal when given.
+     *
+     * @param array<string,mixed> $body
+     * @return array<string,mixed>
+     */
+    private function createContract(array $body, string $actor): array
+    {
+        $proposalUuid = trim((string) ($body['proposal_uuid'] ?? ''));
+        if ($proposalUuid !== '') {
+            $p = $this->platform->proposals()->find($proposalUuid);
+            if ($p === null) {
+                throw new ApiException(404, 'Proposal not found.', 'not_found');
+            }
+            // Prevent accidental duplicates: block if a non-terminal contract
+            // already exists for this proposal (a new version is intentional).
+            $existing = array_filter($this->platform->contracts()->list(['limit' => 200]), static fn (array $c): bool => (string) ($c['proposal_uuid'] ?? '') === $proposalUuid && !in_array((string) $c['status'], ['void', 'declined', 'withdrawn', 'superseded'], true));
+            if ($existing !== [] && empty($body['force'])) {
+                throw new ApiException(409, 'A contract already exists for this proposal.', 'conflict');
+            }
+            $body = array_merge([
+                'title'            => (string) ($p['title'] ?? 'Contract') . ' — agreement',
+                'template_key'     => 'website_build',
+                'company_uuid'     => $p['company_uuid'] ?? null,
+                'contact_uuid'     => $p['contact_uuid'] ?? null,
+                'opportunity_uuid' => $p['opportunity_uuid'] ?? null,
+                'proposal_uuid'    => $proposalUuid,
+                'client_name'      => (string) ($p['client_name'] ?? ''),
+                'client_email'     => (string) ($p['client_email'] ?? ''),
+                'seller_name'      => (string) ($p['seller_name'] ?? '') ?: (string) ($this->platform->invoices()->settings()['company_legal_name'] ?? 'Breakfast'),
+                'contract_value'   => (int) ($p['total'] ?? 0) / 100,
+                'deposit_amount'   => (int) ($p['deposit_amount'] ?? 0) / 100,
+            ], $body);
+        }
+
+        return $this->platform->contracts()->create($body, $actor);
+    }
+
+    /**
+     * Send: resolve merge fields, freeze, generate the unsigned PDF, email the
+     * signing link and record a CRM activity.
+     *
+     * @return array<string,mixed>
+     */
+    private function sendContract(string $id, string $actor): array
+    {
+        $svc  = $this->platform->contracts();
+        $sent = $svc->send($id, $actor, $this->contractMergeValues($id));
+        try {
+            $this->platform->contractDocuments()->generateUnsigned($id, $actor);
+        } catch (\Breakfast\Platform\Contracts\ContractException) {
+            // stays sent; document_status is 'failed'
+        }
+        $fresh = $svc->find($id) ?? $sent;
+        $this->emailContract($fresh, 'invite');
+        $this->contractActivity($fresh, 'contract.sent', 'Contract sent for signature');
+
+        return $fresh;
+    }
+
+    /**
+     * Resolve merge fields from the contract's linked records + settings.
+     *
+     * @return array<string,string>
+     */
+    private function contractMergeValues(string $id): array
+    {
+        $c = $this->platform->contracts()->find($id) ?? [];
+        $money = static fn (int $p): string => '£' . number_format($p / 100, 2);
+        $proposalNumber = '';
+        if (($c['proposal_uuid'] ?? '') !== '') {
+            $p = $this->platform->proposals()->find((string) $c['proposal_uuid']);
+            $proposalNumber = (string) ($p['number'] ?? '');
+        }
+
+        return [
+            'client_name'     => (string) ($c['client_name'] ?? ''),
+            'company_name'    => (string) ($c['client_name'] ?? ''),
+            'contact_name'    => (string) ($c['client_name'] ?? ''),
+            'seller_name'     => (string) ($c['seller_name'] ?? '') ?: 'Breakfast',
+            'proposal_number' => $proposalNumber ?: 'the agreed proposal',
+            'project_name'    => (string) ($c['title'] ?? ''),
+            'contract_value'  => $money((int) ($c['contract_value'] ?? 0)),
+            'deposit_amount'  => $money((int) ($c['deposit_amount'] ?? 0)),
+            'start_date'      => (string) ($c['effective_date'] ?? '') ?: 'the agreed start date',
+            'target_date'     => (string) ($c['expiry_date'] ?? '') ?: 'the agreed target date',
+            'revision_limit'  => (string) ((int) ($c['revision_limit'] ?? 0)),
+            'governing_law'   => (string) ($c['governing_law'] ?? 'the laws of England and Wales'),
+        ];
+    }
+
+    /** After a countersignature, generate the signed PDF + email parties if complete. */
+    private function afterContractSignature(string $id, string $actor, bool $completed): void
+    {
+        if (!$completed) {
+            return;
+        }
+        try {
+            $this->platform->contractDocuments()->generateSigned($id, $actor);
+            $this->emailContract($this->platform->contracts()->find($id) ?? [], 'completed');
+            $this->contractActivity($this->platform->contracts()->find($id) ?? [], 'contract.completed', 'Contract fully signed');
+        } catch (\Breakfast\Platform\Contracts\ContractException) {
+            // non-fatal
+        }
+    }
+
+    /** @param array<string,mixed> $c */
+    private function emailContract(array $c, string $kind): void
+    {
+        $to = trim((string) ($c['client_email'] ?? ''));
+        if ($to === '' || filter_var($to, FILTER_VALIDATE_EMAIL) === false) {
+            return;
+        }
+        $token  = (string) ($c['public_token'] ?? '');
+        $url    = rtrim((string) $this->kirby->site()->url(), '/') . '/contract/' . $token;
+        $number = (string) ($c['number'] ?? '');
+        $seller = (string) ($c['seller_name'] ?? '') ?: 'Breakfast';
+        [$subject, $body, $attachments] = match ($kind) {
+            'completed' => [
+                'Your signed contract ' . $number,
+                "Hi,\n\nThank you — contract {$number} is now fully signed. Your signed copy is attached.\n\n{$seller}",
+                ['contract-signed:' . (string) ($c['uuid'] ?? '')],
+            ],
+            'reminder' => [
+                'Reminder: please sign contract ' . $number,
+                "Hi,\n\nA quick reminder to review and sign contract {$number}:\n{$url}\n\nThank you,\n{$seller}",
+                [],
+            ],
+            default => [
+                'Please sign contract ' . $number . ' from ' . $seller,
+                "Hi,\n\nYour contract {$number} is ready to review and sign here:\n{$url}\n\nThank you,\n{$seller}",
+                [],
+            ],
+        };
+        $this->platform->crmMail()->send($to, $subject, $body, [], 'system', $attachments);
+    }
+
+    /** @param array<string,mixed> $c */
+    private function contractActivity(array $c, string $type, string $summary): void
+    {
+        $contact = (string) ($c['contact_uuid'] ?? '');
+        if ($contact !== '') {
+            $this->platform->activities()->record('contact', $contact, $type, $summary . ' (' . (string) ($c['number'] ?? '') . ')', 'user', null, ['contract' => (string) ($c['uuid'] ?? '')]);
+        }
+    }
+
+    /**
+     * @param list<string> $seg
+     * @return array<string,mixed>
+     */
+    private function contractTemplates(string $method, array $seg, \Kirby\Cms\User $user): array
+    {
+        if (!PanelGate::canViewContracts($user)) {
+            throw new ApiException(403, 'You don’t have access to contract templates.', 'forbidden');
+        }
+        $items = [];
+        foreach (\Breakfast\Platform\Contracts\ContractTemplates::all() as $key => $t) {
+            $items[] = ['key' => $key, 'name' => $t['name'], 'description' => $t['description'], 'sections' => $t['sections'], 'default_revision_limit' => $t['default_revision_limit'], 'default_payment_terms' => $t['default_payment_terms']];
+        }
+
+        return ['items' => $items];
+    }
+
+    /**
+     * @param array<string,mixed> $c
+     * @return array<string,mixed>
+     */
+    private function contractRow(array $c, bool $detail): array
+    {
+        $row = [
+            'id'         => (string) ($c['uuid'] ?? ''),
+            'number'     => (string) ($c['number'] ?? ''),
+            'status'     => (string) ($c['status'] ?? 'draft'),
+            'title'      => (string) ($c['title'] ?? ''),
+            'client'     => (string) ($c['client_name'] ?? ''),
+            'value'      => (int) ($c['contract_value'] ?? 0) / 100,
+            'currency'   => (string) ($c['currency'] ?? 'GBP'),
+            'created_at' => (string) ($c['created_at'] ?? ''),
+            'sent_at'    => (string) ($c['sent_at'] ?? ''),
+            'completed_at' => (string) ($c['completed_at'] ?? ''),
+            'unsigned_ready' => (string) ($c['unsigned_key'] ?? '') !== '',
+            'signed_ready'   => (string) ($c['signed_key'] ?? '') !== '',
+            'public_url' => (string) ($c['public_token'] ?? '') !== '' ? rtrim((string) $this->kirby->site()->url(), '/') . '/contract/' . (string) $c['public_token'] : '',
+        ];
+        if (!$detail) {
+            return $row;
+        }
+        foreach (['template_key', 'contact_uuid', 'company_uuid', 'opportunity_uuid', 'proposal_uuid', 'client_email', 'effective_date', 'expiry_date', 'governing_law', 'signature_wording', 'internal_notes', 'owner'] as $f) {
+            $row[$f] = (string) ($c[$f] ?? '');
+        }
+        $row['deposit_amount'] = (int) ($c['deposit_amount'] ?? 0) / 100;
+        $row['revision_limit'] = (int) ($c['revision_limit'] ?? 0);
+        $row['sections'] = is_array($c['sections_list'] ?? null) ? $c['sections_list'] : [];
+        $row['parties'] = array_map(static fn (array $p): array => [
+            'id' => (string) ($p['uuid'] ?? ''), 'role' => (string) ($p['role'] ?? ''), 'name' => (string) ($p['name'] ?? ''),
+            'email' => (string) ($p['email'] ?? ''), 'order' => (int) ($p['signing_order'] ?? 1),
+            'required' => (int) ($p['required'] ?? 1) === 1, 'status' => (string) ($p['status'] ?? 'pending'), 'signed_at' => (string) ($p['signed_at'] ?? ''),
+        ], is_array($c['parties'] ?? null) ? $c['parties'] : []);
+        $row['events'] = array_map(static fn (array $e): array => [
+            'type' => (string) ($e['type'] ?? ''), 'detail' => (string) ($e['detail'] ?? ''), 'actor' => (string) ($e['actor'] ?? ''), 'created_at' => (string) ($e['created_at'] ?? ''),
+        ], is_array($c['events'] ?? null) ? $c['events'] : []);
+        $row['signatures_count'] = is_array($c['signatures'] ?? null) ? count($c['signatures']) : 0;
+
+        return $row;
+    }
+
+    /**
+     * @param array<string,mixed> $s
+     * @return array<string,mixed>
+     */
+    private function signatureRow(array $s): array
+    {
+        return [
+            'name' => (string) ($s['signer_name'] ?? ''), 'email' => (string) ($s['signer_email'] ?? ''),
+            'role' => (string) ($s['signer_role'] ?? ''), 'method' => (string) ($s['method'] ?? 'typed'),
+            'wording' => (string) ($s['wording'] ?? ''), 'ip_hash' => (string) ($s['ip_hash'] ?? ''),
+            'user_agent' => (string) ($s['user_agent'] ?? ''), 'document_hash' => (string) ($s['document_hash'] ?? ''),
+            'snapshot_version' => (int) ($s['snapshot_version'] ?? 1), 'signed_at' => (string) ($s['signed_at'] ?? ''),
+        ];
     }
 
     /**

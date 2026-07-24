@@ -272,8 +272,11 @@ final class Platform
      */
     public function attachmentResolver(): \Breakfast\Platform\Mail\AttachmentResolver
     {
-        return $this->service(\Breakfast\Platform\Mail\AttachmentResolver::class, fn () => new \Breakfast\Platform\Invoicing\InvoiceAttachmentResolver(
-            new \Breakfast\Platform\Invoicing\InvoiceDocumentStore($this->db(), $this->storageDir() . '/invoices')
+        return $this->service(\Breakfast\Platform\Mail\AttachmentResolver::class, fn () => new \Breakfast\Platform\Mail\CompositeAttachmentResolver(
+            new \Breakfast\Platform\Invoicing\InvoiceAttachmentResolver(
+                new \Breakfast\Platform\Invoicing\InvoiceDocumentStore($this->db(), $this->storageDir() . '/invoices')
+            ),
+            new \Breakfast\Platform\Contracts\ContractAttachmentResolver($this->contractDocuments())
         ));
     }
 

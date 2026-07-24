@@ -130,25 +130,24 @@ final class ContractsTest extends TestCase
         $this->assertCount(0, $reloaded['signatures']);
     }
 
-    public function testOrderedSigningRequiresBreakfastFirstThenClientCompletes(): void
+    public function testOrderedSigningClientFirstThenBreakfastCountersignCompletes(): void
     {
         $c = $this->sent();
         $uuid = (string) $c['uuid'];
         $client = $this->party($c, 'client');
 
-        // Client can't sign before Breakfast (order 1).
-        $this->assertContractError(409, fn () => $this->svc->sign($uuid, $client, ['name' => 'Sian']));
+        // Breakfast can't countersign before the client (order 1) has signed.
+        $this->assertContractError(409, fn () => $this->svc->signInternal($uuid, ['name' => 'Chris Gwynne']));
 
-        // Breakfast countersigns first.
-        $r1 = $this->svc->signInternal($uuid, ['name' => 'Chris Gwynne']);
+        // Client signs first → status signed, but not yet completed.
+        $r1 = $this->svc->sign($uuid, $client, ['name' => 'Sian Roberts', 'email' => 'sian@roberts.example', 'ip_hash' => 'abc', 'user_agent' => 'UA']);
         $this->assertFalse($r1['completed']);
-        $this->assertSame('signed', (string) $this->party2($r1['contract'], 'breakfast')['status']);
+        $this->assertSame('signed', $r1['contract']['status']);
 
-        // Then the client signs → completed.
-        $r2 = $this->svc->sign($uuid, $client, ['name' => 'Sian Roberts', 'email' => 'sian@roberts.example', 'ip_hash' => 'abc', 'user_agent' => 'UA']);
+        // Breakfast countersigns → completed.
+        $r2 = $this->svc->signInternal($uuid, ['name' => 'Chris Gwynne']);
         $this->assertTrue($r2['completed']);
         $final = $this->svc->find($uuid);
-        $this->assertSame('signed', $final['status']);
         $this->assertNotEmpty($final['completed_at']);
         $this->assertCount(2, $final['signatures']);
         $this->assertSame(64, strlen((string) $final['signatures'][0]['document_hash']));
@@ -158,15 +157,15 @@ final class ContractsTest extends TestCase
     {
         $c = $this->sent();
         $uuid = (string) $c['uuid'];
-        $this->svc->signInternal($uuid, ['name' => 'Chris']);
-        $this->assertContractError(409, fn () => $this->svc->signInternal($uuid, ['name' => 'Chris again']));
+        $this->svc->sign($uuid, $this->party($c, 'client'), ['name' => 'Sian']);
+        $this->assertContractError(409, fn () => $this->svc->sign($uuid, $this->party($c, 'client'), ['name' => 'Sian again']));
     }
 
     public function testExpiredContractCannotBeSigned(): void
     {
         $c = $this->svc->create(['title' => 'Old', 'client_name' => 'A', 'client_email' => 'a@x.co', 'expiry_date' => '2000-01-01'], 'admin@test');
         $c = $this->svc->send((string) $c['uuid'], 'admin@test', $this->merge());
-        $this->assertContractError(410, fn () => $this->svc->signInternal((string) $c['uuid'], ['name' => 'Chris']));
+        $this->assertContractError(410, fn () => $this->svc->sign((string) $c['uuid'], $this->party($c, 'client'), ['name' => 'A']));
     }
 
     public function testVoidRequiresReasonAndSupersedePreservesOriginal(): void
@@ -186,8 +185,8 @@ final class ContractsTest extends TestCase
         $c = $this->sent();
         $uuid = (string) $c['uuid'];
         $this->svc->markViewed($uuid);
-        $this->svc->signInternal($uuid, ['name' => 'Chris']);
         $this->svc->sign($uuid, $this->party($c, 'client'), ['name' => 'Sian']);
+        $this->svc->signInternal($uuid, ['name' => 'Chris']);
 
         $types = array_column($this->svc->find($uuid)['events'], 'type');
         foreach (['created', 'sent', 'viewed', 'countersigned', 'signed_by_client', 'completed'] as $t) {
@@ -206,10 +205,10 @@ final class ContractsTest extends TestCase
         $unsigned = $docs->download($uuid, 'unsigned');
         $this->assertSame('%PDF', substr($unsigned['bytes'], 0, 4));
 
-        // Signed PDF only after completion.
+        // Signed PDF only after completion (client signs first, then countersign).
         $this->assertContractError(409, fn () => $docs->generateSigned($uuid, 'admin@test'));
-        $this->svc->signInternal($uuid, ['name' => 'Chris']);
         $this->svc->sign($uuid, $this->party($c, 'client'), ['name' => 'Sian Roberts', 'email' => 'sian@roberts.example']);
+        $this->svc->signInternal($uuid, ['name' => 'Chris']);
 
         $docs->generateSigned($uuid, 'admin@test');
         $signed = $docs->download($uuid, 'signed');

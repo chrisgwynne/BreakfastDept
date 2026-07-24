@@ -615,7 +615,7 @@ switch ($command) {
         }
         // Every routed mutating resource should have at least one registered action.
         foreach (array_keys($resources) as $res) {
-            if (in_array($res, ['session', 'dashboard', 'activities', 'reports', 'operations', 'previews', 'hermes'], true)) {
+            if (in_array($res, ['session', 'dashboard', 'activities', 'reports', 'operations', 'previews', 'hermes', 'contract-templates'], true)) {
                 continue; // read-only or covered by their own suites
             }
             $has = array_filter($registry['actions'], static fn ($a) => ($a['resource'] ?? '') === $res);

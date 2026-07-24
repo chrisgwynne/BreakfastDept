@@ -122,6 +122,37 @@ final class PanelGate
     }
 
     /**
+     * Contracts & e-signature. Viewing/managing require the CRM 'manage' grant.
+     * Voiding a contract, countersigning as Breakfast, and inspecting signature
+     * evidence are more sensitive — voiding + evidence are admin-only; the
+     * public signing link is a separate tokened path Hermes can never reach.
+     */
+    public static function canViewContracts(?User $user): bool
+    {
+        return self::canManage($user);
+    }
+
+    public static function canManageContracts(?User $user): bool
+    {
+        return self::canManage($user);
+    }
+
+    public static function canSignContractInternal(?User $user): bool
+    {
+        return self::canManage($user);
+    }
+
+    public static function canVoidContracts(?User $user): bool
+    {
+        return $user !== null && $user->isAdmin();
+    }
+
+    public static function canViewContractEvidence(?User $user): bool
+    {
+        return $user !== null && $user->isAdmin();
+    }
+
+    /**
      * Website content. Viewing the overview needs admin access; editing drafts
      * and publishing to the live site both require the 'manage' grant. Enforced
      * server-side on every website route.

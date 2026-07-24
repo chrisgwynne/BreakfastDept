@@ -415,6 +415,64 @@ export interface Proposal extends ProposalListItem {
   acceptances: { name: string; email: string; total: number; hash: string; created_at: string }[]
 }
 
+// -- Contracts -----------------------------------------------------------
+
+export interface ContractSection {
+  key: string
+  heading: string
+  body: string
+  optional: boolean
+  enabled: boolean
+}
+
+export interface ContractParty {
+  id: string
+  role: string
+  name: string
+  email: string
+  order: number
+  required: boolean
+  status: string
+  signed_at: string
+}
+
+export interface ContractListItem {
+  id: string
+  number: string
+  status: string
+  title: string
+  client: string
+  value: number
+  currency: string
+  created_at: string
+  sent_at: string
+  completed_at: string
+  unsigned_ready: boolean
+  signed_ready: boolean
+  public_url: string
+}
+
+export interface Contract extends ContractListItem {
+  template_key: string
+  contact_uuid: string
+  company_uuid: string
+  opportunity_uuid: string
+  proposal_uuid: string
+  client_email: string
+  effective_date: string
+  expiry_date: string
+  governing_law: string
+  signature_wording: string
+  internal_notes: string
+  owner: string
+  deposit_amount: number
+  revision_limit: number
+  sections: ContractSection[]
+  parties: ContractParty[]
+  events: { type: string; detail: string; actor: string; created_at: string }[]
+  signatures_count: number
+}
+
 // -- Invoicing -----------------------------------------------------------
 
 export interface InvoiceItem {

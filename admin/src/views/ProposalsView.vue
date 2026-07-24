@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { onMounted, ref, reactive, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { api, ApiError } from '@/lib/api'
 import { useAuth } from '@/stores/auth'
 import { useUi } from '@/stores/ui'
-import type { Proposal, ProposalListItem, ProposalItem } from '@/lib/types'
+import type { Proposal, ProposalListItem, ProposalItem, Contract } from '@/lib/types'
 import PageHeader from '@/components/PageHeader.vue'
 import DataState from '@/components/DataState.vue'
 import StatusPill from '@/components/StatusPill.vue'
@@ -88,6 +89,22 @@ function triggerDownload() {
 }
 async function convert() {
   await act('convert', { steps: ['won', 'deposit'] })
+}
+const router = useRouter()
+async function createContract() {
+  if (!detail.value || busy.value) return
+  busy.value = 'contract'
+  try {
+    const res = await api.post<{ contract: Contract }>('/contracts', { proposal_uuid: detail.value.id })
+    ui.toast('Contract drafted')
+    detail.value = null
+    router.push('/contracts').then(() => openContract(res.contract.id))
+  } catch (e) { ui.toast(e instanceof ApiError ? e.message : 'Could not create the contract') }
+  finally { busy.value = '' }
+}
+function openContract(id: string) {
+  // Deep-link so the Contracts view can be extended to auto-open; for now just navigate.
+  void id
 }
 
 onMounted(load)
@@ -179,6 +196,7 @@ onMounted(load)
           <button v-if="detail.public_url" class="btn btn--sm" @click="copyLink"><NavIcon name="globe" /> Copy client link</button>
           <button v-if="canManage && ['draft','ready'].includes(detail.status)" class="btn btn--sm btn--primary" :disabled="busy === 'send'" @click="act('send')">Send</button>
           <button v-if="canManage && detail.status === 'accepted'" class="btn btn--sm btn--primary" :disabled="busy === 'convert'" @click="convert">Convert (won + deposit)</button>
+          <button v-if="canManage && detail.status === 'accepted'" class="btn btn--sm" :disabled="busy === 'contract'" @click="createContract">Create contract</button>
           <button v-if="canManage && ['sent','viewed','ready'].includes(detail.status)" class="btn btn--sm" :disabled="busy === 'withdraw'" @click="act('withdraw')">Withdraw</button>
           <button v-if="canManage && ['sent','viewed','accepted','rejected'].includes(detail.status)" class="btn btn--sm" :disabled="busy === 'supersede'" @click="act('supersede')">New version</button>
         </div>
