@@ -273,6 +273,22 @@ final class PanelGate
     }
 
     /**
+     * Time tracking. Viewing time follows CRM access; logging, editing a live or
+     * unbilled entry, running the timer and marking entries billed require the
+     * 'manage' grant. Billed entries are locked server-side and cannot be
+     * altered by anyone through the API.
+     */
+    public static function canViewTime(?User $user): bool
+    {
+        return self::canAccess($user);
+    }
+
+    public static function canManageTime(?User $user): bool
+    {
+        return self::canManage($user);
+    }
+
+    /**
      * Credential vault. Viewing MASKED metadata follows the CRM 'manage' grant;
      * everything that touches a secret — create, edit a secret, reveal, copy,
      * rotate keys, view the access log — is admin-only and requires step-up

@@ -32,7 +32,8 @@
     "search",
     "settings",
     "reports",
-    "operations"
+    "operations",
+    "time"
   ],
   "actions": [
     {
@@ -1408,6 +1409,61 @@
       "persistence": "Breakfast\\Platform\\Crm\\SearchService::search",
       "audit": "",
       "playwright": "",
+      "status": "implemented"
+    },
+    {
+      "id": "time.log",
+      "label": "Log time entry",
+      "resource": "time",
+      "method": "POST",
+      "permission": "time.manage",
+      "persistence": "Breakfast\\Platform\\Time\\TimeTracking::create",
+      "audit": "",
+      "playwright": "admin-time.spec.js",
+      "status": "implemented"
+    },
+    {
+      "id": "time.edit",
+      "label": "Edit time entry",
+      "resource": "time",
+      "method": "PATCH",
+      "permission": "time.manage",
+      "persistence": "Breakfast\\Platform\\Time\\TimeTracking::update",
+      "audit": "",
+      "playwright": "",
+      "status": "implemented"
+    },
+    {
+      "id": "time.delete",
+      "label": "Delete time entry",
+      "resource": "time",
+      "method": "DELETE",
+      "permission": "time.manage",
+      "persistence": "Breakfast\\Platform\\Time\\TimeTracking::delete",
+      "audit": "",
+      "playwright": "admin-time.spec.js",
+      "status": "implemented"
+    },
+    {
+      "id": "time.start",
+      "label": "Start time timer",
+      "resource": "time",
+      "method": "POST",
+      "permission": "time.manage",
+      "persistence": "Breakfast\\Platform\\Time\\TimeTracking::startTimer",
+      "audit": "",
+      "playwright": "admin-time.spec.js",
+      "status": "implemented"
+    },
+    {
+      "id": "time.stop",
+      "label": "Stop time timer",
+      "resource": "time",
+      "method": "POST",
+      "permission": "time.manage",
+      "persistence": "Breakfast\\Platform\\Time\\TimeTracking::stopTimer",
+      "audit": "",
+      "playwright": "admin-time.spec.js",
       "status": "implemented"
     }
   ]

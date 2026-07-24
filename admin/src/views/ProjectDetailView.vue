@@ -20,7 +20,7 @@ const loading = ref(true)
 const error = ref<string | null>(null)
 const busy = ref('')
 
-const tab = ref<'overview' | 'milestones' | 'board' | 'onboarding' | 'files' | 'changes' | 'access'>('overview')
+const tab = ref<'overview' | 'milestones' | 'board' | 'onboarding' | 'files' | 'changes' | 'access' | 'time'>('overview')
 type Milestone = { uuid: string; title: string; status: string; progress_percent: number; due_date: string; is_ready: boolean; blocked_by: string[] }
 type Task = { uuid: string; title: string; status: string; milestone_uuid: string | null; is_ready: boolean; revision: number }
 const milestones = ref<Milestone[]>([])
@@ -37,7 +37,7 @@ async function loadBoard() {
   if (!project.value) return
   board.value = (await api.get<{ columns: Record<string, Task[]> }>(`/projects/${project.value.id}/board`)).columns
 }
-async function switchTab(t: 'overview' | 'milestones' | 'board' | 'onboarding' | 'files' | 'changes' | 'access') {
+async function switchTab(t: 'overview' | 'milestones' | 'board' | 'onboarding' | 'files' | 'changes' | 'access' | 'time') {
   tab.value = t
   if (t === 'milestones') await loadMilestones()
   if (t === 'board') await loadBoard()
@@ -45,6 +45,57 @@ async function switchTab(t: 'overview' | 'milestones' | 'board' | 'onboarding' |
   if (t === 'files') await loadFiles()
   if (t === 'changes') await loadChangeRequests()
   if (t === 'access') await loadPortalAccess()
+  if (t === 'time') await loadTime()
+}
+
+// --- Time tracking ---
+interface TimeEntry { uuid: string; description: string; activity: string; started_at: string; duration_seconds: number; billable: number; rate_pence: number; running: number; billed: number }
+interface TimeRollup { billable_seconds: number; nonbillable_seconds: number; total_seconds: number; billable_value: number; unbilled_value: number; running: boolean }
+const timeEntries = ref<TimeEntry[]>([])
+const timeRollup = ref<TimeRollup | null>(null)
+const timeRunning = ref<TimeEntry | null>(null)
+const timeBusy = ref(false)
+const timeDraft = ref<{ description: string; hours: string; minutes: string; billable: boolean; rate: string; activity: string }>({ description: '', hours: '', minutes: '', billable: true, rate: '', activity: 'general' })
+function fmtDur(s: number): string { const h = Math.floor(s / 3600); const m = Math.round((s % 3600) / 60); return h > 0 ? `${h}h ${m}m` : `${m}m` }
+async function loadTime() {
+  if (!project.value) return
+  const res = await api.get<{ items: TimeEntry[]; rollup: TimeRollup | null; running: TimeEntry | null }>(`/time?project=${project.value.id}`)
+  timeEntries.value = res.items
+  timeRollup.value = res.rollup
+  timeRunning.value = res.running
+}
+async function logTime() {
+  if (!project.value) return
+  timeBusy.value = true
+  try {
+    await api.post('/time', {
+      project_uuid: project.value.id, description: timeDraft.value.description.trim(),
+      hours: Number(timeDraft.value.hours) || 0, minutes: Number(timeDraft.value.minutes) || 0,
+      billable: timeDraft.value.billable, rate: Number(timeDraft.value.rate) || 0, activity: timeDraft.value.activity,
+    })
+    timeDraft.value = { description: '', hours: '', minutes: '', billable: true, rate: '', activity: 'general' }
+    await loadTime(); ui.toast('Time logged')
+  } catch (e) { ui.toast(e instanceof ApiError ? e.message : 'Could not log time') }
+  finally { timeBusy.value = false }
+}
+async function startTimer() {
+  if (!project.value) return
+  timeBusy.value = true
+  try { await api.post('/time/start', { project_uuid: project.value.id, description: timeDraft.value.description.trim(), billable: timeDraft.value.billable, rate: Number(timeDraft.value.rate) || 0, activity: timeDraft.value.activity }); await loadTime(); ui.toast('Timer started') }
+  catch (e) { ui.toast(e instanceof ApiError ? e.message : 'Could not start timer') }
+  finally { timeBusy.value = false }
+}
+async function stopTimer() {
+  timeBusy.value = true
+  try { await api.post('/time/stop', {}); await loadTime(); ui.toast('Timer stopped') }
+  catch (e) { ui.toast(e instanceof ApiError ? e.message : 'Could not stop timer') }
+  finally { timeBusy.value = false }
+}
+async function deleteTime(entry: TimeEntry) {
+  timeBusy.value = true
+  try { await api.del(`/time/${entry.uuid}`); await loadTime() }
+  catch (e) { ui.toast(e instanceof ApiError ? e.message : 'Could not delete') }
+  finally { timeBusy.value = false }
 }
 
 // --- Client portal access ---
@@ -385,6 +436,7 @@ onMounted(load)
           <button class="tab" :class="{ 'tab--active': tab === 'files' }" role="tab" @click="switchTab('files')">Files</button>
           <button class="tab" :class="{ 'tab--active': tab === 'changes' }" role="tab" @click="switchTab('changes')">Change requests</button>
           <button class="tab" :class="{ 'tab--active': tab === 'access' }" role="tab" @click="switchTab('access')">Client access</button>
+          <button class="tab" :class="{ 'tab--active': tab === 'time' }" role="tab" @click="switchTab('time')">Time</button>
         </div>
 
         <!-- Files -->
@@ -491,6 +543,46 @@ onMounted(load)
               </div>
             </div>
             <p v-if="!changeRequests.length" class="faint" style="padding:var(--sp-3)">No change requests yet.</p>
+          </div>
+        </section>
+
+        <!-- Time tracking -->
+        <section v-if="tab === 'time'" class="card card--pad" data-test="project-time">
+          <div v-if="timeRollup" class="timesum" data-test="time-rollup">
+            <div class="timesum__item"><span class="k">Billable</span><span class="v">{{ fmtDur(timeRollup.billable_seconds) }}</span></div>
+            <div class="timesum__item"><span class="k">Non-billable</span><span class="v">{{ fmtDur(timeRollup.nonbillable_seconds) }}</span></div>
+            <div class="timesum__item"><span class="k">Unbilled value</span><span class="v" data-test="time-unbilled">£{{ (timeRollup.unbilled_value / 100).toFixed(2) }}</span></div>
+          </div>
+
+          <div v-if="timeRunning" class="running" data-test="time-running">
+            <span class="running__dot"></span> Timer running — {{ timeRunning.description || 'work' }}
+            <button class="btn btn--sm btn--primary" data-test="time-stop" :disabled="timeBusy" @click="stopTimer">Stop</button>
+          </div>
+
+          <form v-if="canManage" class="timeform" data-test="time-form" @submit.prevent="logTime">
+            <input class="input" v-model="timeDraft.description" data-test="time-desc" placeholder="What did you work on?" />
+            <div class="timeform__row">
+              <input class="input input--sm" v-model="timeDraft.hours" type="number" min="0" data-test="time-hours" placeholder="h" />
+              <input class="input input--sm" v-model="timeDraft.minutes" type="number" min="0" max="59" data-test="time-minutes" placeholder="m" />
+              <select class="input input--sm" v-model="timeDraft.activity">
+                <option v-for="a in ['general','design','build','meeting','admin','support']" :key="a" :value="a">{{ label(a) }}</option>
+              </select>
+              <label class="chkbx"><input type="checkbox" v-model="timeDraft.billable" data-test="time-billable" /> Billable</label>
+              <input class="input input--sm" v-model="timeDraft.rate" type="number" min="0" step="0.01" data-test="time-rate" placeholder="£/h" />
+              <button class="btn btn--sm btn--primary" type="submit" data-test="time-log" :disabled="timeBusy">Log</button>
+              <button class="btn btn--sm" type="button" data-test="time-start" :disabled="timeBusy || !!timeRunning" @click="startTimer">Start timer</button>
+            </div>
+          </form>
+
+          <div class="card list">
+            <div v-for="en in timeEntries" :key="en.uuid" class="frow" data-test="time-entry">
+              <span class="fname truncate">{{ en.description || label(en.activity) }}<span v-if="en.billed" class="chip">billed</span><span v-else-if="en.running" class="chip chip--warn">running</span></span>
+              <span class="fmeta faint">{{ fmtDur(en.duration_seconds) }}<span v-if="en.billable"> · £{{ ((en.duration_seconds / 3600) * (en.rate_pence / 100)).toFixed(2) }}</span><span v-else> · non-billable</span></span>
+              <span class="factions" v-if="canManage && !en.billed && !en.running">
+                <button class="btn btn--sm" data-test="time-delete" :disabled="timeBusy" @click="deleteTime(en)">Delete</button>
+              </span>
+            </div>
+            <p v-if="!timeEntries.length" class="faint" style="padding:var(--sp-3)">No time logged yet.</p>
           </div>
         </section>
 
@@ -755,5 +847,17 @@ onMounted(load)
 .thread .msg__who { font-size: 11px; color: var(--ink-3); margin-bottom: 2px; }
 .thread__reply { display: flex; gap: var(--sp-2); margin-top: 6px; }
 .thread__reply .input { flex: 1; }
+.timesum { display: flex; gap: var(--sp-4); margin-bottom: var(--sp-3); }
+.timesum__item { display: flex; flex-direction: column; }
+.timesum__item .k { font-size: var(--text-xs); color: var(--ink-3); }
+.timesum__item .v { font-size: var(--text-lg); font-weight: 700; }
+.running { display: flex; align-items: center; gap: var(--sp-2); background: var(--paper-2); border: 1px solid var(--line); border-radius: var(--r-md); padding: 8px var(--sp-3); margin-bottom: var(--sp-3); font-size: var(--text-sm); }
+.running__dot { width: 9px; height: 9px; border-radius: 50%; background: #c0392b; animation: pulse 1.4s infinite; }
+.running .btn { margin-left: auto; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+.timeform { display: flex; flex-direction: column; gap: var(--sp-2); margin-bottom: var(--sp-3); }
+.timeform__row { display: flex; gap: var(--sp-2); align-items: center; flex-wrap: wrap; }
+.timeform__row .input--sm { width: 70px; }
+.chkbx { display: inline-flex; align-items: center; gap: 4px; font-size: var(--text-sm); white-space: nowrap; }
 @media (max-width: 820px) { .cols { grid-template-columns: 1fr; } .grid2 { grid-template-columns: 1fr; } .crnew__item { grid-template-columns: 1fr; } }
 </style>

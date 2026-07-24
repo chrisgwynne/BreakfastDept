@@ -95,6 +95,7 @@ final class AdminApi
             'project-templates' => $this->projectTemplatesApi($method, $seg, $user),
             'change-requests' => $this->changeRequests($method, $seg, $user),
             'portal'        => $this->portal($method, $seg, $user),
+            'time'          => $this->time($method, $seg, $user),
             'onboarding'    => $this->onboarding($method, $seg, $user),
             'onboarding-templates' => $this->onboardingTemplatesApi($method, $seg, $user),
             'files'         => $this->files($method, $seg, $user),
@@ -2219,6 +2220,79 @@ final class AdminApi
             throw new ApiException(404, 'Unknown change-request endpoint.', 'not_found');
         } catch (\Breakfast\Platform\ChangeRequests\ChangeRequestException $e) {
             throw new ApiException($e->status, $e->getMessage(), 'change_request');
+        }
+    }
+
+    /**
+     * Time tracking (Phase 4 — Operations). Viewing follows CRM access; logging,
+     * editing an unbilled entry, the live timer and marking billed require the
+     * 'manage' grant. Billed entries are locked server-side. The timer is scoped
+     * to the calling user.
+     *
+     * @param list<string> $seg
+     * @return array<string,mixed>
+     */
+    private function time(string $method, array $seg, \Kirby\Cms\User $user): array
+    {
+        if (!PanelGate::canViewTime($user)) {
+            throw new ApiException(403, 'You don’t have access to time tracking.', 'forbidden');
+        }
+        $svc   = $this->platform->time();
+        $actor = (string) $user->email();
+        $id    = $seg[1] ?? '';
+        $requireManage = function () use ($user): void {
+            if (!PanelGate::canManageTime($user)) {
+                throw new ApiException(403, 'You can’t log or change time.', 'forbidden');
+            }
+        };
+
+        try {
+            if ($id === 'start' && $method === 'POST') {
+                $requireManage();
+                $body = $this->body();
+
+                return ['entry' => $svc->startTimer((string) ($body['project_uuid'] ?? ''), $body, $actor)];
+            }
+            if ($id === 'stop' && $method === 'POST') {
+                $requireManage();
+
+                return ['entry' => $svc->stopTimer($actor)];
+            }
+            if ($id === 'running' && $method === 'GET') {
+                return ['entry' => $svc->runningTimer($actor)];
+            }
+            if ($id === '') {
+                if ($method === 'POST') {
+                    $requireManage();
+                    $body = $this->body();
+
+                    return ['entry' => $svc->create((string) ($body['project_uuid'] ?? ''), $body, $actor)];
+                }
+                $q = $this->query();
+                $project = (string) ($q['project'] ?? '');
+
+                return [
+                    'items' => $svc->list(['project_uuid' => $project ?: null, 'task_uuid' => $q['task'] ?? null, 'limit' => $this->perPage()]),
+                    'rollup' => $project !== '' ? $svc->rollup($project) : null,
+                    'running' => $svc->runningTimer($actor),
+                ];
+            }
+            if ($method === 'PATCH') {
+                $requireManage();
+                $body = $this->body();
+
+                return ['entry' => $svc->update($id, $body, $actor, array_key_exists('revision', $body) ? (int) $body['revision'] : null)];
+            }
+            if ($method === 'DELETE') {
+                $requireManage();
+                $svc->delete($id, $actor);
+
+                return ['ok' => true];
+            }
+
+            throw new ApiException(404, 'Unknown time endpoint.', 'not_found');
+        } catch (\Breakfast\Platform\Time\TimeException $e) {
+            throw new ApiException($e->status, $e->getMessage(), 'time');
         }
     }
 
