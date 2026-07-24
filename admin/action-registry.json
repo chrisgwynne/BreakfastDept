@@ -23,6 +23,7 @@
     "project-tasks",
     "project-templates",
     "change-requests",
+    "portal",
     "onboarding",
     "onboarding-templates",
     "files",
@@ -802,6 +803,72 @@
       "persistence": "Breakfast\\Platform\\ChangeRequests\\ChangeRequests::apply",
       "audit": "change_request.applied",
       "playwright": "admin-changerequests.spec.js",
+      "status": "implemented"
+    },
+    {
+      "id": "portal.invite",
+      "label": "Invite client to portal",
+      "resource": "portal",
+      "method": "POST",
+      "permission": "portal.manage",
+      "persistence": "Breakfast\\Platform\\Portal\\Portal::inviteToProject",
+      "audit": "",
+      "playwright": "admin-portal.spec.js",
+      "status": "implemented"
+    },
+    {
+      "id": "portal.create",
+      "label": "Create portal identity",
+      "resource": "portal",
+      "method": "POST",
+      "permission": "portal.manage",
+      "persistence": "Breakfast\\Platform\\Portal\\Portal::createIdentity",
+      "audit": "",
+      "playwright": "",
+      "status": "implemented"
+    },
+    {
+      "id": "portal.grant",
+      "label": "Grant portal project access",
+      "resource": "portal",
+      "method": "POST",
+      "permission": "portal.manage",
+      "persistence": "Breakfast\\Platform\\Portal\\Portal::grantAccess",
+      "audit": "",
+      "playwright": "admin-portal.spec.js",
+      "status": "implemented"
+    },
+    {
+      "id": "portal.revoke",
+      "label": "Revoke portal project access",
+      "resource": "portal",
+      "method": "POST",
+      "permission": "portal.manage",
+      "persistence": "Breakfast\\Platform\\Portal\\Portal::revokeAccess",
+      "audit": "",
+      "playwright": "",
+      "status": "implemented"
+    },
+    {
+      "id": "portal.magic-link",
+      "label": "Mint portal sign-in link",
+      "resource": "portal",
+      "method": "POST",
+      "permission": "portal.manage",
+      "persistence": "Breakfast\\Platform\\Portal\\Portal::requestLogin",
+      "audit": "",
+      "playwright": "",
+      "status": "implemented"
+    },
+    {
+      "id": "portal.status",
+      "label": "Suspend or reactivate portal identity",
+      "resource": "portal",
+      "method": "POST",
+      "permission": "portal.manage",
+      "persistence": "Breakfast\\Platform\\Portal\\Portal::setStatus",
+      "audit": "",
+      "playwright": "",
       "status": "implemented"
     },
     {

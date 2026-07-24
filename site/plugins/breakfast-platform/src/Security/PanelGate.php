@@ -256,6 +256,23 @@ final class PanelGate
     }
 
     /**
+     * Client portal administration. Viewing which clients have portal access
+     * follows CRM access; creating an identity, granting/revoking project access,
+     * minting a sign-in link and suspending an account require the 'manage'
+     * grant. Clients themselves authenticate through a wholly separate,
+     * passwordless public flow — never through the staff gate.
+     */
+    public static function canViewPortalAdmin(?User $user): bool
+    {
+        return self::canAccess($user);
+    }
+
+    public static function canManagePortalAdmin(?User $user): bool
+    {
+        return self::canManage($user);
+    }
+
+    /**
      * Credential vault. Viewing MASKED metadata follows the CRM 'manage' grant;
      * everything that touches a secret — create, edit a secret, reveal, copy,
      * rotate keys, view the access log — is admin-only and requires step-up

@@ -20,7 +20,7 @@ const loading = ref(true)
 const error = ref<string | null>(null)
 const busy = ref('')
 
-const tab = ref<'overview' | 'milestones' | 'board' | 'onboarding' | 'files' | 'changes'>('overview')
+const tab = ref<'overview' | 'milestones' | 'board' | 'onboarding' | 'files' | 'changes' | 'access'>('overview')
 type Milestone = { uuid: string; title: string; status: string; progress_percent: number; due_date: string; is_ready: boolean; blocked_by: string[] }
 type Task = { uuid: string; title: string; status: string; milestone_uuid: string | null; is_ready: boolean; revision: number }
 const milestones = ref<Milestone[]>([])
@@ -37,13 +37,50 @@ async function loadBoard() {
   if (!project.value) return
   board.value = (await api.get<{ columns: Record<string, Task[]> }>(`/projects/${project.value.id}/board`)).columns
 }
-async function switchTab(t: 'overview' | 'milestones' | 'board' | 'onboarding' | 'files' | 'changes') {
+async function switchTab(t: 'overview' | 'milestones' | 'board' | 'onboarding' | 'files' | 'changes' | 'access') {
   tab.value = t
   if (t === 'milestones') await loadMilestones()
   if (t === 'board') await loadBoard()
   if (t === 'onboarding') await loadOnboarding()
   if (t === 'files') await loadFiles()
   if (t === 'changes') await loadChangeRequests()
+  if (t === 'access') await loadPortalAccess()
+}
+
+// --- Client portal access ---
+interface PortalIdentity { uuid: string; email: string; display_name: string; status: string; last_login_at: string | null }
+const portalIdentities = ref<PortalIdentity[]>([])
+const portalEmail = ref('')
+const portalName = ref('')
+const portalBusy = ref('')
+const portalLink = ref('')
+async function loadPortalAccess() {
+  if (!project.value) return
+  portalIdentities.value = (await api.get<{ items: PortalIdentity[] }>(`/portal?project=${project.value.id}`)).items
+}
+async function inviteClient() {
+  if (!project.value || !portalEmail.value.trim()) return
+  portalBusy.value = 'invite'
+  try {
+    const res = await api.post<{ url: string }>('/portal/invite', { project_uuid: project.value.id, email: portalEmail.value.trim(), display_name: portalName.value.trim(), role: 'viewer' })
+    portalLink.value = res.url
+    portalEmail.value = ''; portalName.value = ''
+    await loadPortalAccess(); ui.toast('Client invited — sign-in link ready')
+  } catch (e) { ui.toast(e instanceof ApiError ? e.message : 'Could not invite client') }
+  finally { portalBusy.value = '' }
+}
+async function revokeClient(idn: PortalIdentity) {
+  if (!project.value) return
+  portalBusy.value = idn.uuid
+  try { await api.post(`/portal/${idn.uuid}/revoke`, { entity_type: 'project', entity_uuid: project.value.id }); await loadPortalAccess(); ui.toast('Access revoked') }
+  catch (e) { ui.toast(e instanceof ApiError ? e.message : 'Could not revoke') }
+  finally { portalBusy.value = '' }
+}
+async function newClientLink(idn: PortalIdentity) {
+  portalBusy.value = idn.uuid
+  try { portalLink.value = (await api.post<{ url: string }>(`/portal/${idn.uuid}/magic-link`, {})).url; ui.toast('Fresh sign-in link ready') }
+  catch (e) { ui.toast(e instanceof ApiError ? e.message : 'Could not mint link') }
+  finally { portalBusy.value = '' }
 }
 
 // --- Change requests ---
@@ -315,6 +352,7 @@ onMounted(load)
           <button class="tab" :class="{ 'tab--active': tab === 'onboarding' }" role="tab" @click="switchTab('onboarding')">Onboarding</button>
           <button class="tab" :class="{ 'tab--active': tab === 'files' }" role="tab" @click="switchTab('files')">Files</button>
           <button class="tab" :class="{ 'tab--active': tab === 'changes' }" role="tab" @click="switchTab('changes')">Change requests</button>
+          <button class="tab" :class="{ 'tab--active': tab === 'access' }" role="tab" @click="switchTab('access')">Client access</button>
         </div>
 
         <!-- Files -->
@@ -421,6 +459,28 @@ onMounted(load)
               </div>
             </div>
             <p v-if="!changeRequests.length" class="faint" style="padding:var(--sp-3)">No change requests yet.</p>
+          </div>
+        </section>
+
+        <!-- Client portal access -->
+        <section v-if="tab === 'access'" class="card card--pad" data-test="project-access">
+          <p class="faint" style="margin-top:0">Give a client passwordless access to this project’s portal. They sign in with a single-use email link — no password, and they only ever see projects you grant.</p>
+          <form v-if="canManage" class="quickadd" data-test="access-invite" @submit.prevent="inviteClient">
+            <input class="input" v-model="portalEmail" data-test="access-email" type="email" placeholder="client@example.com" />
+            <input class="input" v-model="portalName" data-test="access-name" placeholder="Client name (optional)" />
+            <button class="btn btn--sm btn--primary" type="submit" data-test="access-add" :disabled="!portalEmail.trim() || portalBusy === 'invite'">Invite</button>
+          </form>
+          <div v-if="portalLink" class="paylink"><input class="input mono" :value="portalLink" readonly data-test="access-link" @focus="($event.target as HTMLInputElement).select()" /></div>
+          <div class="card list">
+            <div v-for="idn in portalIdentities" :key="idn.uuid" class="frow" data-test="access-row">
+              <span class="fname truncate">{{ idn.display_name || idn.email }}<span class="chip">{{ idn.status }}</span></span>
+              <span class="fmeta faint">{{ idn.last_login_at ? 'last in ' + idn.last_login_at.slice(0, 10) : 'never signed in' }}</span>
+              <span class="factions" v-if="canManage">
+                <button class="btn btn--sm" data-test="access-link-btn" :disabled="portalBusy === idn.uuid" @click="newClientLink(idn)">Sign-in link</button>
+                <button class="btn btn--sm" data-test="access-revoke" :disabled="portalBusy === idn.uuid" @click="revokeClient(idn)">Revoke</button>
+              </span>
+            </div>
+            <p v-if="!portalIdentities.length" class="faint" style="padding:var(--sp-3)">No client access yet.</p>
           </div>
         </section>
 

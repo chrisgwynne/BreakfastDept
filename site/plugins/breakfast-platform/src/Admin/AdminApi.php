@@ -94,6 +94,7 @@ final class AdminApi
             'project-tasks' => $this->projectTasks($method, $seg, $user),
             'project-templates' => $this->projectTemplatesApi($method, $seg, $user),
             'change-requests' => $this->changeRequests($method, $seg, $user),
+            'portal'        => $this->portal($method, $seg, $user),
             'onboarding'    => $this->onboarding($method, $seg, $user),
             'onboarding-templates' => $this->onboardingTemplatesApi($method, $seg, $user),
             'files'         => $this->files($method, $seg, $user),
@@ -2218,6 +2219,98 @@ final class AdminApi
             throw new ApiException(404, 'Unknown change-request endpoint.', 'not_found');
         } catch (\Breakfast\Platform\ChangeRequests\ChangeRequestException $e) {
             throw new ApiException($e->status, $e->getMessage(), 'change_request');
+        }
+    }
+
+    /**
+     * Client portal administration (Phase 3). Staff create a client identity,
+     * grant/revoke per-project access, mint a sign-in link to send, and suspend
+     * an account. Clients authenticate through the separate public portal flow.
+     *
+     * @param list<string> $seg
+     * @return array<string,mixed>
+     */
+    private function portal(string $method, array $seg, \Kirby\Cms\User $user): array
+    {
+        if (!PanelGate::canViewPortalAdmin($user)) {
+            throw new ApiException(403, 'You don’t have access to the client portal.', 'forbidden');
+        }
+        $svc   = $this->platform->portal();
+        $actor = (string) $user->email();
+        $id    = $seg[1] ?? '';
+        $requireManage = function () use ($user): void {
+            if (!PanelGate::canManagePortalAdmin($user)) {
+                throw new ApiException(403, 'You can’t change portal access.', 'forbidden');
+            }
+        };
+
+        try {
+            if ($id === 'invite' && $method === 'POST') {
+                $requireManage();
+                $body = $this->body();
+                $result = $svc->inviteToProject((string) ($body['project_uuid'] ?? ''), $body, rtrim((string) $this->kirby->site()->url(), '/'), $actor);
+
+                return ['identity' => $result['identity'], 'url' => $result['url']];
+            }
+            if ($id === '') {
+                if ($method === 'POST') {
+                    $requireManage();
+
+                    return ['identity' => $svc->createIdentity($this->body(), $actor)];
+                }
+                $q = $this->query();
+                $items = $svc->listIdentities(['contact_uuid' => $q['contact'] ?? null]);
+                // Optionally filter to those with access to a given project.
+                if (!empty($q['project'])) {
+                    $project = (string) $q['project'];
+                    $items = array_values(array_filter($items, fn (array $i): bool => $svc->canAccessProject((string) $i['uuid'], $project)));
+                }
+
+                return ['items' => $items];
+            }
+            $action = $seg[2] ?? '';
+            if ($method === 'GET' && $action === '') {
+                $identity = $svc->findIdentity($id);
+                if ($identity === null) {
+                    throw new ApiException(404, 'Portal identity not found.', 'not_found');
+                }
+
+                return ['identity' => $identity];
+            }
+            if ($method === 'POST') {
+                $body = $this->body();
+                switch ($action) {
+                    case 'grant':
+                        $requireManage();
+
+                        return ['identity' => $svc->grantAccess($id, (string) ($body['entity_type'] ?? 'project'), (string) ($body['entity_uuid'] ?? ''), (string) ($body['role'] ?? 'viewer'), $actor)];
+                    case 'revoke':
+                        $requireManage();
+                        $svc->revokeAccess($id, (string) ($body['entity_type'] ?? 'project'), (string) ($body['entity_uuid'] ?? ''), $actor);
+
+                        return ['ok' => true];
+                    case 'status':
+                        $requireManage();
+
+                        return ['identity' => $svc->setStatus($id, (string) ($body['status'] ?? ''), $actor)];
+                    case 'magic-link':
+                        $requireManage();
+                        $identity = $svc->findIdentity($id);
+                        if ($identity === null) {
+                            throw new ApiException(404, 'Portal identity not found.', 'not_found');
+                        }
+                        $result = $svc->requestLogin((string) $identity['email']);
+                        $url = ($result['sent'] && $result['token'] !== null)
+                            ? rtrim((string) $this->kirby->site()->url(), '/') . '/portal/verify/' . $result['token']
+                            : '';
+
+                        return ['url' => $url];
+                }
+            }
+
+            throw new ApiException(404, 'Unknown portal endpoint.', 'not_found');
+        } catch (\Breakfast\Platform\Portal\PortalException $e) {
+            throw new ApiException($e->status, $e->getMessage(), 'portal');
         }
     }
 

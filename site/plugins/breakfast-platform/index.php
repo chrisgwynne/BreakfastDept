@@ -267,6 +267,37 @@ function breakfast_preview_serve(string $slug, string $path): \Kirby\Http\Respon
 /**
  * @param array{status:int,headers:array<string,string>,body:string,file?:string,cookie?:array{name:string,value:string,maxage:int,clear?:bool}} $res
  */
+/**
+ * Send a client a passwordless portal sign-in link through the existing mail
+ * pipeline (durable queue + provider abstraction). Best-effort by design: the
+ * caller wraps this in a try/catch so a mail outage never blocks sign-in, and
+ * (outside production) the link is also shown on the confirmation page.
+ */
+function breakfast_portal_send_link(string $email, string $url): void
+{
+    if (!\Breakfast\Platform\Mail\EmailAddress::isValid($email)) {
+        return;
+    }
+    $cfg = breakfast()->mailConfig();
+    $sender = \Breakfast\Platform\Mail\EmailAddress::create(
+        (string) ($cfg['senderEmail'] ?? $cfg['from'] ?? 'studio@example.com'),
+        (string) ($cfg['senderName'] ?? $cfg['fromName'] ?? 'Breakfast')
+    );
+    $to = \Breakfast\Platform\Mail\EmailAddress::create($email);
+    $safeUrl = htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
+    $message = new \Breakfast\Platform\Mail\MailMessage(
+        messageType: 'portal_login_link',
+        sender: $sender,
+        to: [$to],
+        subject: 'Your sign-in link',
+        html: '<p>Here is your secure sign-in link. It works once and expires in 15 minutes.</p>'
+            . '<p><a href="' . $safeUrl . '">Sign in to your project portal</a></p>',
+        text: "Here is your secure sign-in link (works once, expires in 15 minutes):\n" . $url,
+        tags: ['portal', 'transactional'],
+    );
+    breakfast()->mailService()->queue($message);
+}
+
 function breakfast_preview_to_response(array $res): \Kirby\Http\Response
 {
     $headers = $res['headers'];
@@ -1006,6 +1037,96 @@ Kirby::plugin('breakfast/platform', [
                 return new \Kirby\Http\Response(snippet('change-request', ['cr' => $svc->find((string) $cr['uuid']), 'token' => $token], true), 'text/html', 200, [
                     'X-Robots-Tag' => 'noindex, nofollow',
                 ]);
+            },
+        ],
+
+        // ============================================================
+        // Client portal (Phase 3) — a separate trust boundary from staff.
+        // Passwordless: request a magic link, consume it to mint a server-side
+        // session carried by an httpOnly `bf_portal` cookie. Registered before
+        // the SPA/sitemap routes.
+        // ============================================================
+
+        // Request a sign-in link (POST /portal/login). Always reports success to
+        // avoid email enumeration; a link is only minted for an active identity.
+        [
+            'pattern' => 'portal/login',
+            'method'  => 'POST',
+            'action'  => function () {
+                $email  = (string) get('email', '');
+                $ipHash = hash('sha256', (string) (kirby()->option('breakfast.webhookSecret', '') ?? '') . '|' . (string) (kirby()->visitor()->ip() ?? ''));
+                $result = breakfast()->portal()->requestLogin($email, $ipHash);
+                $devLink = null;
+                if ($result['sent'] && $result['token'] !== null) {
+                    $url = rtrim((string) kirby()->site()->url(), '/') . '/portal/verify/' . $result['token'];
+                    // Best-effort transactional delivery through the existing mail
+                    // pipeline; never fail the request if mail is unavailable.
+                    try {
+                        breakfast_portal_send_link($email, $url);
+                    } catch (\Throwable) { /* delivery is best-effort */ }
+                    // Outside production, reveal the link on the confirmation page
+                    // so the flow is demonstrable without an inbox.
+                    if (!breakfast()->isProduction()) {
+                        $devLink = $url;
+                    }
+                }
+
+                return new \Kirby\Http\Response(snippet('portal-login', ['sent' => true, 'devLink' => $devLink], true), 'text/html', 200, ['X-Robots-Tag' => 'noindex, nofollow']);
+            },
+        ],
+
+        // Consume a magic link (GET /portal/verify/<token>) → set the session
+        // cookie and land on the portal. One-shot; invalid/expired links show a
+        // friendly retry.
+        [
+            'pattern' => 'portal/verify/(:any)',
+            'method'  => 'GET',
+            'action'  => function (string $token) {
+                $ipHash = hash('sha256', (string) (kirby()->option('breakfast.webhookSecret', '') ?? '') . '|' . (string) (kirby()->visitor()->ip() ?? ''));
+                try {
+                    $result = breakfast()->portal()->consumeMagicLink($token, $ipHash, (string) (kirby()->request()->header('User-Agent') ?? ''));
+                } catch (\Breakfast\Platform\Portal\PortalException $e) {
+                    return new \Kirby\Http\Response(snippet('portal-login', ['sent' => false, 'error' => $e->getMessage()], true), 'text/html', $e->status, ['X-Robots-Tag' => 'noindex, nofollow']);
+                }
+                $secure = breakfast()->isProduction() ? ' Secure;' : '';
+                $cookie = 'bf_portal=' . rawurlencode((string) $result['session_token']) . '; Path=/portal; Max-Age=2592000; HttpOnly;' . $secure . ' SameSite=Lax';
+
+                return new \Kirby\Http\Response('', 'text/html', 302, [
+                    'Location' => rtrim((string) kirby()->site()->url(), '/') . '/portal',
+                    'Set-Cookie' => $cookie,
+                    'X-Robots-Tag' => 'noindex, nofollow',
+                ]);
+            },
+        ],
+
+        // Sign out (GET /portal/logout) — revoke the session and clear the cookie.
+        [
+            'pattern' => 'portal/logout',
+            'method'  => 'GET',
+            'action'  => function () {
+                breakfast()->portal()->logout((string) ($_COOKIE['bf_portal'] ?? ''));
+
+                return new \Kirby\Http\Response('', 'text/html', 302, [
+                    'Location' => rtrim((string) kirby()->site()->url(), '/') . '/portal',
+                    'Set-Cookie' => 'bf_portal=; Path=/portal; Max-Age=0; HttpOnly; SameSite=Lax',
+                    'X-Robots-Tag' => 'noindex, nofollow',
+                ]);
+            },
+        ],
+
+        // The portal home (GET /portal). Valid session → the client's project
+        // list; otherwise the sign-in page. No staff session is ever consulted.
+        [
+            'pattern' => 'portal',
+            'method'  => 'GET',
+            'action'  => function () {
+                $identity = breakfast()->portal()->identityFromSession((string) ($_COOKIE['bf_portal'] ?? ''));
+                if ($identity === null) {
+                    return new \Kirby\Http\Response(snippet('portal-login', ['sent' => false], true), 'text/html', 200, ['X-Robots-Tag' => 'noindex, nofollow']);
+                }
+                $projects = breakfast()->portal()->accessibleProjects((string) $identity['uuid']);
+
+                return new \Kirby\Http\Response(snippet('portal-home', ['identity' => $identity, 'projects' => $projects], true), 'text/html', 200, ['X-Robots-Tag' => 'noindex, nofollow', 'Cache-Control' => 'private, no-store']);
             },
         ],
 

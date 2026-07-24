@@ -257,6 +257,11 @@ final class Platform
         ));
     }
 
+    public function portal(): \Breakfast\Platform\Portal\Portal
+    {
+        return $this->service(\Breakfast\Platform\Portal\Portal::class, fn () => new \Breakfast\Platform\Portal\Portal($this));
+    }
+
     public function stripeSettings(): \Breakfast\Platform\Payments\StripeSettings
     {
         return $this->service(\Breakfast\Platform\Payments\StripeSettings::class, fn () => new \Breakfast\Platform\Payments\StripeSettings(
