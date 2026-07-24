@@ -117,7 +117,7 @@ onMounted(load)
 </script>
 
 <template>
-  <section class="card card--pad">
+  <section class="card card--pad" data-test="brevo-settings">
     <div class="hd">
       <h2 class="sect__h">Brevo email</h2>
       <span v-if="overview" class="badge" :class="configured ? 'badge--ok' : 'badge--off'">

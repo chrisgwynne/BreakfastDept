@@ -106,7 +106,7 @@ onMounted(load)
 </script>
 
 <template>
-  <section class="card card--pad">
+  <section class="card card--pad" data-test="stripe-settings">
     <div class="hd">
       <h2 class="sect__h">Stripe payments</h2>
       <span v-if="overview" class="badge" :class="overview.enabled ? 'badge--ok' : 'badge--off'">

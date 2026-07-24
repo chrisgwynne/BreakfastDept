@@ -37,25 +37,28 @@ test.describe("Standalone admin — Brevo settings", () => {
   test("add key (masked), save config, then remove", async ({ page }) => {
     await login(page);
     await page.goto("/breakfast-admin/settings");
-    await expect(page.getByRole("heading", { name: "Brevo email" })).toBeVisible({ timeout: 8000 });
+    // Scope to the Brevo card — the Settings page also renders a Stripe card that
+    // reuses the same button labels + badge classes.
+    const brevo = page.locator('[data-test="brevo-settings"]');
+    await expect(brevo.getByRole("heading", { name: "Brevo email" })).toBeVisible({ timeout: 8000 });
 
     // Add a key — the full value is never echoed back, only a masked hint.
-    await page.getByRole("button", { name: /Add key|Replace/ }).click();
-    await page.locator('.keyform input').fill("xkeysib-e2e-secret-000012349999");
+    await brevo.getByRole("button", { name: /Add key|Replace/ }).click();
+    await brevo.locator('.keyform input').fill("xkeysib-e2e-secret-000012349999");
     const [keyRes] = await Promise.all([
       page.waitForResponse((r) => r.url().endsWith("/settings/brevo/key") && r.request().method() === "POST"),
-      page.getByRole("button", { name: "Save key" }).click(),
+      brevo.getByRole("button", { name: "Save key" }).click(),
     ]);
     expect(keyRes.status()).toBe(200);
     await expect(page.getByText("API key saved")).toBeVisible({ timeout: 8000 });
-    await expect(page.getByText("••••9999")).toBeVisible();
-    await expect(page.locator(".badge--ok")).toHaveText("Configured");
+    await expect(brevo.getByText("••••9999")).toBeVisible();
+    await expect(brevo.locator(".badge--ok")).toHaveText("Configured");
 
     // Save some non-secret config.
-    await page.locator('.field', { hasText: 'Sender email' }).locator('input').fill("hi@breakfastdept.com");
+    await brevo.locator('.field', { hasText: 'Sender email' }).locator('input').fill("hi@breakfastdept.com");
     const [cfgRes] = await Promise.all([
       page.waitForResponse((r) => r.url().endsWith("/settings/brevo") && r.request().method() === "PUT"),
-      page.getByRole("button", { name: "Save Brevo settings" }).click(),
+      brevo.getByRole("button", { name: "Save Brevo settings" }).click(),
     ]);
     expect(cfgRes.status()).toBe(200);
     await expect(page.getByText("Brevo settings saved")).toBeVisible({ timeout: 8000 });
@@ -63,11 +66,11 @@ test.describe("Standalone admin — Brevo settings", () => {
     // Remove the key.
     const [delRes] = await Promise.all([
       page.waitForResponse((r) => r.url().endsWith("/settings/brevo/key") && r.request().method() === "DELETE"),
-      page.getByRole("button", { name: "Remove" }).click(),
+      brevo.getByRole("button", { name: "Remove" }).click(),
     ]);
     expect(delRes.status()).toBe(200);
     await expect(page.getByText("API key removed")).toBeVisible({ timeout: 8000 });
-    await expect(page.locator(".badge--off")).toHaveText("Not configured");
+    await expect(brevo.locator(".badge--off")).toHaveText("Not configured");
   });
 
   test("brevo settings endpoints reject unauthenticated callers", async ({ request }) => {
