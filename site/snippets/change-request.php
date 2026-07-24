@@ -12,6 +12,7 @@
  * @var string $token
  */
 $e = static fn ($v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
+$nonce = (string) ($nonce ?? '');
 $snapRaw = (string) ($cr['snapshot'] ?? '');
 $snap = $snapRaw !== '' ? (json_decode($snapRaw, true) ?: []) : [];
 $status = (string) ($cr['status'] ?? '');
@@ -145,7 +146,7 @@ $expired = $status === 'expired';
   </div>
 
   <?php if (!$decided && !$expired): ?>
-  <script>
+  <script<?= $nonce !== '' ? ' nonce="' . $e($nonce) . '"' : '' ?>>
     (function () {
       var form = document.getElementById('cr-form');
       if (!form) return;

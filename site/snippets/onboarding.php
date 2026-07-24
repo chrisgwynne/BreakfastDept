@@ -13,6 +13,7 @@
  * @var string $token
  */
 $e = static fn ($v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
+$nonce = (string) ($nonce ?? '');
 $questions = is_array($structure['questions'] ?? null) ? $structure['questions'] : [];
 $sections  = is_array($structure['sections'] ?? null) ? $structure['sections'] : [];
 $answers   = is_array($instance['answers'] ?? null) ? $instance['answers'] : [];
@@ -133,7 +134,7 @@ foreach ($questions as $q) {
     </div>
   </div>
 
-  <script>
+  <script<?= $nonce !== '' ? ' nonce="' . $e($nonce) . '"' : '' ?>>
     (function () {
       var form = document.getElementById('onboarding-form');
       if (!form) return;

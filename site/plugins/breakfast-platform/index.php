@@ -298,6 +298,70 @@ function breakfast_portal_send_link(string $email, string $url): void
     breakfast()->mailService()->queue($message);
 }
 
+/**
+ * Security headers for the standalone tokened client HTML pages (invoice,
+ * proposal, contract, onboarding, change request, portal). These documents do
+ * NOT pass through the public site layout, so without this they would ship with
+ * no CSP. Defence in depth: a strict CSP with frame-ancestors 'none' (stops
+ * clickjacking of the sign / pay / approve flows), no-referrer (stops the
+ * capability token leaking via the Referer header), nosniff, COOP,
+ * Permissions-Policy, no-store, and — in production — HSTS. Pass a per-request
+ * nonce for the two pages that carry a legitimate inline <script>.
+ *
+ * @return array<string,string>
+ */
+function breakfast_client_headers(?string $nonce = null): array
+{
+    $scriptSrc = $nonce !== null ? "'self' 'nonce-" . $nonce . "'" : "'self'";
+    $csp = "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; "
+        . "form-action 'self'; script-src " . $scriptSrc . "; style-src 'self' 'unsafe-inline'; "
+        . "img-src 'self' data:; font-src 'self'; connect-src 'self'";
+    $headers = [
+        'Content-Security-Policy'    => $csp,
+        'X-Content-Type-Options'     => 'nosniff',
+        'X-Frame-Options'            => 'DENY',
+        'Referrer-Policy'            => 'no-referrer',
+        'Permissions-Policy'         => 'geolocation=(), camera=(), microphone=(), payment=(), interest-cohort=()',
+        'Cross-Origin-Opener-Policy' => 'same-origin',
+        'X-Robots-Tag'               => 'noindex, nofollow',
+        'Cache-Control'              => 'private, no-store',
+    ];
+    if (breakfast()->isProduction()) {
+        $headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains';
+    }
+
+    return $headers;
+}
+
+/**
+ * Security headers for the admin SPA shell (built index.html). The shell has no
+ * inline scripts, so script-src 'self' holds. Frame-ancestors 'none' prevents
+ * the admin being framed; no-store keeps the shell out of shared caches.
+ *
+ * @return array<string,string>
+ */
+function breakfast_admin_shell_headers(): array
+{
+    $csp = "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; "
+        . "form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+        . "img-src 'self' data:; font-src 'self'; connect-src 'self'; manifest-src 'self'";
+    $headers = [
+        'Content-Security-Policy'    => $csp,
+        'X-Content-Type-Options'     => 'nosniff',
+        'X-Frame-Options'            => 'DENY',
+        'Referrer-Policy'            => 'strict-origin-when-cross-origin',
+        'Permissions-Policy'         => 'geolocation=(), camera=(), microphone=(), payment=(), interest-cohort=()',
+        'Cross-Origin-Opener-Policy' => 'same-origin',
+        'X-Robots-Tag'               => 'noindex, nofollow',
+        'Cache-Control'              => 'no-store',
+    ];
+    if (breakfast()->isProduction()) {
+        $headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains';
+    }
+
+    return $headers;
+}
+
 function breakfast_preview_to_response(array $res): \Kirby\Http\Response
 {
     $headers = $res['headers'];
@@ -730,7 +794,7 @@ Kirby::plugin('breakfast/platform', [
                     );
                 }
 
-                return new \Kirby\Http\Response(file_get_contents($index) ?: '', 'text/html');
+                return new \Kirby\Http\Response(file_get_contents($index) ?: '', 'text/html', 200, breakfast_admin_shell_headers());
             },
         ],
 
@@ -750,7 +814,7 @@ Kirby::plugin('breakfast/platform', [
                     return new \Kirby\Http\Response('Invoice not found', 'text/plain', 404);
                 }
 
-                return new \Kirby\Http\Response(snippet('invoice', ['invoice' => $inv], true), 'text/html');
+                return new \Kirby\Http\Response(snippet('invoice', ['invoice' => $inv], true), 'text/html', 200, breakfast_client_headers());
             },
         ],
 
@@ -797,9 +861,7 @@ Kirby::plugin('breakfast/platform', [
                 }
                 $svc->markViewed((string) $inv['uuid']);
 
-                return new \Kirby\Http\Response(snippet('invoice', ['invoice' => $inv], true), 'text/html', 200, [
-                    'X-Robots-Tag' => 'noindex, nofollow',
-                ]);
+                return new \Kirby\Http\Response(snippet('invoice', ['invoice' => $inv], true), 'text/html', 200, breakfast_client_headers());
             },
         ],
 
@@ -855,9 +917,7 @@ Kirby::plugin('breakfast/platform', [
                 }
                 $svc->markViewed((string) $p['uuid']);
 
-                return new \Kirby\Http\Response(snippet('proposal', ['proposal' => $svc->find((string) $p['uuid']), 'token' => $token], true), 'text/html', 200, [
-                    'X-Robots-Tag' => 'noindex, nofollow',
-                ]);
+                return new \Kirby\Http\Response(snippet('proposal', ['proposal' => $svc->find((string) $p['uuid']), 'token' => $token], true), 'text/html', 200, breakfast_client_headers());
             },
         ],
 
@@ -958,9 +1018,9 @@ Kirby::plugin('breakfast/platform', [
                 $svc->markViewed((string) $inst['uuid']);
                 $structure = breakfast()->onboardingTemplates()->versionStructure((string) $inst['template_uuid'], (int) $inst['version']);
 
-                return new \Kirby\Http\Response(snippet('onboarding', ['instance' => $svc->find((string) $inst['uuid']), 'structure' => $structure, 'token' => $token], true), 'text/html', 200, [
-                    'X-Robots-Tag' => 'noindex, nofollow',
-                ]);
+                $nonce = rtrim(strtr(base64_encode(random_bytes(16)), '+/', '-_'), '=');
+
+                return new \Kirby\Http\Response(snippet('onboarding', ['instance' => $svc->find((string) $inst['uuid']), 'structure' => $structure, 'token' => $token, 'nonce' => $nonce], true), 'text/html', 200, breakfast_client_headers($nonce));
             },
         ],
 
@@ -979,9 +1039,7 @@ Kirby::plugin('breakfast/platform', [
                 }
                 $svc->markViewed((string) $c['uuid']);
 
-                return new \Kirby\Http\Response(snippet('contract-sign', ['contract' => $svc->find((string) $c['uuid']), 'token' => $token], true), 'text/html', 200, [
-                    'X-Robots-Tag' => 'noindex, nofollow',
-                ]);
+                return new \Kirby\Http\Response(snippet('contract-sign', ['contract' => $svc->find((string) $c['uuid']), 'token' => $token], true), 'text/html', 200, breakfast_client_headers());
             },
         ],
 
@@ -1034,9 +1092,9 @@ Kirby::plugin('breakfast/platform', [
                 }
                 $svc->markViewed((string) $cr['uuid']);
 
-                return new \Kirby\Http\Response(snippet('change-request', ['cr' => $svc->find((string) $cr['uuid']), 'token' => $token], true), 'text/html', 200, [
-                    'X-Robots-Tag' => 'noindex, nofollow',
-                ]);
+                $nonce = rtrim(strtr(base64_encode(random_bytes(16)), '+/', '-_'), '=');
+
+                return new \Kirby\Http\Response(snippet('change-request', ['cr' => $svc->find((string) $cr['uuid']), 'token' => $token, 'nonce' => $nonce], true), 'text/html', 200, breakfast_client_headers($nonce));
             },
         ],
 
@@ -1071,7 +1129,7 @@ Kirby::plugin('breakfast/platform', [
                     }
                 }
 
-                return new \Kirby\Http\Response(snippet('portal-login', ['sent' => true, 'devLink' => $devLink], true), 'text/html', 200, ['X-Robots-Tag' => 'noindex, nofollow']);
+                return new \Kirby\Http\Response(snippet('portal-login', ['sent' => true, 'devLink' => $devLink], true), 'text/html', 200, breakfast_client_headers());
             },
         ],
 
@@ -1086,7 +1144,7 @@ Kirby::plugin('breakfast/platform', [
                 try {
                     $result = breakfast()->portal()->consumeMagicLink($token, $ipHash, (string) (kirby()->request()->header('User-Agent') ?? ''));
                 } catch (\Breakfast\Platform\Portal\PortalException $e) {
-                    return new \Kirby\Http\Response(snippet('portal-login', ['sent' => false, 'error' => $e->getMessage()], true), 'text/html', $e->status, ['X-Robots-Tag' => 'noindex, nofollow']);
+                    return new \Kirby\Http\Response(snippet('portal-login', ['sent' => false, 'error' => $e->getMessage()], true), 'text/html', $e->status, breakfast_client_headers());
                 }
                 $secure = breakfast()->isProduction() ? ' Secure;' : '';
                 $cookie = 'bf_portal=' . rawurlencode((string) $result['session_token']) . '; Path=/portal; Max-Age=2592000; HttpOnly;' . $secure . ' SameSite=Lax';
@@ -1122,13 +1180,13 @@ Kirby::plugin('breakfast/platform', [
             'action'  => function () {
                 $identity = breakfast()->portal()->identityFromSession((string) ($_COOKIE['bf_portal'] ?? ''));
                 if ($identity === null) {
-                    return new \Kirby\Http\Response(snippet('portal-login', ['sent' => false], true), 'text/html', 200, ['X-Robots-Tag' => 'noindex, nofollow']);
+                    return new \Kirby\Http\Response(snippet('portal-login', ['sent' => false], true), 'text/html', 200, breakfast_client_headers());
                 }
                 $projects = breakfast()->portal()->accessibleProjects((string) $identity['uuid']);
                 $previews = breakfast()->portal()->accessiblePreviews((string) $identity['uuid']);
                 $documents = breakfast()->portal()->accessibleDocuments((string) $identity['uuid']);
 
-                return new \Kirby\Http\Response(snippet('portal-home', ['identity' => $identity, 'projects' => $projects, 'previews' => $previews, 'documents' => $documents], true), 'text/html', 200, ['X-Robots-Tag' => 'noindex, nofollow', 'Cache-Control' => 'private, no-store']);
+                return new \Kirby\Http\Response(snippet('portal-home', ['identity' => $identity, 'projects' => $projects, 'previews' => $previews, 'documents' => $documents], true), 'text/html', 200, breakfast_client_headers());
             },
         ],
 
@@ -1140,7 +1198,7 @@ Kirby::plugin('breakfast/platform', [
             'action'  => function (string $projectUuid) {
                 $identity = breakfast()->portal()->identityFromSession((string) ($_COOKIE['bf_portal'] ?? ''));
                 if ($identity === null) {
-                    return new \Kirby\Http\Response(snippet('portal-login', ['sent' => false], true), 'text/html', 401, ['X-Robots-Tag' => 'noindex, nofollow']);
+                    return new \Kirby\Http\Response(snippet('portal-login', ['sent' => false], true), 'text/html', 401, breakfast_client_headers());
                 }
                 try {
                     $data = breakfast()->portal()->portalProject((string) $identity['uuid'], $projectUuid);
@@ -1148,7 +1206,7 @@ Kirby::plugin('breakfast/platform', [
                     return new \Kirby\Http\Response($e->getMessage(), 'text/plain', $e->status, ['X-Robots-Tag' => 'noindex, nofollow']);
                 }
 
-                return new \Kirby\Http\Response(snippet('portal-project', ['identity' => $identity, 'data' => $data], true), 'text/html', 200, ['X-Robots-Tag' => 'noindex, nofollow', 'Cache-Control' => 'private, no-store']);
+                return new \Kirby\Http\Response(snippet('portal-project', ['identity' => $identity, 'data' => $data], true), 'text/html', 200, breakfast_client_headers());
             },
         ],
 

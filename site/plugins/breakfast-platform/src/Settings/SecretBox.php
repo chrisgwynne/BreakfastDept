@@ -31,6 +31,12 @@ final class SecretBox
 
             return;
         }
+        // Fail closed in production: a container/ephemeral filesystem could
+        // regenerate the local key file and silently render stored ciphertext
+        // undecryptable. Production MUST provide a stable PLATFORM_SECRET_KEY.
+        if ((getenv('APP_ENV') ?: 'development') === 'production') {
+            throw new RuntimeException('PLATFORM_SECRET_KEY must be set in production (refusing to use a generated local key file).');
+        }
         $this->key = $this->keyFromFile($storageDir . '/secret.key');
     }
 

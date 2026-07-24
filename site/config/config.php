@@ -48,11 +48,13 @@ return [
     // platform plugin, which makes the old `/panel` location return 404).
     'panel' => [
         'slug'    => $panelSlug,
-        // Panel self-signup installer. ON by default so the first admin can be
-        // created from the web with no config editing. It is self-securing:
-        // Kirby only shows it while there are ZERO users, so it closes itself the
-        // moment your account exists. Set PANEL_INSTALL=false to force it off.
-        'install' => Env::bool('PANEL_INSTALL', true),
+        // Panel self-signup installer. Fail-closed: OFF in production by default
+        // (keyed off APP_ENV, not a hostname-loaded override), ON only in
+        // development so the first admin can be created without config editing.
+        // It is additionally self-securing — Kirby only renders it while there
+        // are ZERO users. Set PANEL_INSTALL=true to force it on for a one-off
+        // production bootstrap, then unset it.
+        'install' => Env::bool('PANEL_INSTALL', $isProduction === false),
         // No branded menu / home / CSS: the day-to-day admin is the standalone
         // Breakfast Admin app at /breakfast-admin. The Kirby Panel here is the
         // vanilla, undisclosed super-admin console only.
