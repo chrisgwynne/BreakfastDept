@@ -202,6 +202,38 @@ final class AdminApiTest extends TestCase
         $this->assertSame(404, $out['code']);
     }
 
+    public function testWebsiteEndpointsRequireAuth(): void
+    {
+        foreach (['website', 'website/page/home'] as $path) {
+            $out = $this->call($path);
+            $this->assertSame(401, $out['code'], "$path must require authentication");
+        }
+    }
+
+    public function testWebsiteIndexAndPageLoadAreShaped(): void
+    {
+        $this->kirby->impersonate('kirby');
+
+        $index = $this->call('website');
+        $this->assertSame(200, $index['code']);
+        $ids = array_column($index['data']['items'], 'id');
+        $this->assertContains('site', $ids);
+        $this->assertContains('home', $ids);
+
+        $home = $this->call('website/page/home');
+        $this->assertSame(200, $home['code']);
+        $this->assertArrayHasKey('fields', $home['data']);
+        $this->assertArrayHasKey('readonly', $home['data']);
+        $this->assertIsArray($home['data']['fields']);
+    }
+
+    public function testWebsiteUnknownPageIs404(): void
+    {
+        $this->kirby->impersonate('kirby');
+        $out = $this->call('website/page/does-not-exist');
+        $this->assertSame(404, $out['code']);
+    }
+
     private function rrmdir(string $dir): void
     {
         if (!is_dir($dir)) {
