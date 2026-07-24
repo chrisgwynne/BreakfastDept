@@ -63,12 +63,24 @@ test.describe("Standalone admin — invoicing", () => {
     const year = new Date().getFullYear();
     await expect(page.locator(".sheet").getByText(new RegExp(`INV-${year}-\\d{4}`)).first()).toBeVisible({ timeout: 8000 });
 
-    // The "View / PDF" link points at the signed public document and renders it.
-    const href = await page.getByRole("link", { name: /View \/ PDF/ }).getAttribute("href");
-    expect(href).toBeTruthy();
-    const doc = await context.request.get(href);
-    expect(doc.status()).toBe(200);
-    expect(await doc.text()).toContain("Invoice");
+    // Issuing generated a GENUINE .pdf server-side. The "Download PDF" control
+    // appears (pdf_ready) and streams a real PDF binary — not an HTML page —
+    // from the authenticated download route.
+    const dl = page.getByRole("link", { name: /Download PDF/ });
+    await expect(dl).toBeVisible({ timeout: 8000 });
+    const href = await dl.getAttribute("href");
+    expect(href).toMatch(/\/breakfast-admin\/invoices\/[^/]+\/download$/);
+
+    const pdf = await context.request.get(href);
+    expect(pdf.status()).toBe(200);
+    expect(pdf.headers()["content-type"]).toContain("application/pdf");
+    expect(pdf.headers()["content-disposition"]).toContain("attachment");
+    const bytes = await pdf.body();
+    expect(bytes.slice(0, 5).toString("latin1"), "a real PDF binary is served").toBe("%PDF-");
+    expect(bytes.length).toBeGreaterThan(500);
+
+    // The document is listed as an immutable issued version.
+    await expect(page.locator(".sheet").getByText(/Issued v1/)).toBeVisible({ timeout: 8000 });
   });
 
   test("invoice write endpoints reject unauthenticated callers", async ({ request }) => {

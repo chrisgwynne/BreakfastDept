@@ -366,6 +366,8 @@ export interface Invoice extends InvoiceListItem {
   seller_name: string
   payment_details: string
   public_url: string
+  document_status: string
+  pdf_ready: boolean
   items: InvoiceItem[]
   payments: InvoicePayment[]
   events: InvoiceEvent[]

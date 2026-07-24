@@ -14,6 +14,7 @@ const auth = useAuth()
 const ui = useUi()
 const canManage = computed(() => auth.can('invoices.manage') || auth.can('admin'))
 const canSend = computed(() => auth.can('email.send') || auth.can('admin'))
+const isAdmin = computed(() => auth.can('admin'))
 
 const items = ref<InvoiceListItem[]>([])
 const loading = ref(true)
@@ -32,6 +33,11 @@ const draft = reactive<{ bill_to_name: string; bill_to_email: string; bill_to_ad
 // detail
 const detail = ref<Invoice | null>(null)
 const busy = ref('')
+
+// PDF documents
+interface InvoiceDocument { id: string; version: number; kind: string; filename: string; byte_size: number; sha256: string; renderer: string; state: string; created_at: string }
+const versions = ref<InvoiceDocument[]>([])
+const pdfBusy = ref('')
 
 // settings
 const settingsOpen = ref(false)
@@ -90,7 +96,16 @@ async function saveDraft() {
 
 // --- detail + actions ---
 async function openDetail(id: string) {
-  try { detail.value = (await api.get<{ invoice: Invoice }>(`/invoices/${id}`)).invoice } catch { /* ignore */ }
+  versions.value = []
+  try {
+    detail.value = (await api.get<{ invoice: Invoice }>(`/invoices/${id}`)).invoice
+    if (detail.value.status !== 'draft') await loadVersions()
+  } catch { /* ignore */ }
+}
+async function loadVersions() {
+  if (!detail.value) return
+  try { versions.value = (await api.get<{ items: InvoiceDocument[] }>(`/invoices/${detail.value.id}/pdf/versions`)).items }
+  catch { versions.value = [] }
 }
 async function act(action: string, body?: unknown) {
   if (!detail.value || busy.value) return
@@ -99,6 +114,7 @@ async function act(action: string, body?: unknown) {
     const res = await api.post<{ invoice: Invoice; status?: string }>(`/invoices/${detail.value.id}/${action}`, body)
     detail.value = res.invoice
     ui.toast(action === 'issue' ? 'Invoice issued' : action === 'send' ? 'Invoice emailed (queued)' : action === 'void' ? 'Invoice voided' : 'Payment recorded')
+    if (detail.value.status !== 'draft') await loadVersions()
     await load()
   } catch (e) { ui.toast(e instanceof ApiError ? e.message : 'Action failed') }
   finally { busy.value = '' }
@@ -113,8 +129,46 @@ function sendInvoice() {
   if (!detail.value) return
   act('send', { to: detail.value.bill_to_email })
 }
-function previewUrl(inv: Invoice): string {
-  return inv.public_url || `/invoice/preview/${inv.id}`
+
+// --- real PDF documents ---
+// The stored PDF is streamed from the authenticated download route (a
+// same-origin Kirby route outside the API namespace). The browser downloads
+// the genuine .pdf file; nothing is rendered as a "print-friendly webpage".
+function downloadHref(documentUuid?: string): string {
+  if (!detail.value) return '#'
+  const q = documentUuid ? `?document=${encodeURIComponent(documentUuid)}` : ''
+  return `/breakfast-admin/invoices/${detail.value.id}/download${q}`
+}
+function triggerDownload(documentUuid?: string) {
+  const a = document.createElement('a')
+  a.href = downloadHref(documentUuid)
+  a.rel = 'noopener'
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+}
+async function previewDraftPdf() {
+  if (!detail.value || pdfBusy.value) return
+  pdfBusy.value = 'draft'
+  try {
+    const res = await api.post<{ document: InvoiceDocument }>(`/invoices/${detail.value.id}/pdf`, {})
+    triggerDownload(res.document.id)
+    ui.toast('Draft PDF generated')
+  } catch (e) { ui.toast(e instanceof ApiError ? e.message : 'Could not generate a draft PDF') }
+  finally { pdfBusy.value = '' }
+}
+async function regeneratePdf() {
+  if (!detail.value || pdfBusy.value) return
+  const reason = window.prompt('Why are you regenerating this issued invoice’s PDF? The original version is preserved.')
+  if (!reason || !reason.trim()) return
+  pdfBusy.value = 'regenerate'
+  try {
+    await api.post<{ document: InvoiceDocument }>(`/invoices/${detail.value.id}/pdf/regenerate`, { reason })
+    detail.value = (await api.get<{ invoice: Invoice }>(`/invoices/${detail.value.id}`)).invoice
+    await loadVersions()
+    ui.toast('New PDF version generated (original preserved)')
+  } catch (e) { ui.toast(e instanceof ApiError ? e.message : 'Could not regenerate the PDF') }
+  finally { pdfBusy.value = '' }
 }
 
 // --- settings ---
@@ -218,10 +272,26 @@ onMounted(load)
         </div>
 
         <div class="dactions">
-          <a class="btn btn--sm" :href="previewUrl(detail)" target="_blank" rel="noopener"><NavIcon name="window" /> View / PDF</a>
+          <!-- Genuine PDF: a stored .pdf streamed from the authenticated route. -->
+          <a v-if="detail.pdf_ready" class="btn btn--sm btn--primary" :href="downloadHref()" @click.prevent="triggerDownload()"><NavIcon name="window" /> Download PDF</a>
+          <button v-if="canManage && detail.status === 'draft'" class="btn btn--sm" :disabled="pdfBusy === 'draft'" @click="previewDraftPdf">{{ pdfBusy === 'draft' ? 'Generating…' : 'Preview draft PDF' }}</button>
           <button v-if="canManage && detail.status === 'draft'" class="btn btn--sm btn--primary" :disabled="busy === 'issue'" @click="act('issue')">Issue</button>
-          <button v-if="canSend && detail.status !== 'draft' && detail.status !== 'void'" class="btn btn--sm" :disabled="busy === 'send'" @click="sendInvoice">Email to client</button>
+          <button v-if="canSend && detail.status !== 'draft' && detail.status !== 'void'" class="btn btn--sm" :disabled="busy === 'send' || !detail.pdf_ready" :title="!detail.pdf_ready ? 'The invoice PDF must finish generating before it can be emailed.' : ''" @click="sendInvoice">Email to client</button>
+          <button v-if="isAdmin && detail.status !== 'draft' && detail.status !== 'void'" class="btn btn--sm" :disabled="pdfBusy === 'regenerate'" @click="regeneratePdf">{{ pdfBusy === 'regenerate' ? 'Regenerating…' : 'Regenerate PDF' }}</button>
           <button v-if="canManage && !['draft', 'void', 'paid'].includes(detail.status)" class="btn btn--sm btn--danger" :disabled="busy === 'void'" @click="act('void')">Void</button>
+        </div>
+
+        <div v-if="detail.status !== 'draft' && !detail.pdf_ready" class="pdfwarn">
+          <NavIcon name="alert" />
+          <span>{{ detail.document_status === 'failed' ? 'PDF generation failed. An administrator can regenerate it; the invoice can’t be emailed until it succeeds.' : 'The invoice PDF is still being generated. Emailing is blocked until it’s ready.' }}</span>
+        </div>
+
+        <div v-if="versions.length" class="dpays">
+          <p class="label">PDF documents</p>
+          <div v-for="d in versions" :key="d.id" class="dpay">
+            <span class="truncate">{{ d.kind === 'issued' ? 'Issued' : 'Draft' }} v{{ d.version }} · {{ when(d.created_at) }}</span>
+            <a class="pdflink" :href="downloadHref(d.id)" @click.prevent="triggerDownload(d.id)">Download</a>
+          </div>
         </div>
 
         <div v-if="canManage && !['draft', 'void', 'paid'].includes(detail.status)" class="paybox">
@@ -294,7 +364,9 @@ onMounted(load)
 .ditem { display: flex; justify-content: space-between; font-size: var(--text-sm); gap: var(--sp-3); }
 .dactions { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin: var(--sp-4) 0; }
 .paybox { background: var(--paper-2); border-radius: var(--r-md); padding: var(--sp-3); display: grid; gap: var(--sp-2); margin-bottom: var(--sp-4); }
-.dpays { display: grid; gap: 4px; } .dpay { display: flex; justify-content: space-between; font-size: var(--text-sm); }
+.dpays { display: grid; gap: 4px; } .dpay { display: flex; justify-content: space-between; font-size: var(--text-sm); gap: var(--sp-3); align-items: center; }
+.pdflink { color: var(--purple); font-weight: 550; white-space: nowrap; }
+.pdfwarn { display: flex; align-items: center; gap: 8px; font-size: var(--text-sm); color: var(--ink-2); background: var(--paper-2); border: 1px solid var(--line); border-radius: var(--r-md); padding: var(--sp-2) var(--sp-3); margin-bottom: var(--sp-4); }
 .vat { display: flex; align-items: center; gap: 8px; font-size: var(--text-sm); margin: var(--sp-2) 0; }
 @media (max-width: 620px) { .row { grid-template-columns: 1fr auto auto; } .row__num, .row__date { display: none; } .cf__row { grid-template-columns: 1fr; } }
 </style>
