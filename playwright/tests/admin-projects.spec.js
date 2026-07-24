@@ -36,6 +36,10 @@ test.describe("Standalone admin — projects", () => {
 
   test("create a project and drive it through the status state machine", async ({ page }, testInfo) => {
     test.skip(testInfo.project.name === "mobile", "desktop-only multi-step journey");
+    // Auto-accept the block-reason prompt. Registered once up front (not via a
+    // page.once right before the click) so there is no dialog-registration race
+    // under headless CI — the handler is always attached before the prompt fires.
+    page.on("dialog", (d) => d.accept("Waiting on client hosting login"));
     await login(page);
 
     // Create a manual project.
@@ -65,8 +69,8 @@ test.describe("Standalone admin — projects", () => {
       page.getByRole("button", { name: "active", exact: true }).click(),
     ]);
 
-    // Blocking requires a reason — accept the prompt.
-    page.once("dialog", (d) => d.accept("Waiting on client hosting login"));
+    // Blocking requires a reason — the prompt is auto-accepted by the handler
+    // registered at the top of this test.
     await Promise.all([
       page.waitForResponse((r) => /\/projects\/[^/]+\/status$/.test(r.url())),
       page.getByRole("button", { name: "blocked", exact: true }).click(),
