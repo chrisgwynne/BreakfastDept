@@ -178,12 +178,36 @@ final class Platform
         return $this->service(\Breakfast\Platform\Invoicing\Invoices::class, fn () => new \Breakfast\Platform\Invoicing\Invoices($this->db()));
     }
 
-    /** @return array<string,mixed> */
-    public function mailConfig(): array
+    /**
+     * The environment/config-sourced mail settings (no application overlay).
+     *
+     * @return array<string,mixed>
+     */
+    public function rawMailConfig(): array
     {
         $config = $this->config('mail', []);
 
         return is_array($config) ? $config : [];
+    }
+
+    /**
+     * The effective mail config: environment defaults with any application-managed
+     * Brevo settings (key, sender, base URL) overlaid on top, so a key configured
+     * from Settings actually takes effect. Falls back to the raw config if the
+     * settings store isn't available yet (e.g. before the schema exists).
+     *
+     * @return array<string,mixed>
+     */
+    public function mailConfig(): array
+    {
+        $config = $this->rawMailConfig();
+        try {
+            $overlay = $this->brevoSettings()->effectiveMailOverlay();
+        } catch (\Throwable) {
+            $overlay = [];
+        }
+
+        return array_merge($config, $overlay);
     }
 
     public function isProduction(): bool
@@ -254,6 +278,23 @@ final class Platform
     public function audit(): AuditLog
     {
         return $this->service(AuditLog::class, fn () => new AuditLog($this->db()));
+    }
+
+    public function settings(): \Breakfast\Platform\Settings\SettingsStore
+    {
+        return $this->service(\Breakfast\Platform\Settings\SettingsStore::class, fn () => new \Breakfast\Platform\Settings\SettingsStore(
+            $this->db(),
+            new \Breakfast\Platform\Settings\SecretBox($this->storageDir())
+        ));
+    }
+
+    public function brevoSettings(): \Breakfast\Platform\Settings\BrevoSettings
+    {
+        return $this->service(\Breakfast\Platform\Settings\BrevoSettings::class, fn () => new \Breakfast\Platform\Settings\BrevoSettings(
+            $this->settings(),
+            $this->audit(),
+            $this->rawMailConfig()
+        ));
     }
 
     public function webhooks(): WebhookDispatcher

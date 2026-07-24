@@ -102,6 +102,26 @@ final class PanelGate
         return self::canManage($user);
     }
 
+    /**
+     * Brevo integration settings. Viewing, managing (key + config) and testing
+     * all require the 'manage' grant — this area exposes email deliverability
+     * configuration and a masked credential hint. Enforced server-side.
+     */
+    public static function canViewBrevo(?User $user): bool
+    {
+        return self::canManage($user);
+    }
+
+    public static function canManageBrevo(?User $user): bool
+    {
+        return self::canManage($user);
+    }
+
+    public static function canTestBrevo(?User $user): bool
+    {
+        return self::canManage($user);
+    }
+
     private static function allowed(?User $user, string $action): bool
     {
         if ($user === null) {

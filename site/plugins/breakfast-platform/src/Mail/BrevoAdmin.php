@@ -89,6 +89,30 @@ final class BrevoAdmin
     }
 
     /**
+     * List verified senders. Used by the Settings connection test to confirm the
+     * configured "from" address can actually send.
+     *
+     * @return array{ok:bool,detail:string,senders:list<string>}
+     */
+    public function sendersCheck(): array
+    {
+        $res = $this->get('/senders');
+        if ($res->ok() === false) {
+            return ['ok' => false, 'detail' => 'HTTP ' . $res->status, 'senders' => []];
+        }
+        $body    = $res->json();
+        $senders = [];
+        foreach (is_array($body['senders'] ?? null) ? $body['senders'] : [] as $s) {
+            $email = strtolower(trim((string) ($s['email'] ?? '')));
+            if ($email !== '') {
+                $senders[] = $email;
+            }
+        }
+
+        return ['ok' => true, 'detail' => count($senders) . ' sender(s)', 'senders' => $senders];
+    }
+
+    /**
      * Upsert one contact into Brevo. Maps only approved, non-sensitive fields and
      * uses the CRM UUID as the external identifier. Never sends notes, opportunity
      * values, uploads or Hermes classifications.

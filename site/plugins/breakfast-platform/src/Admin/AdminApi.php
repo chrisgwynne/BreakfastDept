@@ -85,6 +85,7 @@ final class AdminApi
             'website'       => $this->website($method, $seg, $user),
             'hermes'        => $this->hermes($method, $seg, $user),
             'invoices'      => $this->invoices($method, $seg, $user),
+            'settings'      => $this->settings($method, $seg, $user),
             'reports'       => $this->reports(),
             'operations'    => $this->operations($user),
             default         => throw new ApiException(404, 'Unknown endpoint.', 'not_found'),
@@ -209,6 +210,12 @@ final class AdminApi
         }
         if (PanelGate::canPublishWebsite($user)) {
             $permissions[] = 'website.publish';
+        }
+        if (PanelGate::canViewBrevo($user)) {
+            $permissions[] = 'brevo.view';
+        }
+        if (PanelGate::canManageBrevo($user)) {
+            $permissions[] = 'brevo.manage';
         }
 
         return [
@@ -727,6 +734,69 @@ final class AdminApi
         $requirePermission();
 
         return $action();
+    }
+
+    /**
+     * Application-managed settings. Currently the secure Brevo integration:
+     *
+     * GET    /settings/brevo       — overview (masked key hint + config, no secret)
+     * PUT    /settings/brevo       — update non-secret config
+     * POST   /settings/brevo/key   — set/replace the API key (stored encrypted)
+     * DELETE /settings/brevo/key   — remove the API key
+     * POST   /settings/brevo/test  — test authentication, account & sender
+     *
+     * @param list<string> $seg
+     * @return array<string,mixed>
+     */
+    private function settings(string $method, array $seg, \Kirby\Cms\User $user): array
+    {
+        $area = $seg[1] ?? '';
+        if ($area !== 'brevo') {
+            throw new ApiException(404, 'Unknown settings area.', 'not_found');
+        }
+        if (!PanelGate::canViewBrevo($user)) {
+            throw new ApiException(403, 'You don’t have access to integration settings.', 'forbidden');
+        }
+        $svc    = $this->platform->brevoSettings();
+        $actor  = (string) $user->email();
+        $action = $seg[2] ?? '';
+
+        $requireManage = function () use ($user): void {
+            if (!PanelGate::canManageBrevo($user)) {
+                throw new ApiException(403, 'You can’t change integration settings.', 'forbidden');
+            }
+        };
+
+        try {
+            if ($method === 'GET' && $action === '') {
+                return ['brevo' => $svc->overview()];
+            }
+            if ($method === 'PUT' && $action === '') {
+                $requireManage();
+
+                return ['brevo' => $svc->update($this->body(), $actor)];
+            }
+            if ($action === 'key') {
+                $requireManage();
+                if ($method === 'POST') {
+                    return ['brevo' => $svc->setKey((string) ($this->body()['api_key'] ?? ''), $actor)];
+                }
+                if ($method === 'DELETE') {
+                    return ['brevo' => $svc->clearKey($actor)];
+                }
+            }
+            if ($method === 'POST' && $action === 'test') {
+                if (!PanelGate::canTestBrevo($user)) {
+                    throw new ApiException(403, 'You can’t test the connection.', 'forbidden');
+                }
+
+                return $svc->test($actor);
+            }
+
+            throw new ApiException(404, 'Unknown settings endpoint.', 'not_found');
+        } catch (\Breakfast\Platform\Settings\SettingsException $e) {
+            throw new ApiException($e->status, $e->getMessage(), 'settings', $e->fields);
+        }
     }
 
     // ==================================================================
