@@ -22,6 +22,7 @@ const nav = [
   { to: '/tasks', name: 'tasks', label: 'Tasks', icon: 'check' },
   { to: '/calendar', name: 'calendar', label: 'Calendar', icon: 'calendar', perm: 'calendar.view' },
   { to: '/previews', name: 'previews', label: 'Client Previews', icon: 'window' },
+  { to: '/projects', name: 'projects', label: 'Projects', icon: 'grid' },
   { to: '/proposals', name: 'proposals', label: 'Proposals', icon: 'columns', perm: 'crm.manage' },
   { to: '/contracts', name: 'contracts', label: 'Contracts', icon: 'check', perm: 'crm.manage' },
   { to: '/invoices', name: 'invoices', label: 'Invoices', icon: 'receipt', perm: 'invoices.view' },

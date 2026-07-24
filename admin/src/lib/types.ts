@@ -533,6 +533,53 @@ export interface Invoice extends InvoiceListItem {
   events: InvoiceEvent[]
 }
 
+// -- Projects (Phase 2) --------------------------------------------------
+export interface ProjectListItem {
+  id: string
+  number: string
+  name: string
+  status: string
+  priority: string
+  health: string
+  company_uuid: string
+  contact_uuid: string
+  owner: string
+  start_date: string
+  target_date: string
+  quoted_value: number
+  invoiced_value: number
+  paid_value: number
+  currency: string
+  archived: boolean
+  revision: number
+  created_at: string
+}
+
+export interface ProjectMember { user_email: string; role: string }
+export interface ProjectEvent { type: string; detail: string; actor: string; created_at: string }
+
+export interface Project extends ProjectListItem {
+  project_type: string
+  service_category: string
+  description: string
+  internal_summary: string
+  client_summary: string
+  scope: string
+  exclusions: string
+  blocked_reason: string
+  cancel_reason: string
+  completed_at: string
+  proposal_uuid: string
+  contract_uuid: string
+  opportunity_uuid: string
+  tags: string[]
+  approved_variations: number
+  estimated_cost: number
+  awaiting_seconds: number
+  members: ProjectMember[]
+  events: ProjectEvent[]
+}
+
 export interface StripeOverview {
   enabled: boolean
   mode: string

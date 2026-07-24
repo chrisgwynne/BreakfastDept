@@ -179,6 +179,26 @@ final class PanelGate
     }
 
     /**
+     * Projects (Phase 2 — Delivery). Viewing follows CRM access; creating,
+     * editing, status changes, team + archive/restore actions require the CRM
+     * 'manage' grant. Reasons for cancellation/blocking are enforced server-side.
+     */
+    public static function canViewProjects(?User $user): bool
+    {
+        return self::canAccess($user);
+    }
+
+    public static function canManageProjects(?User $user): bool
+    {
+        return self::canManage($user);
+    }
+
+    public static function canArchiveProjects(?User $user): bool
+    {
+        return self::canManage($user);
+    }
+
+    /**
      * Website content. Viewing the overview needs admin access; editing drafts
      * and publishing to the live site both require the 'manage' grant. Enforced
      * server-side on every website route.

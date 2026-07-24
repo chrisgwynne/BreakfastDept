@@ -197,6 +197,16 @@ final class Platform
         ));
     }
 
+    public function projects(): \Breakfast\Platform\Projects\Projects
+    {
+        return $this->service(\Breakfast\Platform\Projects\Projects::class, fn () => new \Breakfast\Platform\Projects\Projects($this->db()));
+    }
+
+    public function projectConversion(): \Breakfast\Platform\Projects\ProjectConversion
+    {
+        return $this->service(\Breakfast\Platform\Projects\ProjectConversion::class, fn () => new \Breakfast\Platform\Projects\ProjectConversion($this));
+    }
+
     public function stripeSettings(): \Breakfast\Platform\Payments\StripeSettings
     {
         return $this->service(\Breakfast\Platform\Payments\StripeSettings::class, fn () => new \Breakfast\Platform\Payments\StripeSettings(

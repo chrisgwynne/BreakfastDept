@@ -89,6 +89,7 @@ final class AdminApi
             'contracts'     => $this->contracts($method, $seg, $user),
             'contract-templates' => $this->contractTemplates($method, $seg, $user),
             'payments'      => $this->payments($method, $seg, $user),
+            'projects'      => $this->projects($method, $seg, $user),
             'calendar'      => $this->calendar($method, $seg, $user),
             'search'        => $this->search(),
             'settings'      => $this->settings($method, $seg, $user),
@@ -1977,6 +1978,183 @@ final class AdminApi
             'amount' => (int) ($r['amount'] ?? 0) / 100, 'reason' => (string) ($r['reason'] ?? ''),
             'status' => (string) ($r['status'] ?? ''), 'created_at' => (string) ($r['created_at'] ?? ''),
         ], is_array($p['refunds'] ?? null) ? $p['refunds'] : []);
+
+        return $row;
+    }
+
+    /**
+     * Projects (Phase 2 — Delivery). All staff routes require CRM access to view
+     * and the 'manage' grant to mutate. A project can be created manually or from
+     * an accepted proposal / completed contract / won opportunity.
+     *
+     * @param list<string> $seg
+     * @return array<string,mixed>
+     */
+    private function projects(string $method, array $seg, \Kirby\Cms\User $user): array
+    {
+        if (!PanelGate::canViewProjects($user)) {
+            throw new ApiException(403, 'You don’t have access to projects.', 'forbidden');
+        }
+        $svc   = $this->platform->projects();
+        $actor = (string) $user->email();
+        $id    = $seg[1] ?? '';
+
+        $requireManage = function () use ($user): void {
+            if (!PanelGate::canManageProjects($user)) {
+                throw new ApiException(403, 'You can’t change projects.', 'forbidden');
+            }
+        };
+
+        try {
+            if ($id === '') {
+                if ($method === 'POST') {
+                    $requireManage();
+
+                    return ['project' => $this->projectRow($this->createProject($this->body(), $actor), true)];
+                }
+                $q = $this->query();
+
+                return ['items' => array_map(fn (array $r): array => $this->projectRow($r, false), $svc->list([
+                    'status'   => $q['status'] ?? null,
+                    'archived' => ($q['archived'] ?? '') === '1',
+                    'limit'    => $this->perPage(),
+                ]))];
+            }
+
+            $action = $seg[2] ?? '';
+            if ($method === 'GET' && $action === '') {
+                $p = $svc->find($id);
+                if ($p === null) {
+                    throw new ApiException(404, 'Project not found.', 'not_found');
+                }
+
+                return ['project' => $this->projectRow($p, true)];
+            }
+            if ($method === 'PATCH' && $action === '') {
+                $requireManage();
+                $body = $this->body();
+                $rev  = array_key_exists('revision', $body) ? (int) $body['revision'] : null;
+
+                return ['project' => $this->projectRow($svc->update($id, $body, $actor, $rev), true)];
+            }
+            if ($method === 'POST') {
+                switch ($action) {
+                    case 'status':
+                        $requireManage();
+                        $body = $this->body();
+
+                        return ['project' => $this->projectRow($svc->transition($id, (string) ($body['status'] ?? ''), $body, $actor), true)];
+                    case 'reopen':
+                        $requireManage();
+
+                        return ['project' => $this->projectRow($svc->reopen($id, $actor), true)];
+                    case 'archive':
+                        if (!PanelGate::canArchiveProjects($user)) {
+                            throw new ApiException(403, 'You can’t archive projects.', 'forbidden');
+                        }
+
+                        return ['project' => $this->projectRow($svc->archive($id, $actor), true)];
+                    case 'restore':
+                        if (!PanelGate::canArchiveProjects($user)) {
+                            throw new ApiException(403, 'You can’t restore projects.', 'forbidden');
+                        }
+
+                        return ['project' => $this->projectRow($svc->restore($id, $actor), true)];
+                    case 'members':
+                        $requireManage();
+                        $members = is_array($this->body()['members'] ?? null) ? $this->body()['members'] : [];
+
+                        return ['project' => $this->projectRow($svc->setMembers($id, $members, $actor), true)];
+                }
+            }
+
+            throw new ApiException(404, 'Unknown project endpoint.', 'not_found');
+        } catch (\Breakfast\Platform\Projects\ProjectException $e) {
+            throw new ApiException($e->status, $e->getMessage(), 'project');
+        }
+    }
+
+    /**
+     * Create a project manually or from a commercial record, and record the
+     * creation on the CRM timeline + audit.
+     *
+     * @param array<string,mixed> $body
+     * @return array<string,mixed>
+     */
+    private function createProject(array $body, string $actor): array
+    {
+        $conv = $this->platform->projectConversion();
+        $options = ['overrides' => is_array($body['overrides'] ?? null) ? $body['overrides'] : []];
+        foreach (['require_contract', 'require_deposit', 'require_won'] as $flag) {
+            if (array_key_exists($flag, $body)) {
+                $options[$flag] = (bool) $body[$flag];
+            }
+        }
+        try {
+            if (!empty($body['proposal_uuid'])) {
+                $project = $conv->fromProposal((string) $body['proposal_uuid'], $options, $actor);
+            } elseif (!empty($body['contract_uuid'])) {
+                $project = $conv->fromContract((string) $body['contract_uuid'], $options, $actor);
+            } elseif (!empty($body['opportunity_uuid'])) {
+                $project = $conv->fromOpportunity((string) $body['opportunity_uuid'], $options, $actor);
+            } else {
+                $project = $this->platform->projects()->create($body, $actor);
+            }
+        } catch (\Breakfast\Platform\Projects\ProjectException $e) {
+            throw new ApiException($e->status, $e->getMessage(), 'project');
+        }
+
+        $contact = (string) ($project['contact_uuid'] ?? '');
+        if ($contact !== '') {
+            $this->platform->activities()->record('contact', $contact, 'project.created', 'Project ' . (string) ($project['number'] ?? '') . ' created', 'user', $actor, ['project' => $project['uuid'] ?? '']);
+        }
+        $this->platform->audit()->event('project.created', 'project', (string) ($project['uuid'] ?? ''), $actor, ['number' => $project['number'] ?? '']);
+
+        return $project;
+    }
+
+    /**
+     * @param array<string,mixed> $p
+     * @return array<string,mixed>
+     */
+    private function projectRow(array $p, bool $detail): array
+    {
+        $row = [
+            'id'             => (string) ($p['uuid'] ?? ''),
+            'number'         => (string) ($p['number'] ?? ''),
+            'name'           => (string) ($p['name'] ?? ''),
+            'status'         => (string) ($p['status'] ?? 'draft'),
+            'priority'       => (string) ($p['priority'] ?? 'normal'),
+            'health'         => (string) ($p['health'] ?? 'on_track'),
+            'company_uuid'   => (string) ($p['company_uuid'] ?? ''),
+            'contact_uuid'   => (string) ($p['contact_uuid'] ?? ''),
+            'owner'          => (string) ($p['owner'] ?? ''),
+            'start_date'     => (string) ($p['start_date'] ?? ''),
+            'target_date'    => (string) ($p['target_date'] ?? ''),
+            'quoted_value'   => (int) ($p['quoted_value'] ?? 0) / 100,
+            'invoiced_value' => (int) ($p['invoiced_value'] ?? 0) / 100,
+            'paid_value'     => (int) ($p['paid_value'] ?? 0) / 100,
+            'currency'       => (string) ($p['currency'] ?? 'GBP'),
+            'archived'       => (int) ($p['archived'] ?? 0) === 1,
+            'revision'       => (int) ($p['revision'] ?? 1),
+            'created_at'     => (string) ($p['created_at'] ?? ''),
+        ];
+        if (!$detail) {
+            return $row;
+        }
+        foreach (['project_type', 'service_category', 'description', 'internal_summary', 'client_summary', 'scope', 'exclusions', 'blocked_reason', 'cancel_reason', 'completed_at', 'proposal_uuid', 'contract_uuid', 'opportunity_uuid'] as $f) {
+            $row[$f] = (string) ($p[$f] ?? '');
+        }
+        $row['tags'] = is_array($p['tags'] ?? null) ? $p['tags'] : [];
+        $row['approved_variations'] = (int) ($p['approved_variations'] ?? 0) / 100;
+        $row['estimated_cost'] = (int) ($p['estimated_cost'] ?? 0) / 100;
+        $row['awaiting_seconds'] = (int) ($p['awaiting_seconds_live'] ?? $p['awaiting_seconds'] ?? 0);
+        $row['members'] = array_map(static fn (array $m): array => [
+            'user_email' => (string) ($m['user_email'] ?? ''), 'role' => (string) ($m['role'] ?? 'member'),
+        ], is_array($p['members'] ?? null) ? $p['members'] : []);
+        $row['events'] = array_map(static fn (array $e): array => [
+            'type' => (string) ($e['type'] ?? ''), 'detail' => (string) ($e['detail'] ?? ''), 'actor' => (string) ($e['actor'] ?? ''), 'created_at' => (string) ($e['created_at'] ?? ''),
+        ], is_array($p['events'] ?? null) ? $p['events'] : []);
 
         return $row;
     }
