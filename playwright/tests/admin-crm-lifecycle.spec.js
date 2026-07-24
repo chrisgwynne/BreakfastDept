@@ -107,6 +107,7 @@ test.describe("Standalone admin — CRM lifecycle", () => {
   });
 
   test("edit, archive then restore a company", async ({ page }) => {
+    test.slow(); // multi-step journey; give slower (mobile) CI headroom
     await login(page);
     page.on("dialog", (d) => d.accept()); // archive warning confirm
 
@@ -147,6 +148,7 @@ test.describe("Standalone admin — CRM lifecycle", () => {
   });
 
   test("edit then close an opportunity as won", async ({ page }) => {
+    test.slow(); // multi-step journey; give slower (mobile) CI headroom
     await login(page);
 
     // Convert a lead so there's an opportunity in the pipeline.
