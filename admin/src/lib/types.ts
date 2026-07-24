@@ -57,6 +57,14 @@ export interface SystemHealth {
   version: string
 }
 
+export interface UpcomingEvent {
+  id: string
+  title: string
+  starts_at: string
+  event_type: string
+  all_day: boolean
+}
+
 export interface Dashboard {
   greeting: string
   date: string
@@ -65,6 +73,7 @@ export interface Dashboard {
   pipeline: PipelineStage[]
   recent: ActivityItem[]
   health: SystemHealth | null
+  upcoming_events?: UpcomingEvent[]
 }
 
 export interface Paged<T> {
@@ -346,6 +355,32 @@ export interface InvoiceSettings {
   invoice_prefix: string
   default_terms_days: number
   default_notes: string
+}
+
+// -- Calendar ------------------------------------------------------------
+
+export interface CalendarEvent {
+  id: string
+  title: string
+  description: string
+  starts_at: string
+  ends_at: string
+  all_day: boolean
+  timezone: string
+  location: string
+  meeting_link: string
+  event_type: string
+  status: string
+  contact_uuid: string
+  company_uuid: string
+  opportunity_uuid: string
+  recurrence: string
+  recurrence_interval: number
+  recurrence_until: string
+  recurrence_count: number
+  reminder_minutes: number
+  occurrence_date: string
+  recurring: boolean
 }
 
 // -- Brevo integration settings ------------------------------------------

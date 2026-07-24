@@ -19,6 +19,7 @@ const commands: Command[] = [
   { label: 'CRM — Contacts', hint: 'People & companies', icon: 'users', to: '/crm' },
   { label: 'Pipeline', hint: 'Opportunities board', icon: 'columns', to: '/pipeline' },
   { label: 'Tasks', hint: 'What needs doing', icon: 'check', to: '/tasks' },
+  { label: 'Calendar', hint: 'Schedule & meetings', icon: 'calendar', to: '/calendar', perm: 'calendar.view' },
   { label: 'Client Previews', hint: 'Shared work', icon: 'window', to: '/previews' },
   { label: 'Invoices', hint: 'Billing & payments', icon: 'receipt', to: '/invoices', perm: 'invoices.view' },
   { label: 'Email', hint: 'Compose & delivery', icon: 'mail', to: '/email' },

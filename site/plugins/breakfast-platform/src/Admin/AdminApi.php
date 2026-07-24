@@ -280,9 +280,25 @@ final class AdminApi
             ];
         }
 
+        // Upcoming calendar events (next 7 days) — real data for the dashboard.
+        $upcoming = [];
+        foreach ($this->platform->calendar()->range(date('c'), date('c', time() + 7 * 86400)) as $ev) {
+            $upcoming[] = [
+                'id'         => (string) ($ev['uuid'] ?? ''),
+                'title'      => (string) ($ev['title'] ?? ''),
+                'starts_at'  => (string) ($ev['starts_at'] ?? ''),
+                'event_type' => (string) ($ev['event_type'] ?? 'meeting'),
+                'all_day'    => (bool) ($ev['all_day'] ?? false),
+            ];
+            if (count($upcoming) >= 6) {
+                break;
+            }
+        }
+
         return [
             'greeting' => $this->greeting(),
             'date'     => date('l, j F'),
+            'upcoming_events' => $upcoming,
             'attention' => [
                 'new_enquiries'          => (int) ($metrics['new_leads'] ?? 0),
                 'overdue_tasks'          => $overdue,

@@ -20,6 +20,7 @@ const nav = [
   { to: '/crm', name: 'crm', label: 'CRM', icon: 'users' },
   { to: '/pipeline', name: 'pipeline', label: 'Pipeline', icon: 'columns' },
   { to: '/tasks', name: 'tasks', label: 'Tasks', icon: 'check' },
+  { to: '/calendar', name: 'calendar', label: 'Calendar', icon: 'calendar', perm: 'calendar.view' },
   { to: '/previews', name: 'previews', label: 'Client Previews', icon: 'window' },
   { to: '/invoices', name: 'invoices', label: 'Invoices', icon: 'receipt', perm: 'invoices.view' },
   { to: '/email', name: 'email', label: 'Email', icon: 'mail' },

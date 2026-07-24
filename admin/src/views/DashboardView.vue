@@ -63,6 +63,16 @@ const attentionItems = (d: Dashboard) => [
   { label: 'Previews to action', value: d.attention.previews_awaiting, to: '/previews', tone: 'info', icon: 'window' },
   { label: 'Stalled deals', value: d.attention.stalled_opportunities, to: '/pipeline', tone: 'neutral', icon: 'pulse' },
 ]
+
+function eventWhen(iso: string, allDay: boolean): string {
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return ''
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  const day = new Date(d); day.setHours(0, 0, 0, 0)
+  const diff = Math.round((day.getTime() - today.getTime()) / 86400000)
+  const dayLabel = diff === 0 ? 'Today' : diff === 1 ? 'Tomorrow' : d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
+  return allDay ? dayLabel : `${dayLabel} ${d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`
+}
 </script>
 
 <template>
@@ -118,8 +128,23 @@ const attentionItems = (d: Dashboard) => [
         </div>
       </section>
 
-      <!-- Recent activity -->
+      <!-- Recent activity + upcoming -->
       <section class="sect" style="width:340px;flex:none">
+        <div class="sect__row">
+          <h2 class="sect__h">Upcoming</h2>
+          <RouterLink to="/calendar" class="sect__link">Calendar <NavIcon name="arrow" /></RouterLink>
+        </div>
+        <div class="card card--pad" style="margin-bottom:var(--sp-4)">
+          <template v-if="loading"><div v-for="i in 3" :key="i" class="skeleton" style="height:18px;margin-bottom:10px"></div></template>
+          <ul v-else-if="data && data.upcoming_events && data.upcoming_events.length" class="up">
+            <li v-for="e in data.upcoming_events" :key="e.id" class="up__item">
+              <span class="up__when">{{ eventWhen(e.starts_at, e.all_day) }}</span>
+              <span class="up__title truncate">{{ e.title }}</span>
+            </li>
+          </ul>
+          <p v-else class="empty">Nothing scheduled this week.</p>
+        </div>
+
         <h2 class="sect__h">Recent activity</h2>
         <div class="card card--pad">
           <template v-if="loading"><div v-for="i in 4" :key="i" class="skeleton" style="height:20px;margin-bottom:12px"></div></template>
@@ -139,6 +164,11 @@ const attentionItems = (d: Dashboard) => [
 </template>
 
 <style scoped>
+.up { list-style: none; display: grid; gap: 10px; }
+.up__item { display: flex; align-items: baseline; gap: var(--sp-3); font-size: var(--text-sm); }
+.up__when { color: var(--purple-ink); font-weight: 600; white-space: nowrap; min-width: 92px; }
+.up__title { color: var(--ink-2); min-width: 0; }
+
 .dash__head { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--sp-4); margin-bottom: var(--sp-8); flex-wrap: wrap; }
 .dash__title { font-family: var(--font-display); font-weight: 500; font-size: var(--text-3xl); letter-spacing: -0.02em; }
 .sect { margin-bottom: var(--sp-8); }
