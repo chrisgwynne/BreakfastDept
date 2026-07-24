@@ -25,6 +25,12 @@ on:
     branches: [main]
   workflow_dispatch: {}
 
+# Least privilege: this workflow only reads the repo and uploads over FTP; it
+# never uses the GitHub API, so the token gets read-only contents and nothing
+# else. (Overrides the repository default, which may grant write.)
+permissions:
+  contents: read
+
 # Never let two deploys race; cancel an in-flight one if a newer push lands.
 concurrency:
   group: ftp-deploy

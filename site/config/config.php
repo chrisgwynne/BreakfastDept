@@ -63,9 +63,22 @@ return [
     // Secure session cookies. HTTPS-only in production.
     'cookie' => [
         'samesite' => 'Lax',
+        // Mark cookies Secure in production so they are never sent over plain
+        // HTTP (the site is HTTPS-only there).
+        'secure' => $isProduction,
     ],
     'auth' => [
         'methods' => ['password' => ['2fa' => false]],
+    ],
+
+    // Explicit admin/Panel session lifetimes (rather than relying on framework
+    // defaults). A normal login expires 2h after creation and after 30 min of
+    // inactivity; a "remember me" login lasts 14 days (no inactivity timeout).
+    // All three are env-tunable so an operator can tighten them further.
+    'session' => [
+        'durationNormal' => Env::int('SESSION_DURATION', 7200),          // absolute lifetime of a normal session
+        'timeout'        => Env::int('SESSION_TIMEOUT', 1800),           // inactivity timeout for a normal session
+        'durationLong'   => Env::int('SESSION_DURATION_LONG', 1209600),  // "remember me" absolute lifetime
     ],
 
     // Content cache — safe for public pages; the Panel/CRM/API are never cached.

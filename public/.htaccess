@@ -28,10 +28,20 @@ Options -Indexes -MultiViews +FollowSymLinks
     <FilesMatch "\.php$">
         Header set Cache-Control "no-store"
     </FilesMatch>
-    # Baseline security headers (the app also sets a per-request CSP with a nonce).
+    # Baseline security headers (the app also sets a per-request CSP with a nonce
+    # on its HTML responses; these are server-level defence in depth).
     Header always set X-Content-Type-Options "nosniff"
     Header always set Referrer-Policy "strict-origin-when-cross-origin"
     Header always set X-Frame-Options "DENY"
+    Header always set Permissions-Policy "geolocation=(), microphone=(), camera=(), payment=(), usb=(), interest-cohort=()"
+    # HSTS — only meaningful over HTTPS (browsers ignore it on plain HTTP). The
+    # site is HTTPS-only with an HTTP->HTTPS redirect, so it is safe to always
+    # send. Remove `preload` until you have submitted the domain to the HSTS
+    # preload list.
+    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    # Strip the framework/runtime fingerprint.
+    Header always unset X-Powered-By
+    Header unset X-Powered-By
 </IfModule>
 
 # Compression.
