@@ -212,6 +212,15 @@ final class Platform
         return $this->service(\Breakfast\Platform\Projects\ProjectTemplates::class, fn () => new \Breakfast\Platform\Projects\ProjectTemplates($this->db()));
     }
 
+    public function vault(): \Breakfast\Platform\Vault\Vault
+    {
+        return $this->service(\Breakfast\Platform\Vault\Vault::class, fn () => new \Breakfast\Platform\Vault\Vault(
+            $this->db(),
+            new \Breakfast\Platform\Vault\VaultCrypto($this->storageDir() . '/vault-keys'),
+            $this->audit()
+        ));
+    }
+
     public function files(): \Breakfast\Platform\Files\FileLibrary
     {
         return $this->service(\Breakfast\Platform\Files\FileLibrary::class, fn () => new \Breakfast\Platform\Files\FileLibrary(

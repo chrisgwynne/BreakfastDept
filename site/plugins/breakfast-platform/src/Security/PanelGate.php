@@ -234,6 +234,28 @@ final class PanelGate
     }
 
     /**
+     * Credential vault. Viewing MASKED metadata follows the CRM 'manage' grant;
+     * everything that touches a secret — create, edit a secret, reveal, copy,
+     * rotate keys, view the access log — is admin-only and requires step-up
+     * re-authentication at the point of reveal/copy. Hermes and the client
+     * portal can never reach any of this.
+     */
+    public static function canViewVaultMetadata(?User $user): bool
+    {
+        return self::canManage($user);
+    }
+
+    public static function canManageVault(?User $user): bool
+    {
+        return $user !== null && $user->isAdmin();
+    }
+
+    public static function canRevealVault(?User $user): bool
+    {
+        return $user !== null && $user->isAdmin();
+    }
+
+    /**
      * Website content. Viewing the overview needs admin access; editing drafts
      * and publishing to the live site both require the 'manage' grant. Enforced
      * server-side on every website route.

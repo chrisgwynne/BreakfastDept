@@ -96,6 +96,7 @@ final class AdminApi
             'onboarding'    => $this->onboarding($method, $seg, $user),
             'onboarding-templates' => $this->onboardingTemplatesApi($method, $seg, $user),
             'files'         => $this->files($method, $seg, $user),
+            'vault'         => $this->vault($method, $seg, $user),
             'calendar'      => $this->calendar($method, $seg, $user),
             'search'        => $this->search(),
             'settings'      => $this->settings($method, $seg, $user),
@@ -2277,6 +2278,119 @@ final class AdminApi
     {
         if (!$manage) {
             throw new ApiException(403, 'You can’t change projects.', 'forbidden');
+        }
+    }
+
+    /**
+     * Secure credential vault. Viewing returns MASKED metadata only; create/edit
+     * secrets/rotate are admin-only; reveal and copy additionally require a
+     * recent step-up re-authentication (POST /vault/reauth with the current
+     * password). Never exposed to Hermes or the client portal.
+     *
+     * @param list<string> $seg
+     * @return array<string,mixed>
+     */
+    private function vault(string $method, array $seg, \Kirby\Cms\User $user): array
+    {
+        if (!PanelGate::canViewVaultMetadata($user)) {
+            throw new ApiException(403, 'You don’t have access to the vault.', 'forbidden');
+        }
+        $svc   = $this->platform->vault();
+        $actor = (string) $user->email();
+        $id    = $seg[1] ?? '';
+        $requireManage = function () use ($user): void {
+            if (!PanelGate::canManageVault($user)) {
+                throw new ApiException(403, 'Only an administrator can change vault items.', 'forbidden');
+            }
+        };
+        $requireReveal = function () use ($user): void {
+            if (!PanelGate::canRevealVault($user)) {
+                throw new ApiException(403, 'You can’t reveal secrets.', 'forbidden');
+            }
+        };
+        try {
+            // Step-up re-authentication: verify the current password, then grant
+            // a short-lived vault reveal session for this user.
+            if ($id === 'reauth' && $method === 'POST') {
+                $requireReveal();
+                $password = (string) ($this->body()['password'] ?? '');
+                $ok = false;
+                try {
+                    $ok = $user->validatePassword($password);
+                } catch (\Throwable) {
+                    $ok = false;
+                }
+                if (!$ok) {
+                    throw new ApiException(401, 'That password is incorrect.', 'reauth_failed');
+                }
+                $svc->grantReauth($actor);
+
+                return ['ok' => true, 'expires_in' => 300];
+            }
+            if ($id === 'rotate-keys' && $method === 'POST') {
+                $requireManage();
+
+                return $svc->rotateKeys($actor);
+            }
+            if ($id === '') {
+                if ($method === 'POST') {
+                    $requireManage();
+
+                    return ['item' => $svc->create($this->body(), $actor)];
+                }
+                $q = $this->query();
+
+                return ['items' => $svc->list(['company_uuid' => $q['company'] ?? null, 'project_uuid' => $q['project'] ?? null])];
+            }
+            $action = $seg[2] ?? '';
+            if ($method === 'GET' && $action === '') {
+                $item = $svc->find($id);
+                if ($item === null) {
+                    throw new ApiException(404, 'Vault item not found.', 'not_found');
+                }
+
+                return ['item' => $item];
+            }
+            if ($method === 'GET' && $action === 'access-log') {
+                $requireReveal();
+
+                return ['items' => $svc->accessLog($id)];
+            }
+            if ($method === 'PATCH' && $action === '') {
+                $requireManage();
+                $body = $this->body();
+
+                return ['item' => $svc->updateMetadata($id, $body, $actor, array_key_exists('revision', $body) ? (int) $body['revision'] : null)];
+            }
+            if ($method === 'POST') {
+                $body = $this->body();
+                switch ($action) {
+                    case 'secret':
+                        $requireManage();
+
+                        return ['item' => $svc->setSecret($id, (string) ($body['fkey'] ?? ''), (string) ($body['label'] ?? ''), (string) ($body['value'] ?? ''), $actor)];
+                    case 'reveal':
+                        $requireReveal();
+
+                        return ['value' => $svc->reveal($id, (string) ($body['fkey'] ?? ''), $actor)];
+                    case 'copy':
+                        $requireReveal();
+
+                        return ['value' => $svc->copy($id, (string) ($body['fkey'] ?? ''), $actor)];
+                    case 'archive':
+                        $requireManage();
+
+                        return ['item' => $svc->archive($id, $actor)];
+                    case 'restore':
+                        $requireManage();
+
+                        return ['item' => $svc->restore($id, $actor)];
+                }
+            }
+
+            throw new ApiException(404, 'Unknown vault endpoint.', 'not_found');
+        } catch (\Breakfast\Platform\Vault\VaultException $e) {
+            throw new ApiException($e->status, $e->getMessage(), 'vault');
         }
     }
 

@@ -19,6 +19,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'proposals', name: 'proposals', component: () => import('@/views/ProposalsView.vue'), meta: { perm: 'crm.manage' } },
       { path: 'contracts', name: 'contracts', component: () => import('@/views/ContractsView.vue'), meta: { perm: 'crm.manage' } },
       { path: 'invoices', name: 'invoices', component: () => import('@/views/InvoicesView.vue'), meta: { perm: 'invoices.view' } },
+      { path: 'vault', name: 'vault', component: () => import('@/views/VaultView.vue'), meta: { perm: 'crm.manage' } },
       { path: 'calendar', name: 'calendar', component: () => import('@/views/CalendarView.vue'), meta: { perm: 'calendar.view' } },
       { path: 'email', name: 'email', component: () => import('@/views/EmailView.vue') },
       { path: 'website', name: 'website', component: () => import('@/views/WebsiteView.vue') },

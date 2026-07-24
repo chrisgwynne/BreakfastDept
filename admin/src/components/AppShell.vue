@@ -26,6 +26,7 @@ const nav = [
   { to: '/proposals', name: 'proposals', label: 'Proposals', icon: 'columns', perm: 'crm.manage' },
   { to: '/contracts', name: 'contracts', label: 'Contracts', icon: 'check', perm: 'crm.manage' },
   { to: '/invoices', name: 'invoices', label: 'Invoices', icon: 'receipt', perm: 'invoices.view' },
+  { to: '/vault', name: 'vault', label: 'Vault', icon: 'cog', perm: 'crm.manage' },
   { to: '/email', name: 'email', label: 'Email', icon: 'mail' },
   { to: '/website', name: 'website', label: 'Website', icon: 'globe' },
   { to: '/reports', name: 'reports', label: 'Reports', icon: 'chart' },

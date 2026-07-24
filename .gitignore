@@ -72,3 +72,4 @@ Thumbs.db
 /storage/contracts/*
 /storage/receipts/*
 /storage/client-files/*
+/storage/vault-keys/*
