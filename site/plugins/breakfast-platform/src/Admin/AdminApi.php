@@ -85,6 +85,7 @@ final class AdminApi
             'website'       => $this->website($method, $seg, $user),
             'hermes'        => $this->hermes($method, $seg, $user),
             'invoices'      => $this->invoices($method, $seg, $user),
+            'proposals'     => $this->proposals($method, $seg, $user),
             'calendar'      => $this->calendar($method, $seg, $user),
             'search'        => $this->search(),
             'settings'      => $this->settings($method, $seg, $user),
@@ -1391,6 +1392,160 @@ final class AdminApi
         } catch (\Breakfast\Platform\Invoicing\InvoiceException $e) {
             throw new ApiException($e->status, $e->getMessage(), 'invoice');
         }
+    }
+
+    /**
+     * Proposals module. All staff routes require the CRM 'manage' grant; the
+     * public client link + acceptance live on a separate tokened path.
+     *
+     * @param list<string> $seg
+     * @return array<string,mixed>
+     */
+    private function proposals(string $method, array $seg, \Kirby\Cms\User $user): array
+    {
+        if (!PanelGate::canViewProposals($user)) {
+            throw new ApiException(403, 'You don’t have access to proposals.', 'forbidden');
+        }
+        $svc   = $this->platform->proposals();
+        $actor = (string) $user->email();
+        $id    = $seg[1] ?? '';
+
+        $requireManage = function () use ($user): void {
+            if (!PanelGate::canManageProposals($user)) {
+                throw new ApiException(403, 'You can’t change proposals.', 'forbidden');
+            }
+        };
+
+        try {
+            if ($id === '') {
+                if ($method === 'POST') {
+                    $requireManage();
+
+                    return ['proposal' => $this->proposalRow($svc->create($this->body(), $actor), true)];
+                }
+                $q = $this->query();
+
+                return ['items' => array_map(fn (array $r): array => $this->proposalRow($r, false), $svc->list(['status' => $q['status'] ?? null, 'limit' => $this->perPage()]))];
+            }
+
+            $action = $seg[2] ?? '';
+            if ($method === 'GET' && $action === '') {
+                $p = $svc->find($id);
+                if ($p === null) {
+                    throw new ApiException(404, 'Proposal not found.', 'not_found');
+                }
+
+                return ['proposal' => $this->proposalRow($p, true)];
+            }
+            if ($method === 'PATCH' && $action === '') {
+                $requireManage();
+
+                return ['proposal' => $this->proposalRow($svc->update($id, $this->body(), $actor), true)];
+            }
+            if ($method === 'POST') {
+                $requireManage();
+                switch ($action) {
+                    case 'ready':
+                        return ['proposal' => $this->proposalRow($svc->markReady($id, $actor), true)];
+                    case 'send':
+                        $sent = $svc->send($id, $actor, $this->platform->invoices()->settings());
+                        try {
+                            $this->platform->proposalDocuments()->generate($id, $actor);
+                        } catch (\Breakfast\Platform\Proposals\ProposalException) {
+                            // stays sent; document_status is 'failed'
+                        }
+                        $this->proposalActivity($svc->find($id) ?? $sent, 'proposal.sent', 'Proposal sent');
+
+                        return ['proposal' => $this->proposalRow($svc->find($id) ?? $sent, true)];
+                    case 'withdraw':
+                        return ['proposal' => $this->proposalRow($svc->withdraw($id, $actor), true)];
+                    case 'supersede':
+                        return ['proposal' => $this->proposalRow($svc->supersede($id, $actor), true)];
+                    case 'reject':
+                        return ['proposal' => $this->proposalRow($svc->reject($id, (string) ($this->body()['reason'] ?? ''), 'staff'), true)];
+                    case 'convert':
+                        $steps = array_values(array_map('strval', is_array($this->body()['steps'] ?? null) ? $this->body()['steps'] : ['won', 'deposit']));
+                        $result = $this->platform->proposalConversion()->convert($id, $steps, $actor);
+
+                        return ['result' => $result, 'proposal' => $this->proposalRow($svc->find($id) ?? [], true)];
+                }
+            }
+
+            throw new ApiException(404, 'Unknown proposal endpoint.', 'not_found');
+        } catch (\Breakfast\Platform\Proposals\ProposalException $e) {
+            throw new ApiException($e->status, $e->getMessage(), 'proposal');
+        }
+    }
+
+    /** @param array<string,mixed> $p */
+    private function proposalActivity(array $p, string $type, string $summary): void
+    {
+        $contact = (string) ($p['contact_uuid'] ?? '');
+        if ($contact !== '') {
+            $this->platform->activities()->record('contact', $contact, $type, $summary . ' (' . (string) ($p['number'] ?? '') . ')', 'user', null, ['proposal' => (string) ($p['uuid'] ?? '')]);
+        }
+    }
+
+    /**
+     * @param array<string,mixed> $p
+     * @return array<string,mixed>
+     */
+    private function proposalRow(array $p, bool $detail): array
+    {
+        $row = [
+            'id'         => (string) ($p['uuid'] ?? ''),
+            'number'     => (string) ($p['number'] ?? ''),
+            'status'     => (string) ($p['status'] ?? 'draft'),
+            'title'      => (string) ($p['title'] ?? ''),
+            'client'     => (string) ($p['client_name'] ?? ''),
+            'total'      => (int) ($p['total'] ?? 0) / 100,
+            'currency'   => (string) ($p['currency'] ?? 'GBP'),
+            'created_at' => (string) ($p['created_at'] ?? ''),
+            'sent_at'    => (string) ($p['sent_at'] ?? ''),
+            'accepted_at' => (string) ($p['accepted_at'] ?? ''),
+            'pdf_ready'  => ((string) ($p['document_status'] ?? '')) === 'generated',
+            'public_url' => (string) ($p['public_token'] ?? '') !== '' ? rtrim((string) $this->kirby->site()->url(), '/') . '/proposal/' . (string) $p['public_token'] : '',
+        ];
+        if (!$detail) {
+            return $row;
+        }
+        $row['contact_uuid']     = (string) ($p['contact_uuid'] ?? '');
+        $row['company_uuid']     = (string) ($p['company_uuid'] ?? '');
+        $row['opportunity_uuid'] = (string) ($p['opportunity_uuid'] ?? '');
+        $row['client_email']     = (string) ($p['client_email'] ?? '');
+        $row['expiry_date']      = (string) ($p['expiry_date'] ?? '');
+        $row['owner']            = (string) ($p['owner'] ?? '');
+        $row['deposit_amount']   = (int) ($p['deposit_amount'] ?? 0) / 100;
+        $row['subtotal']         = (int) ($p['subtotal'] ?? 0) / 100;
+        $row['tax_total']        = (int) ($p['tax_total'] ?? 0) / 100;
+        $row['recurring_total']  = (int) ($p['recurring_total'] ?? 0) / 100;
+        $row['document_status']  = (string) ($p['document_status'] ?? 'none');
+        foreach (['introduction', 'client_problem', 'recommended_solution', 'scope', 'deliverables', 'exclusions', 'assumptions', 'timeline', 'payment_schedule', 'terms', 'internal_notes'] as $f) {
+            $row[$f] = (string) ($p[$f] ?? '');
+        }
+        $row['items'] = array_map(static fn (array $i): array => [
+            'id'          => (string) ($i['uuid'] ?? ''),
+            'kind'        => (string) ($i['kind'] ?? 'fixed'),
+            'description' => (string) ($i['description'] ?? ''),
+            'quantity'    => (int) ($i['quantity'] ?? 0) / 1000,
+            'unit_price'  => (int) ($i['unit_price'] ?? 0) / 100,
+            'tax_rate'    => (int) ($i['tax_rate'] ?? 0) / 100,
+            'discount'    => (int) ($i['discount'] ?? 0) / 100,
+            'recurrence'  => (string) ($i['recurrence'] ?? ''),
+            'is_selected' => (int) ($i['is_selected'] ?? 0) === 1,
+            'line_total'  => (int) ($i['line_total'] ?? 0) / 100,
+        ], is_array($p['items'] ?? null) ? $p['items'] : []);
+        $row['events'] = array_map(static fn (array $e): array => [
+            'type' => (string) ($e['type'] ?? ''), 'detail' => (string) ($e['detail'] ?? ''),
+            'actor' => (string) ($e['actor'] ?? ''), 'created_at' => (string) ($e['created_at'] ?? ''),
+        ], is_array($p['events'] ?? null) ? $p['events'] : []);
+        $row['acceptances'] = array_map(static fn (array $a): array => [
+            'name' => (string) ($a['accepted_name'] ?? ''), 'email' => (string) ($a['accepted_email'] ?? ''),
+            'total' => (int) ($a['total_accepted'] ?? 0) / 100, 'hash' => (string) ($a['document_hash'] ?? ''),
+            'created_at' => (string) ($a['created_at'] ?? ''),
+        ], is_array($p['acceptances'] ?? null) ? $p['acceptances'] : []);
+
+        return $row;
     }
 
     /**

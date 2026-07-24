@@ -358,6 +358,63 @@ export interface SectionList {
   addable: string[]
 }
 
+// -- Proposals -----------------------------------------------------------
+
+export interface ProposalItem {
+  id?: string
+  kind: 'fixed' | 'optional' | 'recurring'
+  description: string
+  quantity: number | string
+  unit_price: number | string
+  tax_rate: number | string
+  recurrence?: string
+  is_selected?: boolean
+  line_total?: number
+}
+
+export interface ProposalListItem {
+  id: string
+  number: string
+  status: string
+  title: string
+  client: string
+  total: number
+  currency: string
+  created_at: string
+  sent_at: string
+  accepted_at: string
+  pdf_ready: boolean
+  public_url: string
+}
+
+export interface Proposal extends ProposalListItem {
+  contact_uuid: string
+  company_uuid: string
+  opportunity_uuid: string
+  client_email: string
+  expiry_date: string
+  owner: string
+  deposit_amount: number
+  subtotal: number
+  tax_total: number
+  recurring_total: number
+  document_status: string
+  introduction: string
+  client_problem: string
+  recommended_solution: string
+  scope: string
+  deliverables: string
+  exclusions: string
+  assumptions: string
+  timeline: string
+  payment_schedule: string
+  terms: string
+  internal_notes: string
+  items: ProposalItem[]
+  events: { type: string; detail: string; actor: string; created_at: string }[]
+  acceptances: { name: string; email: string; total: number; hash: string; created_at: string }[]
+}
+
 // -- Invoicing -----------------------------------------------------------
 
 export interface InvoiceItem {

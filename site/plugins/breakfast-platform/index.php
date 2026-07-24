@@ -484,6 +484,30 @@ Kirby::plugin('breakfast/platform', [
             },
         ],
 
+        // Authenticated staff download of a proposal's stored PDF (before the
+        // SPA catch-all, or the shell would swallow it).
+        [
+            'pattern' => 'breakfast-admin/proposals/(:any)/download',
+            'method'  => 'GET',
+            'action'  => function (string $id) {
+                if (!\Breakfast\Platform\Security\PanelGate::canViewProposals(kirby()->user())) {
+                    return new \Kirby\Http\Response('Not found', 'text/plain', 404);
+                }
+                try {
+                    $result = breakfast()->proposalDocuments()->download($id);
+                } catch (\Breakfast\Platform\Proposals\ProposalException $e) {
+                    return new \Kirby\Http\Response($e->getMessage(), 'text/plain', $e->status);
+                }
+                $filename = preg_replace('/[^A-Za-z0-9.\-]/', '', $result['filename']) ?: 'proposal.pdf';
+
+                return new \Kirby\Http\Response($result['bytes'], 'application/pdf', 200, [
+                    'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+                    'X-Content-Type-Options' => 'nosniff',
+                    'Cache-Control' => 'private, no-store',
+                ]);
+            },
+        ],
+
         // The standalone Breakfast Admin application shell. The Vue SPA is built to
         // public/breakfast-admin/ (base=/breakfast-admin/). Real built assets are
         // served directly by the web server; every other in-app path (deep links
@@ -559,6 +583,64 @@ Kirby::plugin('breakfast/platform', [
                 $svc->markViewed((string) $inv['uuid']);
 
                 return new \Kirby\Http\Response(snippet('invoice', ['invoice' => $inv], true), 'text/html', 200, [
+                    'X-Robots-Tag' => 'noindex, nofollow',
+                ]);
+            },
+        ],
+
+        // Public client proposal actions (POST). The unguessable token is the
+        // capability; acceptance is evidenced (name/email/ip-hash/ua). Placed
+        // before the GET view route so /accept etc. aren't swallowed by (:any).
+        [
+            'pattern' => 'proposal/(:any)/(accept|reject|select)',
+            'method'  => 'POST',
+            'action'  => function (string $token, string $verb) {
+                $svc = breakfast()->proposals();
+                $p   = $svc->findByToken($token);
+                if ($p === null) {
+                    return new \Kirby\Http\Response('Not found', 'text/plain', 404);
+                }
+                $uuid = (string) $p['uuid'];
+                try {
+                    if ($verb === 'select') {
+                        $ids = get('options');
+                        $svc->selectOptions($uuid, is_array($ids) ? array_map('strval', $ids) : [], 'client');
+                    } elseif ($verb === 'reject') {
+                        $svc->reject($uuid, (string) get('reason', ''), 'client');
+                    } else {
+                        $ipHash = hash('sha256', (string) (kirby()->option('breakfast.webhookSecret', '') ?? '') . '|' . (string) (kirby()->visitor()->ip() ?? ''));
+                        $svc->accept($uuid, [
+                            'name'       => (string) get('name', ''),
+                            'email'      => (string) get('email', ''),
+                            'ip_hash'    => $ipHash,
+                            'user_agent' => (string) (kirby()->request()->header('User-Agent') ?? ''),
+                            'wording'    => 'I confirm I am authorised to accept this proposal on behalf of the client.',
+                        ]);
+                    }
+                } catch (\Breakfast\Platform\Proposals\ProposalException $e) {
+                    return new \Kirby\Http\Response($e->getMessage(), 'text/plain', $e->status);
+                }
+
+                return \Kirby\Http\Response::redirect(rtrim((string) kirby()->site()->url(), '/') . '/proposal/' . $token);
+            },
+        ],
+
+        // Signed client proposal link (/proposal/<token>). Viewing marks it
+        // viewed (never accepted). No login required.
+        [
+            'pattern' => 'proposal/(:any)',
+            'method'  => 'GET',
+            'action'  => function (string $token) {
+                $svc = breakfast()->proposals();
+                $p   = $svc->findByToken($token);
+                if ($p === null) {
+                    $error = kirby()->site()->errorPage();
+
+                    return new \Kirby\Http\Response($error !== null ? $error->render() : 'Not found', 'text/html', 404);
+                }
+                $svc->markViewed((string) $p['uuid']);
+
+                return new \Kirby\Http\Response(snippet('proposal', ['proposal' => $svc->find((string) $p['uuid']), 'token' => $token], true), 'text/html', 200, [
                     'X-Robots-Tag' => 'noindex, nofollow',
                 ]);
             },

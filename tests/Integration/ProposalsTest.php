@@ -213,6 +213,37 @@ final class ProposalsTest extends TestCase
         $this->assertProposalError(409, fn () => breakfast()->proposalDocuments()->download($uuid));
     }
 
+    public function testAcceptedProposalConvertsToWonOpportunityAndDepositInvoice(): void
+    {
+        $p = breakfast();
+        // A proposal linked to a real opportunity, with a deposit.
+        $opp = $p->crm()->createOpportunity(['title' => 'Roberts site', 'stage' => 'proposal'], 'user', 'admin@test');
+        $prop = $this->svc->create([
+            'title' => 'Website', 'client_name' => 'Roberts', 'opportunity_uuid' => $opp['uuid'],
+            'deposit_amount' => 1800,
+            'items' => [['kind' => 'fixed', 'description' => 'Build', 'quantity' => 1, 'unit_price' => 3000, 'tax_rate' => 20]],
+        ], 'admin@test');
+        $prop = $this->svc->send((string) $prop['uuid'], 'admin@test', $this->settings());
+        $this->svc->accept((string) $prop['uuid'], ['name' => 'Sian']);
+
+        $result = $p->proposalConversion()->convert((string) $prop['uuid'], ['won', 'deposit'], 'admin@test');
+
+        $this->assertContains('won', $result['steps']);
+        $this->assertContains('deposit', $result['steps']);
+        $this->assertSame('won', (string) $p->opportunities()->find((string) $opp['uuid'])['stage']);
+
+        $invoice = $p->invoices()->find((string) $result['invoice']);
+        $this->assertNotNull($invoice);
+        $this->assertSame(180000, (int) $invoice['total'], 'deposit invoice equals the agreed deposit');
+        $this->assertStringContainsString('Deposit', (string) $invoice['items'][0]['description']);
+    }
+
+    public function testConvertRequiresAnAcceptedProposal(): void
+    {
+        $p = $this->sentProposal();
+        $this->assertProposalError(409, fn () => breakfast()->proposalConversion()->convert((string) $p['uuid'], ['won'], 'admin@test'));
+    }
+
     /** A £3600 sent proposal (1 fixed £3000 +20% VAT, 1 optional, 1 recurring). */
     private function sentProposal(): array
     {

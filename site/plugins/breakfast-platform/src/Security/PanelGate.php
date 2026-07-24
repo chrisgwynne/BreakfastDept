@@ -106,6 +106,22 @@ final class PanelGate
     }
 
     /**
+     * Proposals & quotes. Viewing and managing both require the CRM 'manage'
+     * grant (they carry commercial terms + client billing figures). Sending,
+     * withdrawing and converting are managing actions. Enforced server-side on
+     * every proposal route; the public client link is a separate, tokened path.
+     */
+    public static function canViewProposals(?User $user): bool
+    {
+        return self::canManage($user);
+    }
+
+    public static function canManageProposals(?User $user): bool
+    {
+        return self::canManage($user);
+    }
+
+    /**
      * Website content. Viewing the overview needs admin access; editing drafts
      * and publishing to the live site both require the 'manage' grant. Enforced
      * server-side on every website route.

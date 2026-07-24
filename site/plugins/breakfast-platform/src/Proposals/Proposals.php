@@ -124,6 +124,9 @@ final class Proposals
         );
 
         $this->applyNarrative($uuid, $data);
+        if (array_key_exists('deposit_amount', $data)) {
+            $this->db->run('UPDATE proposals SET deposit_amount = :d WHERE uuid = :u', ['d' => max(0, (int) round(((float) $data['deposit_amount']) * 100)), 'u' => $uuid]);
+        }
         if (isset($data['items']) && is_array($data['items'])) {
             $this->replaceItems($uuid, $data['items']);
         }

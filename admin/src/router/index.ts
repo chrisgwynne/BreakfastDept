@@ -14,6 +14,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'pipeline', name: 'pipeline', component: () => import('@/views/PipelineView.vue') },
       { path: 'tasks', name: 'tasks', component: () => import('@/views/TasksView.vue') },
       { path: 'previews', name: 'previews', component: () => import('@/views/PreviewsView.vue') },
+      { path: 'proposals', name: 'proposals', component: () => import('@/views/ProposalsView.vue'), meta: { perm: 'crm.manage' } },
       { path: 'invoices', name: 'invoices', component: () => import('@/views/InvoicesView.vue'), meta: { perm: 'invoices.view' } },
       { path: 'calendar', name: 'calendar', component: () => import('@/views/CalendarView.vue'), meta: { perm: 'calendar.view' } },
       { path: 'email', name: 'email', component: () => import('@/views/EmailView.vue') },
