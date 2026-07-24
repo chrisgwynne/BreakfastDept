@@ -13,6 +13,8 @@
 !/public/media/.gitkeep
 
 # Operational storage — sessions, cache, logs, sqlite, private uploads, queue
+# Encrypted-secret master key — MUST NEVER be committed.
+/storage/secret.key
 /storage/sessions/*
 /storage/cache/*
 /site/cache/*
