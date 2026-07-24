@@ -22,6 +22,7 @@ const error = ref<string | null>(null)
 // editor
 const editor = ref<WebsiteEditor | null>(null)
 const values = reactive<Record<string, string | boolean>>({})
+const original = reactive<Record<string, string | boolean>>({})
 const fieldErrors = reactive<Record<string, string>>({})
 const opening = ref(false)
 const busy = ref('')
@@ -46,9 +47,8 @@ async function open(item: WebsiteListItem) {
   clearErrors()
   try {
     const ed = await api.get<WebsiteEditor>(`/website/page/${item.id}`)
-    editor.value = ed
     for (const key of Object.keys(values)) delete values[key]
-    for (const f of ed.fields) values[f.name] = f.value ?? (f.type === 'toggle' ? false : '')
+    applyEditor(ed)
   } catch (e) {
     ui.toast(e instanceof ApiError ? e.message : 'Could not open that page.')
   } finally {
@@ -80,7 +80,19 @@ async function saveDraft() {
   busy.value = 'save'
   clearErrors()
   try {
-    const ed = await api.patch<WebsiteEditor>(`/website/page/${editor.value.id}`, { ...values })
+    // Only send fields the user actually changed. Legacy content can already
+    // exceed a blueprint limit in a field they never touched — resubmitting it
+    // would fail validation for no reason.
+    const changed: Record<string, string | boolean> = {}
+    for (const k of Object.keys(values)) {
+      if (values[k] !== original[k]) changed[k] = values[k]
+    }
+    if (Object.keys(changed).length === 0) {
+      busy.value = ''
+      ui.toast('No changes to save')
+      return
+    }
+    const ed = await api.patch<WebsiteEditor>(`/website/page/${editor.value.id}`, changed)
     applyEditor(ed)
     ui.toast('Draft saved')
   } catch (e) {
@@ -117,7 +129,11 @@ async function act(action: 'publish' | 'discard' | 'unpublish' | 'republish') {
 
 function applyEditor(ed: WebsiteEditor) {
   editor.value = ed
-  for (const f of ed.fields) values[f.name] = f.value ?? (f.type === 'toggle' ? false : '')
+  for (const f of ed.fields) {
+    const v = f.value ?? (f.type === 'toggle' ? false : '')
+    values[f.name] = v
+    original[f.name] = v
+  }
 }
 
 function previewUrl(): string {
