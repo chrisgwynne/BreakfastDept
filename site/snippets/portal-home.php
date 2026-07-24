@@ -30,7 +30,8 @@ $name = trim((string) ($identity['display_name'] ?? '')) ?: (string) ($identity[
   .wrap { max-width:760px; margin:28px auto; padding:0 16px; }
   h1 { font-size:24px; margin:0 0 4px; }
   .lead { color:var(--muted); margin:0 0 24px; }
-  .proj { display:flex; align-items:center; gap:16px; background:var(--paper); border:1px solid var(--line); border-radius:12px; padding:16px 18px; margin-bottom:12px; }
+  .proj { display:flex; align-items:center; gap:16px; background:var(--paper); border:1px solid var(--line); border-radius:12px; padding:16px 18px; margin-bottom:12px; text-decoration:none; color:inherit; cursor:pointer; transition:border-color .15s; }
+  .proj:hover { border-color:var(--butter); }
   .proj__name { font-weight:650; }
   .proj__meta { color:var(--muted); font-size:13px; }
   .pill { font-size:12px; padding:2px 10px; border-radius:99px; background:#efe9db; color:var(--muted); text-transform:capitalize; }
@@ -54,7 +55,7 @@ $name = trim((string) ($identity['display_name'] ?? '')) ?: (string) ($identity[
       <div class="empty" data-test="portal-empty">You don’t have any active projects to view yet. We’ll let you know when there’s something here.</div>
     <?php else: ?>
       <?php foreach ($projects as $pr): ?>
-        <div class="proj" data-test="portal-project">
+        <a class="proj" data-test="portal-project" href="<?= $e($base) ?>/portal/project/<?= $e($pr['uuid'] ?? '') ?>">
           <div>
             <div class="proj__name"><?= $e($pr['name'] ?? '') ?></div>
             <div class="proj__meta"><?= !empty($pr['target_date']) ? 'Target: ' . $e($pr['target_date']) : 'In progress' ?></div>
@@ -63,7 +64,7 @@ $name = trim((string) ($identity['display_name'] ?? '')) ?: (string) ($identity[
             <span class="pill"><?= $e(str_replace('_', ' ', (string) ($pr['status'] ?? ''))) ?></span>
             <div class="track"><span class="fill" style="width:<?= (int) ($pr['progress_percent'] ?? 0) ?>%"></span></div>
           </div>
-        </div>
+        </a>
       <?php endforeach; ?>
     <?php endif; ?>
   </div>

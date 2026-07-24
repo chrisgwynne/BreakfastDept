@@ -64,6 +64,11 @@ test.describe("Standalone admin — client portal", () => {
     await expect(clientPage.locator('[data-test="portal-home"]')).toBeVisible();
     await expect(clientPage.locator('[data-test="portal-project"]')).toContainText(projectName);
 
+    // Opening the project shows its read-only experience (Phase 3.2).
+    await clientPage.locator('[data-test="portal-project"]').first().click();
+    await expect(clientPage.locator('[data-test="portal-project-view"]')).toContainText(projectName);
+    await expect(clientPage.locator('[data-test="portal-project-view"]')).toContainText("Progress");
+
     // The one-shot link cannot be replayed.
     await clientPage.goto(signInUrl);
     await expect(clientPage.locator('[data-test="portal-error"]')).toBeVisible();

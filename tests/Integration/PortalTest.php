@@ -170,6 +170,63 @@ final class PortalTest extends TestCase
         $this->assertStringNotContainsString($session, $dump, 'raw session token never in the database');
     }
 
+    public function testPortalProjectShowsOnlyClientVisibleContentAndEnforcesAccess(): void
+    {
+        $p = breakfast();
+        // No grant → 403 even with a valid identity.
+        try {
+            $p->portal()->portalProject($this->identity, $this->projectA);
+            $this->fail('expected access denial without a grant');
+        } catch (PortalException $e) {
+            $this->assertSame(403, $e->status);
+        }
+
+        $p->portal()->grantAccess($this->identity, 'project', $this->projectA, 'viewer', 'staff@breakfast');
+        // A client-visible and a hidden task.
+        $p->projectTasks()->create($this->projectA, ['title' => 'Client-facing task', 'client_visible' => true], 'staff@breakfast');
+        $p->projectTasks()->create($this->projectA, ['title' => 'Internal only task'], 'staff@breakfast');
+
+        $view = $p->portal()->portalProject($this->identity, $this->projectA);
+        $this->assertSame($this->projectA, (string) $view['overview']['uuid']);
+        $titles = array_map(static fn (array $t): string => (string) $t['title'], $view['tasks']);
+        $this->assertContains('Client-facing task', $titles);
+        $this->assertNotContains('Internal only task', $titles, 'internal tasks are never exposed to the client');
+
+        // Still cannot reach a project that was never granted.
+        $this->expectException(PortalException::class);
+        $p->portal()->portalProject($this->identity, $this->projectB);
+    }
+
+    public function testFileDownloadGuardRequiresVisibilityAndGrant(): void
+    {
+        $p = breakfast();
+        $p->portal()->grantAccess($this->identity, 'project', $this->projectA, 'viewer', 'staff@breakfast');
+
+        // Store a hidden and a shared file on project A.
+        $tmp = $this->tmp . '/doc.png';
+        file_put_contents($tmp, base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='));
+        $hidden = (string) $p->files()->upload($tmp, 'internal.png', 'image/png', ['project_uuid' => $this->projectA, 'client_visible' => false], 'staff@breakfast')['uuid'];
+        file_put_contents($tmp, base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='));
+        $shared = (string) $p->files()->upload($tmp, 'shared.png', 'image/png', ['project_uuid' => $this->projectA, 'client_visible' => true], 'staff@breakfast')['uuid'];
+
+        // Shared + granted → allowed (no exception).
+        $p->portal()->assertFileDownloadable($this->identity, $shared);
+        $this->assertTrue(true);
+
+        // Hidden file → 404 (never acknowledged).
+        try {
+            $p->portal()->assertFileDownloadable($this->identity, $hidden);
+            $this->fail('expected hidden file to be denied');
+        } catch (PortalException $e) {
+            $this->assertSame(404, $e->status);
+        }
+
+        // Only the shared file appears in the project projection.
+        $view = $p->portal()->portalProject($this->identity, $this->projectA);
+        $names = array_map(static fn (array $f): string => (string) $f['display_name'], $view['files']);
+        $this->assertSame(['shared.png'], $names);
+    }
+
     private function rrmdir(string $dir): void
     {
         if (!is_dir($dir)) {

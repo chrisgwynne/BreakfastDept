@@ -307,6 +307,68 @@ final class Portal
         return $rows;
     }
 
+    /**
+     * A safe, read-only projection of ONE granted project for the client: the
+     * overview, client-visible milestones, client-visible tasks (grouped by
+     * milestone) and client-visible, non-archived files. Throws 403 if the
+     * identity has no live grant for the project — access is server-enforced,
+     * never inferred from the URL.
+     *
+     * @return array<string,mixed>
+     */
+    public function portalProject(string $identityUuid, string $projectUuid): array
+    {
+        if (!$this->canAccessProject($identityUuid, $projectUuid)) {
+            throw new PortalException(403, 'You don’t have access to this project.');
+        }
+        $project = $this->platform->projects()->find($projectUuid);
+        if ($project === null || (string) $project['status'] === 'archived') {
+            throw new PortalException(404, 'Project not found.');
+        }
+        $milestones = $this->db()->all(
+            "SELECT uuid, title, status, due_date FROM milestones WHERE project_uuid = :p AND client_visible = 1 AND status <> 'cancelled' ORDER BY sort_order ASC",
+            ['p' => $projectUuid]
+        );
+        $tasks = $this->db()->all(
+            "SELECT uuid, title, status, milestone_uuid FROM project_tasks WHERE project_uuid = :p AND client_visible = 1 AND status <> 'cancelled' ORDER BY sort_order ASC",
+            ['p' => $projectUuid]
+        );
+        $files = array_values(array_filter(
+            $this->platform->files()->list(['project_uuid' => $projectUuid]),
+            static fn (array $f): bool => (int) ($f['client_visible'] ?? 0) === 1
+        ));
+
+        return [
+            'overview' => [
+                'uuid' => (string) $project['uuid'], 'name' => (string) $project['name'], 'status' => (string) $project['status'],
+                'target_date' => (string) ($project['target_date'] ?? ''), 'progress_percent' => (int) ($project['progress_percent'] ?? 0),
+            ],
+            'milestones' => $milestones,
+            'tasks' => $tasks,
+            'files' => array_map(static fn (array $f): array => [
+                'uuid' => (string) $f['uuid'], 'display_name' => (string) $f['display_name'], 'category' => (string) ($f['category'] ?? ''),
+                'extension' => (string) ($f['extension'] ?? ''), 'byte_size' => (int) ($f['byte_size'] ?? 0), 'current_version' => (int) ($f['current_version'] ?? 1),
+            ], $files),
+        ];
+    }
+
+    /**
+     * Guard a client file download: the file must exist, be client-visible, and
+     * belong to a project this identity currently has access to. Returns the file
+     * uuid to stream, or throws.
+     */
+    public function assertFileDownloadable(string $identityUuid, string $fileUuid): void
+    {
+        $file = $this->db()->one('SELECT project_uuid, client_visible, archived FROM client_files WHERE uuid = :u', ['u' => $fileUuid]);
+        if ($file === null || (int) ($file['client_visible'] ?? 0) !== 1 || (int) ($file['archived'] ?? 0) === 1) {
+            throw new PortalException(404, 'File not found.');
+        }
+        $projectUuid = (string) ($file['project_uuid'] ?? '');
+        if ($projectUuid === '' || !$this->canAccessProject($identityUuid, $projectUuid)) {
+            throw new PortalException(403, 'You don’t have access to this file.');
+        }
+    }
+
     // ==================================================================
     // Internals
     // ==================================================================

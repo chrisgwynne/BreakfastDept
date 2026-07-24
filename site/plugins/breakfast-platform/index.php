@@ -1130,6 +1130,55 @@ Kirby::plugin('breakfast/platform', [
             },
         ],
 
+        // A single project the client has been granted (GET /portal/project/<uuid>).
+        // Access is server-enforced against live grants — never the URL.
+        [
+            'pattern' => 'portal/project/(:any)',
+            'method'  => 'GET',
+            'action'  => function (string $projectUuid) {
+                $identity = breakfast()->portal()->identityFromSession((string) ($_COOKIE['bf_portal'] ?? ''));
+                if ($identity === null) {
+                    return new \Kirby\Http\Response(snippet('portal-login', ['sent' => false], true), 'text/html', 401, ['X-Robots-Tag' => 'noindex, nofollow']);
+                }
+                try {
+                    $data = breakfast()->portal()->portalProject((string) $identity['uuid'], $projectUuid);
+                } catch (\Breakfast\Platform\Portal\PortalException $e) {
+                    return new \Kirby\Http\Response($e->getMessage(), 'text/plain', $e->status, ['X-Robots-Tag' => 'noindex, nofollow']);
+                }
+
+                return new \Kirby\Http\Response(snippet('portal-project', ['identity' => $identity, 'data' => $data], true), 'text/html', 200, ['X-Robots-Tag' => 'noindex, nofollow', 'Cache-Control' => 'private, no-store']);
+            },
+        ],
+
+        // Client download of a shared (client-visible) project file. Guarded by
+        // the portal session AND a live project grant; streams via the same
+        // integrity-checked library path staff use.
+        [
+            'pattern' => 'portal/file/(:any)/download',
+            'method'  => 'GET',
+            'action'  => function (string $fileUuid) {
+                $identity = breakfast()->portal()->identityFromSession((string) ($_COOKIE['bf_portal'] ?? ''));
+                if ($identity === null) {
+                    return new \Kirby\Http\Response('Please sign in.', 'text/plain', 401, ['X-Robots-Tag' => 'noindex, nofollow']);
+                }
+                try {
+                    breakfast()->portal()->assertFileDownloadable((string) $identity['uuid'], $fileUuid);
+                    $result = breakfast()->files()->download($fileUuid, null, 'portal:' . (string) $identity['uuid']);
+                } catch (\Breakfast\Platform\Portal\PortalException $e) {
+                    return new \Kirby\Http\Response($e->getMessage(), 'text/plain', $e->status);
+                } catch (\Breakfast\Platform\Files\FileException $e) {
+                    return new \Kirby\Http\Response($e->getMessage(), 'text/plain', $e->status);
+                }
+
+                return new \Kirby\Http\Response($result['bytes'], 'application/octet-stream', 200, [
+                    'Content-Disposition' => 'attachment; filename="' . $result['filename'] . '"',
+                    'X-Content-Type-Options' => 'nosniff',
+                    'Cache-Control' => 'private, no-store',
+                    'X-Robots-Tag' => 'noindex, nofollow',
+                ]);
+            },
+        ],
+
         // XML sitemap (excludes drafts / noindex pages).
         [
             'pattern' => 'sitemap.xml',
