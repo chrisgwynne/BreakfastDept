@@ -46,6 +46,7 @@ $statusLabel = static fn (string $s): string => ucfirst(str_replace('_', ' ', $s
   .bar { background:var(--paper); border-bottom:1px solid var(--line); padding:14px 20px; display:flex; align-items:center; gap:12px; }
   .mark { width:18px; height:18px; background:var(--butter); border-radius:5px; display:inline-block; }
   .bar a { color:var(--ink); font-size:14px; text-decoration:none; border:1px solid var(--line); padding:6px 12px; border-radius:99px; }
+  .bar .signout { color:var(--ink); font:inherit; font-size:14px; background:none; border:1px solid var(--line); padding:6px 12px; border-radius:99px; cursor:pointer; }
   .bar .sp { margin-left:auto; }
   .wrap { max-width:760px; margin:28px auto; padding:0 16px; }
   a.back { color:var(--muted); font-size:14px; text-decoration:none; }
@@ -93,7 +94,7 @@ $statusLabel = static fn (string $s): string => ucfirst(str_replace('_', ' ', $s
     <span class="mark"></span> <strong>Breakfast</strong>
     <span class="sp"></span>
     <a href="<?= $e($base) ?>/portal">All projects</a>
-    <a href="<?= $e($base) ?>/portal/logout">Sign out</a>
+    <form method="post" action="<?= $e($base) ?>/portal/logout" style="display:inline"><button type="submit" class="signout" data-test="portal-logout">Sign out</button></form>
   </div>
   <div class="wrap" data-test="portal-project-view">
     <a class="back" href="<?= $e($base) ?>/portal">← Back to your projects</a>

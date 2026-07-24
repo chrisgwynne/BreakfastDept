@@ -36,6 +36,7 @@ $hasDocs = count($docProposals) || count($docContracts) || count($docInvoices);
   .mark { width:18px; height:18px; background:var(--butter); border-radius:5px; display:inline-block; }
   .bar .who { margin-left:auto; color:var(--muted); font-size:14px; }
   .bar a { color:var(--ink); font-size:14px; text-decoration:none; border:1px solid var(--line); padding:6px 12px; border-radius:99px; }
+  .bar .signout { color:var(--ink); font:inherit; font-size:14px; background:none; border:1px solid var(--line); padding:6px 12px; border-radius:99px; cursor:pointer; }
   .wrap { max-width:760px; margin:28px auto; padding:0 16px; }
   h1 { font-size:24px; margin:0 0 4px; }
   .lead { color:var(--muted); margin:0 0 24px; }
@@ -67,7 +68,7 @@ $hasDocs = count($docProposals) || count($docContracts) || count($docInvoices);
   <div class="bar">
     <span class="mark"></span> <strong>Breakfast</strong>
     <span class="who"><?= $e($name) ?></span>
-    <a href="<?= $e($base) ?>/portal/logout" data-test="portal-logout">Sign out</a>
+    <form method="post" action="<?= $e($base) ?>/portal/logout" style="display:inline"><button type="submit" class="signout" data-test="portal-logout">Sign out</button></form>
   </div>
   <div class="wrap" data-test="portal-home">
     <h1>Hello <?= $e($name) ?></h1>

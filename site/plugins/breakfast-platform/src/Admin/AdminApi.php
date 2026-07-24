@@ -185,6 +185,9 @@ final class AdminApi
         }
 
         if ($method === 'DELETE') {
+            // Defence in depth: require CSRF on logout too (the session cookie is
+            // SameSite=Lax, but do not rely on that alone).
+            $this->requireCsrf();
             $this->kirby->auth()->logout();
 
             return ['ok' => true];
@@ -2824,6 +2827,14 @@ final class AdminApi
             // a short-lived vault reveal session for this user.
             if ($id === 'reauth' && $method === 'POST') {
                 $requireReveal();
+                // Throttle step-up password guessing. Kirby's built-in login
+                // brute-force protection does NOT cover validatePassword(), so an
+                // attacker riding an admin session could otherwise brute-force the
+                // reveal grant at unlimited rate. 5 attempts / 15 min per admin.
+                $bucket = 'vault_reauth:' . hash('sha256', strtolower($actor));
+                if ($this->platform->rateLimiter()->hit($bucket, 5, 900)['allowed'] === false) {
+                    throw new ApiException(429, 'Too many attempts. Wait a few minutes and try again.', 'rate_limited');
+                }
                 $password = (string) ($this->body()['password'] ?? '');
                 $ok = false;
                 try {

@@ -1113,7 +1113,16 @@ Kirby::plugin('breakfast/platform', [
             'action'  => function () {
                 $email  = (string) get('email', '');
                 $ipHash = hash('sha256', (string) (kirby()->option('breakfast.webhookSecret', '') ?? '') . '|' . (string) (kirby()->visitor()->ip() ?? ''));
-                $result = breakfast()->portal()->requestLogin($email, $ipHash);
+                // Throttle sign-in-link requests to stop mail-bombing a known
+                // client address and IP-driven abuse. Over the limit we still show
+                // the neutral "check your email" page (no enumeration) but mint
+                // nothing. 5 per email / 15 min, 20 per IP / 15 min.
+                $emailKey = hash('sha256', strtolower(trim($email)));
+                $rl = breakfast()->rateLimiter();
+                $throttled = $email === ''
+                    || $rl->hit('portal_login_email:' . $emailKey, 5, 900)['allowed'] === false
+                    || $rl->hit('portal_login_ip:' . $ipHash, 20, 900)['allowed'] === false;
+                $result = $throttled ? ['sent' => false, 'identity_uuid' => null, 'token' => null] : breakfast()->portal()->requestLogin($email, $ipHash);
                 $devLink = null;
                 if ($result['sent'] && $result['token'] !== null) {
                     $url = rtrim((string) kirby()->site()->url(), '/') . '/portal/verify/' . $result['token'];
@@ -1157,10 +1166,11 @@ Kirby::plugin('breakfast/platform', [
             },
         ],
 
-        // Sign out (GET /portal/logout) — revoke the session and clear the cookie.
+        // Sign out (POST /portal/logout) — revoke the session and clear the
+        // cookie. POST (not GET) so a cross-site navigation cannot force logout.
         [
             'pattern' => 'portal/logout',
-            'method'  => 'GET',
+            'method'  => 'POST',
             'action'  => function () {
                 breakfast()->portal()->logout((string) ($_COOKIE['bf_portal'] ?? ''));
 

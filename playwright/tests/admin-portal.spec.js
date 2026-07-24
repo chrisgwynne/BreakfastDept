@@ -170,4 +170,44 @@ test.describe("Standalone admin — client portal", () => {
     const invite = await request.post("/breakfast-admin/api/v1/portal/invite", { data: { project_uuid: "x", email: "a@b.co" } });
     expect(invite.status()).toBe(401);
   });
+
+  // Security regression (audit): requesting a sign-in link is rate-limited per
+  // email so a known client address cannot be mail-bombed and the link endpoint
+  // cannot be abused. The 6th request inside the window mints no link, while the
+  // page stays neutral (no enumeration). We prove it against a *valid* identity
+  // so a suppressed link means the throttle fired, not an unknown address.
+  test("sign-in link requests are throttled per email", async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name === "mobile", "desktop-only multi-step journey");
+    await login(page);
+    await page.goto("/breakfast-admin/projects");
+    await page.getByRole("button", { name: "New project" }).first().click();
+    await page.locator(".sheet").getByPlaceholder("e.g. Roberts Cafe website").fill("Throttle " + Date.now());
+    await Promise.all([
+      page.waitForResponse((r) => r.url().endsWith("/api/v1/projects") && r.request().method() === "POST"),
+      page.locator(".sheet").getByRole("button", { name: "Create project" }).click(),
+    ]);
+    await page.waitForURL((u) => /\/projects\/[0-9a-f-]+/.test(u.toString()), { timeout: 10000 });
+    const email = `throttle${Date.now()}@example.com`;
+    await page.getByRole("tab", { name: "Client access", exact: true }).click();
+    await page.locator('[data-test="access-email"]').fill(email);
+    await Promise.all([
+      page.waitForResponse((r) => r.url().endsWith("/api/v1/portal/invite") && r.request().method() === "POST"),
+      page.locator('[data-test="access-add"]').click(),
+    ]);
+
+    // Fire 6 sign-in-link requests for the same email. The limit is 5 / 15 min,
+    // so the first 5 mint a link (dev link present) and the 6th is suppressed.
+    const minted = [];
+    for (let i = 0; i < 6; i++) {
+      const res = await page.request.post("/portal/login", {
+        form: { email },
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      });
+      expect(res.status()).toBe(200); // always neutral — no enumeration
+      minted.push((await res.text()).includes("/portal/verify/"));
+    }
+    // At least one early request minted a link; the request past the limit did not.
+    expect(minted.slice(0, 5).some(Boolean)).toBe(true);
+    expect(minted[5]).toBe(false);
+  });
 });
