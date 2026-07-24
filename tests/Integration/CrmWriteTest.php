@@ -168,6 +168,88 @@ final class CrmWriteTest extends TestCase
         $this->write->addNote('nonsense', 'x', 'hello', 'admin@test');
     }
 
+    // -- Edit / convert / archive ----------------------------------------
+
+    public function testEditContactUpdatesOnlyGivenFieldsAndAudits(): void
+    {
+        $p = breakfast();
+        $lead = $this->write->createLead(['name' => 'Sian', 'email' => 'sian@ex.co'], 'admin@test');
+        $uuid = (string) $lead['contact']['uuid'];
+
+        $res = $this->write->editContact($uuid, ['phone' => '01492 111', 'job_title' => 'Owner'], 'admin@test');
+        $this->assertSame('01492 111', $res['contact']['phone']);
+        $this->assertSame('Owner', $res['contact']['role']);
+        // Email is untouched (not provided).
+        $this->assertSame('sian@ex.co', $res['contact']['email']);
+        $this->assertContains('contact.updated', array_column($p->audit()->recent(10), 'endpoint'));
+    }
+
+    public function testEditContactRejectsInvalidEmail(): void
+    {
+        $lead = $this->write->createLead(['name' => 'Sian', 'email' => 'sian@ex.co'], 'admin@test');
+        try {
+            $this->write->editContact((string) $lead['contact']['uuid'], ['email' => 'nope'], 'admin@test');
+            $this->fail('Expected validation error');
+        } catch (ApiException $e) {
+            $this->assertSame(422, $e->status);
+            $this->assertArrayHasKey('email', $e->fields);
+        }
+    }
+
+    public function testEditContactOn404(): void
+    {
+        $this->expectException(ApiException::class);
+        $this->write->editContact('does-not-exist', ['phone' => 'x'], 'admin@test');
+    }
+
+    public function testEditLeadUpdatesStatus(): void
+    {
+        $lead = $this->write->createLead(['name' => 'Sian', 'email' => 'sian@ex.co'], 'admin@test');
+        $res = $this->write->editLead((string) $lead['enquiry']['uuid'], ['status' => 'qualified'], 'admin@test');
+        $this->assertSame('qualified', $res['enquiry']['status']);
+    }
+
+    public function testConvertLeadCreatesOpportunityAtomicallyAndMarksConverted(): void
+    {
+        $p = breakfast();
+        $lead = $this->write->createLead(['name' => 'Sian', 'email' => 'sian@ex.co', 'company' => 'Roberts Cafe'], 'admin@test');
+        $eid = (string) $lead['enquiry']['uuid'];
+
+        $res = $this->write->convertLead($eid, ['title' => 'Cafe site', 'value' => 250000, 'stage' => 'new'], 'admin@test');
+        $this->assertSame('Cafe site', $res['opportunity']['title']);
+        $this->assertSame(250000, (int) $res['opportunity']['estimated_value']);
+        $this->assertSame('converted', $p->enquiries()->find($eid)['status']);
+        $this->assertSame(1, $p->opportunities()->countOpen());
+        $this->assertContains('lead.converted', array_column($p->audit()->recent(10), 'endpoint'));
+    }
+
+    public function testConvertLeadIsBlockedOnceConverted(): void
+    {
+        $lead = $this->write->createLead(['name' => 'Sian', 'email' => 'sian@ex.co'], 'admin@test');
+        $eid = (string) $lead['enquiry']['uuid'];
+        $this->write->convertLead($eid, [], 'admin@test');
+        try {
+            $this->write->convertLead($eid, [], 'admin@test');
+            $this->fail('Expected a conflict');
+        } catch (ApiException $e) {
+            $this->assertSame(409, $e->status);
+        }
+    }
+
+    public function testArchiveContactAndLead(): void
+    {
+        $p = breakfast();
+        $lead = $this->write->createLead(['name' => 'Sian', 'email' => 'sian@ex.co'], 'admin@test');
+        $cid = (string) $lead['contact']['uuid'];
+        $eid = (string) $lead['enquiry']['uuid'];
+
+        $this->write->archiveContact($cid, 'admin@test');
+        $this->assertSame('archived', $p->contacts()->find($cid)['status']);
+
+        $this->write->archiveLead($eid, 'admin@test');
+        $this->assertSame('archived', $p->enquiries()->find($eid)['status']);
+    }
+
     private function rrmdir(string $dir): void
     {
         if (!is_dir($dir)) {

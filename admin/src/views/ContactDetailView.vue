@@ -1,18 +1,20 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, reactive, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { api } from '@/lib/api'
+import { api, ApiError } from '@/lib/api'
 import type { ContactDetail } from '@/lib/types'
 import { useUi } from '@/stores/ui'
 import { useAuth } from '@/stores/auth'
 import DataState from '@/components/DataState.vue'
 import StatusPill from '@/components/StatusPill.vue'
+import Sheet from '@/components/Sheet.vue'
 import NavIcon from '@/components/NavIcon.vue'
 
 const route = useRoute()
 const router = useRouter()
 const ui = useUi()
 const auth = useAuth()
+const canManage = computed(() => auth.can('crm.manage') || auth.can('admin'))
 
 function emailContact() {
   if (!data.value) return
@@ -21,6 +23,55 @@ function emailContact() {
 const data = ref<ContactDetail | null>(null)
 const loading = ref(true)
 const error = ref<string | null>(null)
+
+// edit
+const editing = ref(false)
+const saving = ref(false)
+const editErr = ref('')
+const fieldErrors = reactive<Record<string, string>>({})
+const form = reactive({ display_name: '', email: '', phone: '', company: '', source: '' })
+const archiving = ref(false)
+
+function openEdit() {
+  if (!data.value) return
+  const c = data.value.contact
+  Object.assign(form, { display_name: c.name || '', email: c.email || '', phone: c.phone || '', company: c.company || '', source: c.lead_source || '' })
+  for (const k of Object.keys(fieldErrors)) delete fieldErrors[k]
+  editErr.value = ''
+  editing.value = true
+}
+
+async function saveEdit() {
+  if (!data.value || saving.value) return
+  saving.value = true
+  editErr.value = ''
+  for (const k of Object.keys(fieldErrors)) delete fieldErrors[k]
+  try {
+    await api.patch(`/contacts/${data.value.contact.id}`, { ...form })
+    editing.value = false
+    ui.toast('Contact updated')
+    await load()
+  } catch (e) {
+    if (e instanceof ApiError && Object.keys(e.fields).length) Object.assign(fieldErrors, e.fields)
+    editErr.value = e instanceof ApiError ? e.message : 'Could not save changes.'
+  } finally {
+    saving.value = false
+  }
+}
+
+async function archive() {
+  if (!data.value || archiving.value) return
+  archiving.value = true
+  try {
+    await api.post(`/contacts/${data.value.contact.id}/archive`)
+    ui.toast('Contact archived')
+    await load()
+  } catch (e) {
+    ui.toast(e instanceof ApiError ? e.message : 'Could not archive.')
+  } finally {
+    archiving.value = false
+  }
+}
 
 async function load() {
   loading.value = true
@@ -67,6 +118,10 @@ onMounted(load)
           </div>
           <button v-if="data.contact.email && (auth.can('email.send') || auth.can('admin'))"
                   class="btn btn--primary btn--sm btn--block" @click="emailContact">Email {{ data.contact.name.split(' ')[0] || 'contact' }}</button>
+          <div v-if="canManage && data.contact.status !== 'archived'" class="ident__actions">
+            <button class="btn btn--sm" @click="openEdit"><NavIcon name="cog" /> Edit</button>
+            <button class="btn btn--sm btn--danger" :disabled="archiving" @click="archive">Archive</button>
+          </div>
         </div>
 
         <!-- Timeline -->
@@ -87,10 +142,27 @@ onMounted(load)
         </div>
       </div>
     </DataState>
+
+    <Sheet :open="editing" eyebrow="Contact" title="Edit contact" @close="editing = false">
+      <div class="field"><label class="label">Name</label><input class="input" v-model="form.display_name" /></div>
+      <div class="field"><label class="label">Email</label><input class="input" v-model="form.email" type="email" />
+        <p v-if="fieldErrors.email" class="cf__err">{{ fieldErrors.email }}</p></div>
+      <div class="field"><label class="label">Phone</label><input class="input" v-model="form.phone" /></div>
+      <div class="field"><label class="label">Company</label><input class="input" v-model="form.company" /></div>
+      <div class="field"><label class="label">Source</label><input class="input" v-model="form.source" /></div>
+      <p v-if="editErr" class="cf__err" role="alert">{{ editErr }}</p>
+      <template #footer>
+        <button class="btn btn--sm" @click="editing = false">Cancel</button>
+        <button class="btn btn--primary btn--sm" :disabled="saving" @click="saveEdit">{{ saving ? 'Saving…' : 'Save changes' }}</button>
+      </template>
+    </Sheet>
   </div>
 </template>
 
 <style scoped>
+.ident__actions { display: flex; gap: var(--sp-2); margin-top: var(--sp-2); }
+.ident__actions .btn { flex: 1; }
+.cf__err { color: var(--danger-ink); font-size: var(--text-sm); margin-top: var(--sp-2); }
 .back { display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-sm); color: var(--ink-3);
   margin-bottom: var(--sp-4); font-weight: 550; }
 .back:hover { color: var(--ink); }

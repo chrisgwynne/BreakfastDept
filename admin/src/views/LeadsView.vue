@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref, computed, watch } from 'vue'
-import { api } from '@/lib/api'
+import { api, ApiError } from '@/lib/api'
 import type { Enquiry, ListResponse } from '@/lib/types'
 import { useUi } from '@/stores/ui'
 import { useAuth } from '@/stores/auth'
@@ -51,6 +51,38 @@ function when(iso: string): string {
   if (!iso) return '—'
   const d = new Date(iso.replace(' ', 'T'))
   return isNaN(d.getTime()) ? iso : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+const busy = ref('')
+
+async function convertLead() {
+  if (!selected.value || busy.value) return
+  busy.value = 'convert'
+  try {
+    await api.post(`/enquiries/${selected.value.id}/convert`, {})
+    ui.toast('Lead converted to opportunity')
+    selected.value = null
+    await load()
+  } catch (e) {
+    ui.toast(e instanceof ApiError ? e.message : 'Could not convert the lead.')
+  } finally {
+    busy.value = ''
+  }
+}
+
+async function archiveLead() {
+  if (!selected.value || busy.value) return
+  busy.value = 'archive'
+  try {
+    await api.post(`/enquiries/${selected.value.id}/archive`, {})
+    ui.toast('Lead archived')
+    selected.value = null
+    await load()
+  } catch (e) {
+    ui.toast(e instanceof ApiError ? e.message : 'Could not archive the lead.')
+  } finally {
+    busy.value = ''
+  }
 }
 
 onMounted(load)
@@ -106,7 +138,12 @@ onMounted(load)
         </div>
       </template>
       <template #footer>
-        <a v-if="selected?.email" class="btn btn--primary btn--sm" :href="`mailto:${selected.email}`">Reply by email</a>
+        <a v-if="selected?.email" class="btn btn--sm" :href="`mailto:${selected.email}`">Reply by email</a>
+        <div class="grow"></div>
+        <button v-if="canManage && selected && !['converted', 'archived', 'spam'].includes(selected.status)"
+                class="btn btn--sm" :disabled="!!busy" @click="archiveLead">Archive</button>
+        <button v-if="canManage && selected && selected.status !== 'converted'"
+                class="btn btn--primary btn--sm" :disabled="!!busy" @click="convertLead">{{ busy === 'convert' ? 'Converting…' : 'Convert to opportunity' }}</button>
       </template>
     </Sheet>
   </div>
