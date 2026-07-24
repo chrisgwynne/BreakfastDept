@@ -188,6 +188,15 @@ final class Platform
         return $this->service(\Breakfast\Platform\Contracts\Contracts::class, fn () => new \Breakfast\Platform\Contracts\Contracts($this->db()));
     }
 
+    public function contractDocuments(): \Breakfast\Platform\Contracts\ContractDocumentService
+    {
+        return $this->service(\Breakfast\Platform\Contracts\ContractDocumentService::class, fn () => new \Breakfast\Platform\Contracts\ContractDocumentService(
+            $this->contracts(),
+            new \Breakfast\Platform\Contracts\ContractPdfRenderer(),
+            $this->storageDir() . '/contracts'
+        ));
+    }
+
     public function proposalConversion(): \Breakfast\Platform\Proposals\ProposalConversion
     {
         return $this->service(\Breakfast\Platform\Proposals\ProposalConversion::class, fn () => new \Breakfast\Platform\Proposals\ProposalConversion($this));

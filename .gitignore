@@ -69,3 +69,4 @@ Thumbs.db
 /public/breakfast-admin/
 /storage/invoices/*
 /storage/proposals/*
+/storage/contracts/*

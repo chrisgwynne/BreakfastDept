@@ -195,6 +195,37 @@ final class ContractsTest extends TestCase
         }
     }
 
+    public function testUnsignedAndSignedPdfsAreRealDistinctAndPreserved(): void
+    {
+        $docs = breakfast()->contractDocuments();
+        $c = $this->sent();
+        $uuid = (string) $c['uuid'];
+
+        // Unsigned PDF.
+        $docs->generateUnsigned($uuid, 'admin@test');
+        $unsigned = $docs->download($uuid, 'unsigned');
+        $this->assertSame('%PDF', substr($unsigned['bytes'], 0, 4));
+
+        // Signed PDF only after completion.
+        $this->assertContractError(409, fn () => $docs->generateSigned($uuid, 'admin@test'));
+        $this->svc->signInternal($uuid, ['name' => 'Chris']);
+        $this->svc->sign($uuid, $this->party($c, 'client'), ['name' => 'Sian Roberts', 'email' => 'sian@roberts.example']);
+
+        $docs->generateSigned($uuid, 'admin@test');
+        $signed = $docs->download($uuid, 'signed');
+        $this->assertSame('%PDF', substr($signed['bytes'], 0, 4));
+        $this->assertStringEndsWith('-SIGNED.pdf', $signed['filename']);
+
+        // The unsigned original is preserved and distinct from the signed one.
+        $stillUnsigned = $docs->download($uuid, 'unsigned');
+        $this->assertNotSame($signed['bytes'], $stillUnsigned['bytes']);
+
+        // Tamper detection on the signed document.
+        $key = (string) $this->svc->find($uuid)['signed_key'];
+        file_put_contents($this->tmp . '/contracts/' . $key, '%PDF-tampered');
+        $this->assertContractError(409, fn () => $docs->download($uuid, 'signed'));
+    }
+
     /** @param array<string,mixed> $c */
     private function party(array $c, string $role): string
     {
