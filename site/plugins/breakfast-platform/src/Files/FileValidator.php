@@ -32,6 +32,46 @@ final class FileValidator
         'ai' => 'application/pdf', 'eps' => 'application/postscript', 'psd' => 'image/vnd.adobe.photoshop',
     ];
 
+    /**
+     * Explicit set of acceptable detected MIME types for the non-image,
+     * non-archive, non-text document/design extensions. Anything not listed
+     * here (for that extension) is rejected — we do NOT blanket-accept every
+     * `application/*`, which would let an executable renamed .pdf/.doc through.
+     * `application/octet-stream` is allowed only for the binary design formats
+     * where finfo is genuinely unreliable; real executables carry specific
+     * MIMEs (x-dosexec/x-executable/x-mach-binary/…) that never appear here and
+     * are additionally hard-denied below.
+     *
+     * @var array<string, list<string>>
+     */
+    private const DOC_MIME = [
+        'pdf' => ['application/pdf'],
+        'rtf' => ['application/rtf', 'text/rtf'],
+        'doc' => ['application/msword', 'application/vnd.ms-office', 'application/x-ole-storage', 'application/cdfv2', 'application/cdfv2-corrupt'],
+        'xls' => ['application/vnd.ms-excel', 'application/vnd.ms-office', 'application/x-ole-storage', 'application/cdfv2', 'application/cdfv2-corrupt'],
+        'ppt' => ['application/vnd.ms-powerpoint', 'application/vnd.ms-office', 'application/x-ole-storage', 'application/cdfv2', 'application/cdfv2-corrupt'],
+        'ai'  => ['application/pdf', 'application/postscript', 'application/illustrator'],
+        'eps' => ['application/postscript', 'image/x-eps', 'application/eps', 'image/eps'],
+        'psd' => ['image/vnd.adobe.photoshop', 'image/x-photoshop', 'application/x-photoshop', 'application/octet-stream'],
+    ];
+
+    /**
+     * Detected MIME types that are rejected outright, whatever the extension.
+     * These are the content types an attacker would smuggle in behind a benign
+     * extension (executables, shared libraries, scripts). Defence in depth on
+     * top of the FORBIDDEN-extension and per-extension MIME checks.
+     */
+    private const DANGEROUS_MIME = [
+        'application/x-dosexec', 'application/x-executable', 'application/x-pie-executable',
+        'application/x-mach-binary', 'application/x-sharedlib', 'application/x-elf',
+        'application/x-msdownload', 'application/x-msdos-program', 'application/vnd.microsoft.portable-executable',
+        'application/x-php', 'text/x-php', 'application/x-httpd-php',
+        'application/x-perl', 'text/x-perl', 'application/x-python', 'text/x-python',
+        'application/x-ruby', 'text/x-ruby', 'application/x-shellscript', 'text/x-shellscript',
+        'application/javascript', 'text/javascript', 'application/x-java-applet', 'application/java-archive',
+        'application/x-bytecode.python', 'application/hta', 'application/x-ms-shortcut',
+    ];
+
     /** Extensions that must never appear anywhere in the filename. */
     private const FORBIDDEN = [
         'php', 'php3', 'php4', 'php5', 'php7', 'phtml', 'pht', 'phar', 'exe', 'sh', 'bash', 'bat', 'cmd',
@@ -140,10 +180,18 @@ final class FileValidator
 
     private function mimeMatches(string $ext, string $detected, string $expectPrefix): bool
     {
+        $detected = strtolower(trim($detected));
+        // Hard deny: executable/script content is rejected regardless of the
+        // (allow-listed) extension it was smuggled behind.
+        if (in_array($detected, self::DANGEROUS_MIME, true)) {
+            return false;
+        }
+
         // Office/zip-container formats are all detected as application/zip; text
         // formats vary; be permissive within the allow-listed extension while
         // still rejecting obvious mismatches (e.g. a PHP script renamed .png).
         if (str_starts_with($detected, 'text/')) {
+            // text/x-php etc. are already denied above; only plain-ish text here.
             return in_array($ext, ['txt', 'csv', 'svg', 'rtf'], true) || str_starts_with($expectPrefix, 'text/');
         }
         if ($detected === 'application/zip') {
@@ -156,10 +204,10 @@ final class FileValidator
             // text/* was already accepted above; here detected is non-text.
             return str_contains($detected, 'svg') || str_starts_with($detected, 'image/');
         }
-        // Fall back to a loose prefix compare for docs.
-        $prefix = explode('/', $expectPrefix)[0];
-
-        return str_starts_with($detected, $prefix) || str_starts_with($detected, 'application/');
+        // Documents / design files: the detected MIME must be on the explicit
+        // per-extension allow-list. No blanket application/* acceptance — that
+        // previously let a renamed executable through.
+        return in_array($detected, self::DOC_MIME[$ext] ?? [], true);
     }
 
     private function assertSafeSvg(string $path): void
