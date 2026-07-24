@@ -240,6 +240,21 @@ final class AdminApiTest extends TestCase
         $this->assertSame(401, $out['code']);
     }
 
+    public function testCalendarRequiresAuth(): void
+    {
+        $out = $this->call('calendar/events');
+        $this->assertSame(401, $out['code']);
+    }
+
+    public function testCalendarRangeReturnsItemsForAnAdmin(): void
+    {
+        $this->kirby->impersonate('kirby');
+        $out = $this->call('calendar/events');
+        $this->assertSame(200, $out['code']);
+        $this->assertArrayHasKey('items', $out['data']);
+        $this->assertIsArray($out['data']['items']);
+    }
+
     public function testBrevoOverviewNeverLeaksTheKeyForAnAdmin(): void
     {
         $this->kirby->impersonate('kirby');

@@ -515,6 +515,31 @@ switch ($command) {
         out('HERMES_KEY_' . $id . '=' . implode(',', $scopes) . '|' . base64_encode(random_bytes(32)));
         break;
 
+    case 'calendar:reminders':
+        // Fire due, unsent event reminders. Internal only: a reminder for an
+        // event assigned to a studio email is queued to that address through the
+        // normal mail pipeline; client-facing reminders are never sent here.
+        // Safe to run on a schedule (idempotent — each reminder fires once).
+        $cal  = $platform->calendar();
+        $due  = $cal->dueReminders(\Breakfast\Platform\Support\Clock::nowIso());
+        $sent = 0;
+        foreach ($due as $event) {
+            $to = trim((string) ($event['assigned_to'] ?? ''));
+            if ($to !== '' && filter_var($to, FILTER_VALIDATE_EMAIL) !== false) {
+                $platform->crmMail()->send(
+                    $to,
+                    'Reminder: ' . (string) $event['title'],
+                    "Reminder for “" . (string) $event['title'] . "” at " . (string) $event['starts_at'] . ".",
+                    [],
+                    'system'
+                );
+                $sent++;
+            }
+            $cal->markReminderSent((string) $event['uuid']);
+        }
+        out('calendar:reminders — ' . count($due) . ' due, ' . $sent . ' emailed.');
+        break;
+
     case 'admin:action-check':
         // Validate the frontend action registry (admin/action-registry.json): every
         // registered production action must be fully implemented and have a routed
@@ -597,7 +622,7 @@ switch ($command) {
         };
 
         $record('Schema migrated', $platform->migrator()->hasPending() === false);
-        foreach (['contacts', 'companies', 'enquiries', 'opportunities', 'tasks', 'activities', 'queue', 'outbound', 'audit', 'crmMail', 'invoices', 'settings', 'brevoSettings'] as $svc) {
+        foreach (['contacts', 'companies', 'enquiries', 'opportunities', 'tasks', 'activities', 'queue', 'outbound', 'audit', 'crmMail', 'invoices', 'settings', 'brevoSettings', 'calendar'] as $svc) {
             try {
                 $platform->{$svc}();
                 $record("Service: {$svc}", true);
@@ -657,6 +682,12 @@ switch ($command) {
                     'cli'
                 );
                 $record('Invoice creation persists (rolled back)', (int) ($invoice['total'] ?? 0) === 10000);
+
+                $event = $platform->calendar()->create(
+                    ['title' => 'Functionality Check', 'starts_at' => '2030-01-01T10:00:00Z', 'ends_at' => '2030-01-01T10:30:00Z'],
+                    'cli'
+                );
+                $record('Calendar event persists (rolled back)', !empty($event['uuid']));
             } catch (\Throwable $e) {
                 $record('Write path persists (rolled back)', false, $e->getMessage());
             } finally {

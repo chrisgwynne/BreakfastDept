@@ -288,7 +288,10 @@ final class Api
             return ['status' => 422, 'body' => ['error' => 'title_starts_ends_required']];
         }
         $allowedTypes = ['call', 'meeting', 'follow_up', 'reminder', 'deadline'];
-        $type = in_array((string) ($in['event_type'] ?? 'follow_up'), $allowedTypes, true) ? (string) $in['event_type'] : 'follow_up';
+        $type = (string) ($in['event_type'] ?? 'follow_up');
+        if (!in_array($type, $allowedTypes, true)) {
+            $type = 'follow_up';
+        }
 
         try {
             $event = $this->platform->calendar()->create([

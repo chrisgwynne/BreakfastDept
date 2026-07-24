@@ -109,6 +109,30 @@ final class HermesApiTest extends PlatformTestCase
         $this->assertContains('hermes', array_column($activity, 'actor_type'));
     }
 
+    public function testHermesCanCreateTentativeCalendarEventWithScope(): void
+    {
+        $path = '/calendar/events';
+        $body = json_encode(['title' => 'Proposed call', 'starts_at' => '2026-09-01T10:00:00Z', 'ends_at' => '2026-09-01T10:30:00Z']) ?: '';
+
+        $headers = $this->signedHeaders('POST', $path, $body);
+        $res = $this->api([Scopes::CALENDAR_CREATE])->handle('POST', $path, $body, $headers);
+
+        $this->assertSame(201, $res['status']);
+        // Hermes-created events are always tentative (awaiting human confirmation).
+        $this->assertSame('tentative', $res['body']['event']['status']);
+    }
+
+    public function testHermesCalendarCreateDeniedWithoutScope(): void
+    {
+        $path = '/calendar/events';
+        $body = json_encode(['title' => 'Nope', 'starts_at' => '2026-09-01T10:00:00Z', 'ends_at' => '2026-09-01T10:30:00Z']) ?: '';
+
+        $headers = $this->signedHeaders('POST', $path, $body);
+        $res = $this->api([Scopes::CRM_SUMMARY])->handle('POST', $path, $body, $headers);
+
+        $this->assertSame(403, $res['status']);
+    }
+
     public function testAuditTrailWritten(): void
     {
         $headers = $this->signedHeaders('GET', '/crm/summary', '');
