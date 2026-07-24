@@ -250,6 +250,38 @@ CI runs PHP quality+tests, the two admin checks, the admin type‑check+build, a
 the full Playwright suite. See the PR's checks for the run against the pushed
 branch.
 
+## 27b. Client lifecycle (calendar, workspace, preview→CRM, Hermes, search)
+
+Beyond the module work above, the admin now runs one connected client lifecycle
+across the same CRM entities:
+
+- **Calendar** — `calendar_events` linked to contact/company/opportunity/enquiry/
+  preview/invoice; CRUD with on-read recurrence expansion + exceptions,
+  reminders, month/week/day/agenda UI, dashboard "Upcoming", and a
+  `calendar:reminders` CLI. Client-linked events write onto the client timeline.
+- **Unified client workspace** — `ClientWorkspace` aggregates a contact's (and
+  its company's) opportunities, invoices, previews, tasks, calendar events and
+  emails, and merges the contact + company activity into one timeline with a
+  financial + engagement summary. The contact view is a tabbed workspace with a
+  Schedule quick action.
+- **Preview → CRM** — a genuine preview page-view (never an asset request) on a
+  client-linked preview writes `preview.first_viewed` / `preview.viewed`
+  (throttled) onto the client timeline; failure-isolated so it can't affect
+  serving. The signed invitation email (link only, never the password) already
+  existed.
+- **Hermes CRM creation** — scoped `crm:leads:create` / `crm:contacts:create` /
+  `crm:companies:create` and `calendar:events:create` go through the same
+  validated, audited services a human uses; Hermes still cannot delete, merge,
+  edit protected fields, email clients or publish. Denial-without-scope is tested.
+- **Global search** — `SearchService` across contacts/companies/leads/
+  opportunities/tasks/invoices/previews/events, surfaced as live results in the
+  command palette (type to find, Enter to jump).
+
+Verification for this phase: **289 PHPUnit tests** green; action registry **29
+actions**; `admin:functionality-check` **29 checks**; Playwright **62 admin
+tests** green on desktop + mobile (invoices, website, brevo, calendar, crm-
+lifecycle, search).
+
 ## 27. Remaining limitations
 
 - **Invoice PDF is print‑to‑PDF / hosted link**, not a server‑generated `.pdf`
