@@ -147,9 +147,37 @@ export interface Activity {
   at: string
 }
 
+export interface WorkspaceSummary {
+  open_opportunities: number
+  open_tasks: number
+  active_previews: number
+  total_invoiced: number
+  total_paid: number
+  outstanding: number
+  upcoming_event: string | null
+}
+
+export interface WorkspaceOpportunity { id: string; title: string; stage: string; value: number; probability: number }
+export interface WorkspaceTask { id: string; title: string; status: string; due_date: string }
+export interface WorkspaceInvoice { id: string; number: string; status: string; total: number; amount_due: number; issue_date: string }
+export interface WorkspacePreview { id: string; name: string; slug: string; status: string; views: number }
+export interface WorkspaceEmail { id: string; subject: string; status: string; to: string; at: string }
+
+export interface ClientWorkspace {
+  company: { id: string; name: string } | null
+  summary: WorkspaceSummary
+  opportunities: WorkspaceOpportunity[]
+  tasks: WorkspaceTask[]
+  invoices: WorkspaceInvoice[]
+  previews: WorkspacePreview[]
+  emails: WorkspaceEmail[]
+  events: CalendarEvent[]
+}
+
 export interface ContactDetail {
   contact: Contact
   timeline: Activity[]
+  workspace?: ClientWorkspace
 }
 
 export interface ListResponse<T> {

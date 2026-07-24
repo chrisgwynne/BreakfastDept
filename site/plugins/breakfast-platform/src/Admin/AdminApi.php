@@ -1371,10 +1371,36 @@ final class AdminApi
     private function contactDetail(array $c): array
     {
         $uuid = (string) ($c['uuid'] ?? '');
+        $ws   = (new \Breakfast\Platform\Crm\ClientWorkspace($this->platform))->forContact($c);
 
         return [
             'contact'    => $this->contactRow($c),
-            'timeline'   => array_map([$this, 'activityRow'], $this->platform->activities()->forEntity('contact', $uuid)),
+            'timeline'   => array_map([$this, 'activityRow'], is_array($ws['timeline']) ? $ws['timeline'] : []),
+            'workspace'  => [
+                'company'       => is_array($ws['company'] ?? null) ? [
+                    'id'   => (string) ($ws['company']['uuid'] ?? ''),
+                    'name' => (string) ($ws['company']['name'] ?? ''),
+                ] : null,
+                'summary'       => $ws['summary'],
+                'opportunities' => array_map(static fn (array $o): array => [
+                    'id' => (string) $o['uuid'], 'title' => (string) $o['title'], 'stage' => (string) $o['stage'],
+                    'value' => (int) $o['estimated_value'], 'probability' => (int) $o['probability'],
+                ], is_array($ws['opportunities']) ? $ws['opportunities'] : []),
+                'tasks'         => array_map(static fn (array $t): array => [
+                    'id' => (string) $t['uuid'], 'title' => (string) $t['title'], 'status' => (string) $t['status'], 'due_date' => (string) ($t['due_date'] ?? ''),
+                ], is_array($ws['tasks']) ? $ws['tasks'] : []),
+                'invoices'      => array_map(static fn (array $i): array => [
+                    'id' => (string) $i['uuid'], 'number' => (string) ($i['number'] ?? ''), 'status' => (string) $i['status'],
+                    'total' => (int) $i['total'] / 100, 'amount_due' => ((int) $i['total'] - (int) $i['amount_paid']) / 100, 'issue_date' => (string) ($i['issue_date'] ?? ''),
+                ], is_array($ws['invoices']) ? $ws['invoices'] : []),
+                'previews'      => array_map(static fn (array $p): array => [
+                    'id' => (string) $p['uuid'], 'name' => (string) $p['name'], 'slug' => (string) $p['slug'], 'status' => (string) $p['status'], 'views' => (int) $p['view_count'],
+                ], is_array($ws['previews']) ? $ws['previews'] : []),
+                'emails'        => array_map(fn (array $e): array => [
+                    'id' => (string) $e['uuid'], 'subject' => (string) ($e['subject'] ?? ''), 'status' => (string) $e['status'], 'to' => (string) ($e['to_email'] ?? ''), 'at' => $this->ago((string) ($e['created_at'] ?? '')),
+                ], is_array($ws['emails']) ? $ws['emails'] : []),
+                'events'        => array_map([$this, 'calendarRow'], is_array($ws['events']) ? $ws['events'] : []),
+            ],
         ];
     }
 
