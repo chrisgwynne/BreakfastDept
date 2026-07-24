@@ -8,10 +8,12 @@
  *
  * @var array<string,mixed> $identity
  * @var list<array<string,mixed>> $projects
+ * @var list<array<string,mixed>> $previews
  */
 $e = static fn ($v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
 $base = rtrim((string) kirby()->site()->url(), '/');
 $name = trim((string) ($identity['display_name'] ?? '')) ?: (string) ($identity['email'] ?? 'there');
+$previews = $previews ?? [];
 ?><!doctype html>
 <html lang="en-GB">
 <head>
@@ -39,6 +41,13 @@ $name = trim((string) ($identity['display_name'] ?? '')) ?: (string) ($identity[
   .track { height:6px; background:#efe9db; border-radius:99px; overflow:hidden; margin-top:6px; }
   .fill { height:100%; background:var(--butter); }
   .empty { color:var(--muted); background:var(--paper); border:1px solid var(--line); border-radius:12px; padding:24px; text-align:center; }
+  h2 { font-size:16px; margin:28px 0 10px; border-top:1px solid var(--line); padding-top:20px; }
+  .prev { display:flex; align-items:center; gap:14px; background:var(--paper); border:1px solid var(--line); border-radius:12px; padding:14px 18px; margin-bottom:10px; text-decoration:none; color:inherit; transition:border-color .15s; }
+  .prev:hover { border-color:var(--purple); }
+  .prev__name { font-weight:650; }
+  .prev__meta { color:var(--muted); font-size:13px; }
+  .prev__go { margin-left:auto; color:var(--purple); font-size:14px; font-weight:600; }
+  .lock { font-size:11px; padding:1px 8px; border-radius:99px; background:#efe9db; color:var(--muted); margin-left:6px; }
 </style>
 </head>
 <body>
@@ -64,6 +73,19 @@ $name = trim((string) ($identity['display_name'] ?? '')) ?: (string) ($identity[
             <span class="pill"><?= $e(str_replace('_', ' ', (string) ($pr['status'] ?? ''))) ?></span>
             <div class="track"><span class="fill" style="width:<?= (int) ($pr['progress_percent'] ?? 0) ?>%"></span></div>
           </div>
+        </a>
+      <?php endforeach; ?>
+    <?php endif; ?>
+
+    <?php if (count($previews)): ?>
+      <h2>Design previews</h2>
+      <?php foreach ($previews as $pv): ?>
+        <a class="prev" data-test="portal-preview" href="<?= $e($pv['url'] ?? '') ?>" target="_blank" rel="noopener">
+          <div>
+            <div class="prev__name"><?= $e($pv['title'] ?? '') ?><?php if (!empty($pv['password_protected'])): ?><span class="lock">password</span><?php endif; ?></div>
+            <div class="prev__meta"><?= !empty($pv['updated_at']) ? 'Updated ' . $e(substr((string) $pv['updated_at'], 0, 10)) : 'Live preview' ?></div>
+          </div>
+          <span class="prev__go">View →</span>
         </a>
       <?php endforeach; ?>
     <?php endif; ?>

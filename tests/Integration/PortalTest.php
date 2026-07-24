@@ -227,6 +227,35 @@ final class PortalTest extends TestCase
         $this->assertSame(['shared.png'], $names);
     }
 
+    public function testAccessiblePreviewsAreScopedToTheClientContactAndActive(): void
+    {
+        $p = breakfast();
+        $contact = (string) $p->portal()->findIdentity($this->identity)['contact_uuid'];
+        // An active preview for this client's contact, and one for someone else.
+        $mine = $p->previews()->create([
+            'name' => 'Roberts Cafe homepage', 'client_display_name' => 'Your new homepage',
+            'contact_uuid' => $contact, 'public_slug' => 'roberts-home-' . bin2hex(random_bytes(3)), 'status' => 'active',
+        ]);
+        $otherContact = (string) $p->contacts()->create(['display_name' => 'Someone else', 'email' => 'else@x.co'])['uuid'];
+        $p->previews()->create([
+            'name' => 'Not yours', 'contact_uuid' => $otherContact,
+            'public_slug' => 'not-yours-' . bin2hex(random_bytes(3)), 'status' => 'active',
+        ]);
+        // A draft preview for this client is NOT surfaced (active-only).
+        $p->previews()->create([
+            'name' => 'Still a draft', 'contact_uuid' => $contact,
+            'public_slug' => 'draft-' . bin2hex(random_bytes(3)), 'status' => 'draft',
+        ]);
+
+        $previews = $p->portal()->accessiblePreviews($this->identity);
+        $titles = array_map(static fn (array $x): string => (string) $x['title'], $previews);
+        $this->assertContains('Your new homepage', $titles);
+        $this->assertNotContains('Not yours', $titles, 'previews for other contacts are never surfaced');
+        $this->assertNotContains('Still a draft', $titles, 'only active previews are surfaced');
+        $this->assertNotSame('', (string) $previews[0]['url']);
+        $this->assertNotSame('', (string) ($mine['uuid'] ?? ''));
+    }
+
     public function testClientFeedbackAndSignOffAreRecordedAndSurfaced(): void
     {
         $p = breakfast();

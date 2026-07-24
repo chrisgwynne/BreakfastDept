@@ -371,6 +371,39 @@ final class Portal
         }
     }
 
+    /**
+     * The client's live design previews, surfaced inside the authenticated
+     * portal. Scoped to the identity's own contact and to active previews only —
+     * a safe projection with the canonical preview URL. Password-protected
+     * previews still require their password on the preview origin itself; the
+     * portal only advertises that one exists.
+     *
+     * @return list<array<string,mixed>>
+     */
+    public function accessiblePreviews(string $identityUuid): array
+    {
+        $identity = $this->findIdentity($identityUuid);
+        $contact = (string) ($identity['contact_uuid'] ?? '');
+        if ($contact === '') {
+            return [];
+        }
+        $rows = $this->platform->previews()->all(['contact_uuid' => $contact, 'status' => 'active', 'include_archived' => false, 'limit' => 50]);
+        $urls = $this->platform->previewUrls();
+
+        return array_map(static function (array $p) use ($urls): array {
+            $slug = (string) ($p['public_slug'] ?? '');
+
+            return [
+                'uuid' => (string) ($p['uuid'] ?? ''),
+                'title' => trim((string) ($p['title_override'] ?? '')) ?: (trim((string) ($p['client_display_name'] ?? '')) ?: (trim((string) ($p['name'] ?? '')) ?: $slug)),
+                'slug' => $slug,
+                'url' => $slug !== '' ? $urls->url($slug) : '',
+                'password_protected' => (string) ($p['visibility'] ?? '') === 'password',
+                'updated_at' => (string) ($p['updated_at'] ?? ''),
+            ];
+        }, $rows);
+    }
+
     // ==================================================================
     // Feedback & approvals (client voice → delivery)
     // ==================================================================
