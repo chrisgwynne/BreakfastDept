@@ -122,6 +122,20 @@ final class PanelGate
         return self::canManage($user);
     }
 
+    /**
+     * Calendar. Viewing needs admin access; creating/editing/deleting events
+     * require the 'manage' grant. Enforced server-side on every calendar route.
+     */
+    public static function canViewCalendar(?User $user): bool
+    {
+        return self::canAccess($user);
+    }
+
+    public static function canManageCalendar(?User $user): bool
+    {
+        return self::canManage($user);
+    }
+
     private static function allowed(?User $user, string $action): bool
     {
         if ($user === null) {

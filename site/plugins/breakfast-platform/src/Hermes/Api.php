@@ -272,6 +272,44 @@ final class Api
         return ['status' => 201, 'body' => ['task' => ['uuid' => $task['uuid'], 'title' => $task['title']]], 'target_type' => 'task', 'target_uuid' => $task['uuid']];
     }
 
+    /**
+     * Create a TENTATIVE internal calendar event for human review. Hermes can
+     * only ever create events in the 'tentative' state and cannot invite external
+     * attendees, email anyone, cancel/reschedule confirmed meetings or delete —
+     * those fields/actions are simply not exposed on this endpoint.
+     *
+     * @param array<string,string> $m
+     * @param array<string,mixed> $in
+     * @return array<string,mixed>
+     */
+    private function createCalendarEvent(array $m, array $in, Credential $c): array
+    {
+        if (empty($in['title']) || empty($in['starts_at']) || empty($in['ends_at'])) {
+            return ['status' => 422, 'body' => ['error' => 'title_starts_ends_required']];
+        }
+        $allowedTypes = ['call', 'meeting', 'follow_up', 'reminder', 'deadline'];
+        $type = in_array((string) ($in['event_type'] ?? 'follow_up'), $allowedTypes, true) ? (string) $in['event_type'] : 'follow_up';
+
+        try {
+            $event = $this->platform->calendar()->create([
+                'title'            => (string) $in['title'],
+                'description'      => (string) ($in['description'] ?? ''),
+                'starts_at'        => (string) $in['starts_at'],
+                'ends_at'          => (string) $in['ends_at'],
+                'event_type'       => $type,
+                'status'           => 'tentative', // always tentative — awaits human confirmation
+                'contact_uuid'     => $in['contact_uuid'] ?? null,
+                'company_uuid'     => $in['company_uuid'] ?? null,
+                'opportunity_uuid' => $in['opportunity_uuid'] ?? null,
+                'reminder_minutes' => (int) ($in['reminder_minutes'] ?? 0),
+            ], $c->id, 'hermes');
+        } catch (\Breakfast\Platform\Calendar\CalendarException $e) {
+            return ['status' => $e->status, 'body' => ['error' => 'invalid', 'fields' => $e->fields]];
+        }
+
+        return ['status' => 201, 'body' => ['event' => ['uuid' => $event['uuid'], 'title' => $event['title'], 'status' => $event['status']]], 'target_type' => 'calendar_event', 'target_uuid' => $event['uuid']];
+    }
+
     /** @return array<string,mixed> */
     private function updateTask(array $m, array $in, Credential $c): array
     {
@@ -520,6 +558,7 @@ final class Api
             ['method' => 'POST',  'pattern' => '/crm/opportunities/{uuid}/note',   'scope' => Scopes::CRM_NOTES,     'handler' => 'noteOpportunity'],
             ['method' => 'POST',  'pattern' => '/crm/tasks',                       'scope' => Scopes::CRM_TASKS,     'handler' => 'createTask'],
             ['method' => 'PATCH', 'pattern' => '/crm/tasks/{uuid}',                'scope' => Scopes::CRM_TASKS,     'handler' => 'updateTask'],
+            ['method' => 'POST',  'pattern' => '/calendar/events',                 'scope' => Scopes::CALENDAR_CREATE, 'handler' => 'createCalendarEvent'],
             ['method' => 'POST',  'pattern' => '/drafts/journal',                  'scope' => Scopes::CONTENT_DRAFT, 'handler' => 'draftJournal'],
             ['method' => 'POST',  'pattern' => '/drafts/project',                  'scope' => Scopes::CONTENT_DRAFT, 'handler' => 'draftProject'],
             ['method' => 'POST',  'pattern' => '/drafts/page',                     'scope' => Scopes::CONTENT_DRAFT, 'handler' => 'draftPage'],

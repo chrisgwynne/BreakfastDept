@@ -85,6 +85,7 @@ final class AdminApi
             'website'       => $this->website($method, $seg, $user),
             'hermes'        => $this->hermes($method, $seg, $user),
             'invoices'      => $this->invoices($method, $seg, $user),
+            'calendar'      => $this->calendar($method, $seg, $user),
             'settings'      => $this->settings($method, $seg, $user),
             'reports'       => $this->reports(),
             'operations'    => $this->operations($user),
@@ -216,6 +217,12 @@ final class AdminApi
         }
         if (PanelGate::canManageBrevo($user)) {
             $permissions[] = 'brevo.manage';
+        }
+        if (PanelGate::canViewCalendar($user)) {
+            $permissions[] = 'calendar.view';
+        }
+        if (PanelGate::canManageCalendar($user)) {
+            $permissions[] = 'calendar.manage';
         }
 
         return [
@@ -783,6 +790,133 @@ final class AdminApi
         $requirePermission();
 
         return $action();
+    }
+
+    /**
+     * Calendar events over the shared CRM model.
+     *
+     * GET    /calendar/events?from=&to=&contact_uuid=…  — occurrences in a range
+     * GET    /calendar/events/:id                       — one event
+     * POST   /calendar/events                           — create
+     * PATCH  /calendar/events/:id                       — edit (scope/occurrence_date in body)
+     * POST   /calendar/events/:id/move                  — move/resize
+     * POST   /calendar/events/:id/complete              — mark completed
+     * DELETE /calendar/events/:id                       — delete (scope/occurrence_date in body)
+     *
+     * @param list<string> $seg
+     * @return array<string,mixed>
+     */
+    private function calendar(string $method, array $seg, \Kirby\Cms\User $user): array
+    {
+        if (!PanelGate::canViewCalendar($user)) {
+            throw new ApiException(403, 'You don’t have access to the calendar.', 'forbidden');
+        }
+        if (($seg[1] ?? '') !== 'events') {
+            throw new ApiException(404, 'Unknown calendar endpoint.', 'not_found');
+        }
+        $svc    = $this->platform->calendar();
+        $actor  = (string) $user->email();
+        $id     = $seg[2] ?? '';
+        $action = $seg[3] ?? '';
+
+        $requireManage = function () use ($user): void {
+            if (!PanelGate::canManageCalendar($user)) {
+                throw new ApiException(403, 'You can’t change the calendar.', 'forbidden');
+            }
+        };
+
+        try {
+            if ($id === '') {
+                if ($method === 'POST') {
+                    $requireManage();
+
+                    return ['event' => $this->calendarRow($svc->create($this->body(), $actor))];
+                }
+                // GET range
+                $q    = $this->query();
+                $from = (string) ($q['from'] ?? date('Y-m-01T00:00:00\Z'));
+                $to   = (string) ($q['to'] ?? date('Y-m-t\T23:59:59\Z'));
+                $events = $svc->range($from, $to, [
+                    'contact_uuid'     => $q['contact_uuid'] ?? null,
+                    'company_uuid'     => $q['company_uuid'] ?? null,
+                    'opportunity_uuid' => $q['opportunity_uuid'] ?? null,
+                    'type'             => $q['type'] ?? null,
+                ]);
+
+                return ['items' => array_map([$this, 'calendarRow'], $events), 'total' => count($events)];
+            }
+
+            if ($method === 'GET' && $action === '') {
+                $event = $svc->find($id);
+                if ($event === null) {
+                    throw new ApiException(404, 'Event not found.', 'not_found');
+                }
+
+                return ['event' => $this->calendarRow($event)];
+            }
+            if ($method === 'PATCH' && $action === '') {
+                $requireManage();
+                $body = $this->body();
+                $scope = (string) ($body['scope'] ?? 'series');
+                $occ   = (string) ($body['occurrence_date'] ?? '');
+
+                return ['event' => $this->calendarRow($svc->update($id, $body, $actor, $scope, $occ))];
+            }
+            if ($method === 'POST' && $action === 'move') {
+                $requireManage();
+                $body = $this->body();
+
+                return ['event' => $this->calendarRow($svc->move($id, (string) ($body['starts_at'] ?? ''), (string) ($body['ends_at'] ?? ''), $actor))];
+            }
+            if ($method === 'POST' && $action === 'complete') {
+                $requireManage();
+
+                return ['event' => $this->calendarRow($svc->complete($id, $actor))];
+            }
+            if ($method === 'DELETE' && $action === '') {
+                $requireManage();
+                $body = $this->body();
+
+                $svc->delete($id, $actor, (string) ($body['scope'] ?? 'series'), (string) ($body['occurrence_date'] ?? ''));
+
+                return ['ok' => true];
+            }
+
+            throw new ApiException(404, 'Unknown calendar endpoint.', 'not_found');
+        } catch (\Breakfast\Platform\Calendar\CalendarException $e) {
+            throw new ApiException($e->status, $e->getMessage(), 'calendar', $e->fields);
+        }
+    }
+
+    /**
+     * @param array<string,mixed> $r
+     * @return array<string,mixed>
+     */
+    private function calendarRow(array $r): array
+    {
+        return [
+            'id'               => (string) ($r['uuid'] ?? ''),
+            'title'            => (string) ($r['title'] ?? ''),
+            'description'      => (string) ($r['description'] ?? ''),
+            'starts_at'        => (string) ($r['starts_at'] ?? ''),
+            'ends_at'          => (string) ($r['ends_at'] ?? ''),
+            'all_day'          => (bool) ($r['all_day'] ?? false),
+            'timezone'         => (string) ($r['timezone'] ?? 'Europe/London'),
+            'location'         => (string) ($r['location'] ?? ''),
+            'meeting_link'     => (string) ($r['meeting_link'] ?? ''),
+            'event_type'       => (string) ($r['event_type'] ?? 'meeting'),
+            'status'           => (string) ($r['status'] ?? 'confirmed'),
+            'contact_uuid'     => (string) ($r['contact_uuid'] ?? ''),
+            'company_uuid'     => (string) ($r['company_uuid'] ?? ''),
+            'opportunity_uuid' => (string) ($r['opportunity_uuid'] ?? ''),
+            'recurrence'       => (string) ($r['recurrence'] ?? ''),
+            'recurrence_interval' => (int) ($r['recurrence_interval'] ?? 1),
+            'recurrence_until' => (string) ($r['recurrence_until'] ?? ''),
+            'recurrence_count' => (int) ($r['recurrence_count'] ?? 0),
+            'reminder_minutes' => (int) ($r['reminder_minutes'] ?? 0),
+            'occurrence_date'  => (string) ($r['occurrence_date'] ?? ''),
+            'recurring'        => (bool) ($r['recurring'] ?? ($r['recurrence'] ?? '') !== ''),
+        ];
     }
 
     /**

@@ -204,6 +204,7 @@ final class HermesAdmin
         Scopes::PREVIEWS_READ    => ['domain' => 'Previews', 'label' => 'Read previews',       'description' => 'Read client-preview details and metadata.',                        'risk' => 'medium', 'kind' => 'read'],
         Scopes::PREVIEWS_ANALYSE => ['domain' => 'Previews', 'label' => 'Analyse previews',    'description' => 'Analyse client-preview content and engagement.',                    'risk' => 'medium', 'kind' => 'read'],
         Scopes::PREVIEWS_DRAFT   => ['domain' => 'Previews', 'label' => 'Draft previews',      'description' => 'Create an UNPUBLISHED preview draft awaiting human review. Never publishes, uploads files, sets passwords or sends invitations.', 'risk' => 'medium', 'kind' => 'draft'],
+        Scopes::CALENDAR_CREATE  => ['domain' => 'Calendar', 'label' => 'Create events',       'description' => 'Create a TENTATIVE internal calendar event (follow-up, reminder, proposed call) for review. Never invites external attendees, emails clients, cancels/reschedules confirmed meetings or deletes events.', 'risk' => 'medium', 'kind' => 'draft'],
     ];
 
     // ==================================================================

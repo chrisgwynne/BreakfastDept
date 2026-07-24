@@ -29,6 +29,11 @@ final class Scopes
     public const PREVIEWS_ANALYSE = 'previews:analyse';
     public const PREVIEWS_DRAFT   = 'previews:draft';
 
+    // Calendar — Hermes may CREATE a tentative internal event (follow-up, reminder,
+    // proposed call) for human review. It may never invite external attendees,
+    // email clients, cancel/reschedule confirmed meetings, or delete events.
+    public const CALENDAR_CREATE = 'calendar:events:create';
+
     /** @return list<string> */
     public static function all(): array
     {
@@ -46,6 +51,7 @@ final class Scopes
             self::PREVIEWS_READ,
             self::PREVIEWS_ANALYSE,
             self::PREVIEWS_DRAFT,
+            self::CALENDAR_CREATE,
         ];
     }
 
