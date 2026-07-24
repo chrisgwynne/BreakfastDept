@@ -183,6 +183,11 @@ final class Platform
         return $this->service(\Breakfast\Platform\Proposals\Proposals::class, fn () => new \Breakfast\Platform\Proposals\Proposals($this->db()));
     }
 
+    public function contracts(): \Breakfast\Platform\Contracts\Contracts
+    {
+        return $this->service(\Breakfast\Platform\Contracts\Contracts::class, fn () => new \Breakfast\Platform\Contracts\Contracts($this->db()));
+    }
+
     public function proposalConversion(): \Breakfast\Platform\Proposals\ProposalConversion
     {
         return $this->service(\Breakfast\Platform\Proposals\ProposalConversion::class, fn () => new \Breakfast\Platform\Proposals\ProposalConversion($this));
