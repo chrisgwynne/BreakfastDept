@@ -515,6 +515,75 @@ switch ($command) {
         out('HERMES_KEY_' . $id . '=' . implode(',', $scopes) . '|' . base64_encode(random_bytes(32)));
         break;
 
+    case 'admin:action-check':
+        // Validate the frontend action registry (admin/action-registry.json): every
+        // registered production action must be fully implemented and have a routed
+        // API resource, a permission (for mutations) and a real persistence method.
+        // Fails CI if any action is a placeholder/mock/todo/unimplemented, or if its
+        // backend path is missing — so the UI can never ship a dead button.
+        $registryPath = $base . '/admin/action-registry.json';
+        if (!is_file($registryPath)) {
+            fail('action registry not found at ' . $registryPath);
+        }
+        $registry = json_decode((string) file_get_contents($registryPath), true);
+        if (!is_array($registry) || !is_array($registry['actions'] ?? null)) {
+            fail('action registry is not valid JSON.');
+        }
+        $resources = array_flip(is_array($registry['resources'] ?? null) ? $registry['resources'] : []);
+        $badStatus = ['placeholder', 'mock', 'todo', 'unimplemented', 'wip', ''];
+        $problems  = [];
+        foreach ($registry['actions'] as $a) {
+            $id = (string) ($a['id'] ?? '?');
+            $status = strtolower((string) ($a['status'] ?? ''));
+            if (in_array($status, $badStatus, true)) {
+                $problems[] = "{$id}: status is '{$status}' (must be implemented)";
+            }
+            if (!isset($resources[(string) ($a['resource'] ?? '')])) {
+                $problems[] = "{$id}: resource '" . ($a['resource'] ?? '') . "' is not a routed admin API resource";
+            }
+            $method = strtoupper((string) ($a['method'] ?? 'GET'));
+            if ($method !== 'GET' && trim((string) ($a['permission'] ?? '')) === '') {
+                $problems[] = "{$id}: mutating action has no required permission";
+            }
+            $persist = (string) ($a['persistence'] ?? '');
+            if ($persist !== '') {
+                [$cls, $mth] = array_pad(explode('::', $persist, 2), 2, '');
+                if (!class_exists($cls)) {
+                    $problems[] = "{$id}: persistence class {$cls} not found";
+                } elseif ($mth !== '' && !method_exists($cls, $mth)) {
+                    $problems[] = "{$id}: persistence method {$cls}::{$mth} not found";
+                }
+            } else {
+                $problems[] = "{$id}: no persistence service declared";
+            }
+            $pw = (string) ($a['playwright'] ?? '');
+            if ($pw !== '' && !is_file($base . '/playwright/tests/' . $pw)) {
+                $problems[] = "{$id}: referenced Playwright spec '{$pw}' does not exist";
+            }
+        }
+        // Every routed mutating resource should have at least one registered action.
+        foreach (array_keys($resources) as $res) {
+            if (in_array($res, ['session', 'dashboard', 'activities', 'reports', 'operations', 'previews', 'hermes'], true)) {
+                continue; // read-only or covered by their own suites
+            }
+            $has = array_filter($registry['actions'], static fn ($a) => ($a['resource'] ?? '') === $res);
+            if ($has === []) {
+                $problems[] = "resource '{$res}' has no registered action";
+            }
+        }
+        foreach ($registry['actions'] as $a) {
+            out('  [OK]   ' . str_pad((string) ($a['id'] ?? '?'), 20) . ' → ' . strtoupper((string) ($a['method'] ?? '')) . ' ' . ($a['resource'] ?? ''));
+        }
+        out('');
+        if ($problems !== []) {
+            foreach ($problems as $p) {
+                out('  [FAIL] ' . $p);
+            }
+            fail(count($problems) . ' action-registry problem(s) found.');
+        }
+        out('admin:action-check PASSED (' . count($registry['actions']) . ' actions verified)');
+        break;
+
     case 'admin:functionality-check':
         // Verify the standalone admin's real operations are wired end to end. With
         // --read-only (safe in production) it only inspects; otherwise it proves a
@@ -528,7 +597,7 @@ switch ($command) {
         };
 
         $record('Schema migrated', $platform->migrator()->hasPending() === false);
-        foreach (['contacts', 'companies', 'enquiries', 'opportunities', 'tasks', 'activities', 'queue', 'outbound', 'audit', 'crmMail'] as $svc) {
+        foreach (['contacts', 'companies', 'enquiries', 'opportunities', 'tasks', 'activities', 'queue', 'outbound', 'audit', 'crmMail', 'invoices', 'settings', 'brevoSettings'] as $svc) {
             try {
                 $platform->{$svc}();
                 $record("Service: {$svc}", true);
@@ -540,6 +609,25 @@ switch ($command) {
         $record('Write service present', class_exists(\Breakfast\Platform\Admin\CrmWrite::class));
         $record('Admin API present', class_exists(\Breakfast\Platform\Admin\AdminApi::class));
         $record('Hermes console present', class_exists(\Breakfast\Platform\Admin\HermesAdmin::class));
+        $record('Invoicing service present', class_exists(\Breakfast\Platform\Invoicing\Invoices::class));
+        $record('Website editor present', class_exists(\Breakfast\Platform\Website\WebsiteContent::class));
+        $record('Secret storage present', class_exists(\Breakfast\Platform\Settings\SecretBox::class));
+
+        // Website content is readable over the real Kirby model.
+        try {
+            $web = new \Breakfast\Platform\Website\WebsiteContent($kirby, $platform);
+            $record('Website content readable', count($web->index()['items']) > 0);
+        } catch (\Throwable $e) {
+            $record('Website content readable', false, $e->getMessage());
+        }
+
+        // Secret encryption round-trips (proves Brevo key storage works).
+        try {
+            $box = new \Breakfast\Platform\Settings\SecretBox($platform->storageDir());
+            $record('Secret encryption round-trips', $box->decrypt($box->encrypt('probe')) === 'probe');
+        } catch (\Throwable $e) {
+            $record('Secret encryption round-trips', false, $e->getMessage());
+        }
 
         $routeFound = false;
         foreach ($kirby->routes() as $route) {
@@ -563,8 +651,14 @@ switch ($command) {
                 );
                 $ok = !empty($lead['enquiry']['uuid']) && !empty($lead['contact']['uuid']);
                 $record('Lead creation persists (rolled back)', $ok);
+
+                $invoice = $platform->invoices()->create(
+                    ['bill_to_name' => 'Functionality Check', 'items' => [['description' => 'Check', 'quantity' => 1, 'unit_price' => 100]]],
+                    'cli'
+                );
+                $record('Invoice creation persists (rolled back)', (int) ($invoice['total'] ?? 0) === 10000);
             } catch (\Throwable $e) {
-                $record('Lead creation persists (rolled back)', false, $e->getMessage());
+                $record('Write path persists (rolled back)', false, $e->getMessage());
             } finally {
                 if ($db->pdo()->inTransaction()) {
                     $db->pdo()->rollBack();

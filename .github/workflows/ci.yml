@@ -54,6 +54,12 @@ jobs:
       - name: Real Kirby boot + route render check
         run: php bin/console app:check
 
+      - name: Admin action registry check (no dead/placeholder controls)
+        run: php bin/console admin:action-check
+
+      - name: Admin functionality check (real operations wired end to end)
+        run: php bin/console admin:functionality-check
+
       - name: Production install (no dev) + boot
         run: |
           composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader
