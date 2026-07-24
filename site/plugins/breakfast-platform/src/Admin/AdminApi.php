@@ -93,6 +93,7 @@ final class AdminApi
             'milestones'    => $this->milestones($method, $seg, $user),
             'project-tasks' => $this->projectTasks($method, $seg, $user),
             'project-templates' => $this->projectTemplatesApi($method, $seg, $user),
+            'change-requests' => $this->changeRequests($method, $seg, $user),
             'onboarding'    => $this->onboarding($method, $seg, $user),
             'onboarding-templates' => $this->onboardingTemplatesApi($method, $seg, $user),
             'files'         => $this->files($method, $seg, $user),
@@ -2124,6 +2125,164 @@ final class AdminApi
         } catch (\Breakfast\Platform\Projects\ProjectException $e) {
             throw new ApiException($e->status, $e->getMessage(), 'project');
         }
+    }
+
+    /**
+     * Change requests + scope control (Phase 2B). Viewing follows CRM access;
+     * creating/editing/sending require the 'manage' grant; applying an approved
+     * change to the project is admin-only. Clients decide through the separate
+     * tokened public /change/<token> route — never here.
+     *
+     * @param list<string> $seg
+     * @return array<string,mixed>
+     */
+    private function changeRequests(string $method, array $seg, \Kirby\Cms\User $user): array
+    {
+        if (!PanelGate::canViewChangeRequests($user)) {
+            throw new ApiException(403, 'You don’t have access to change requests.', 'forbidden');
+        }
+        $svc   = $this->platform->changeRequests();
+        $actor = (string) $user->email();
+        $id    = $seg[1] ?? '';
+        $requireManage = function () use ($user): void {
+            if (!PanelGate::canManageChangeRequests($user)) {
+                throw new ApiException(403, 'You can’t change requests.', 'forbidden');
+            }
+        };
+
+        try {
+            if ($id === '') {
+                if ($method === 'POST') {
+                    $requireManage();
+                    $body = $this->body();
+
+                    return ['change_request' => $this->changeRequestRow($svc->create((string) ($body['project_uuid'] ?? ''), $body, $actor))];
+                }
+                $q = $this->query();
+
+                return ['items' => array_map(fn (array $r): array => $this->changeRequestRow($r), $svc->list([
+                    'project_uuid' => $q['project'] ?? null,
+                    'status'       => $q['status'] ?? null,
+                    'limit'        => $this->perPage(),
+                ]))];
+            }
+
+            $action = $seg[2] ?? '';
+            if ($method === 'GET' && $action === '') {
+                $cr = $svc->find($id);
+                if ($cr === null) {
+                    throw new ApiException(404, 'Change request not found.', 'not_found');
+                }
+
+                return ['change_request' => $this->changeRequestRow($cr)];
+            }
+            if ($method === 'PATCH' && $action === '') {
+                $requireManage();
+                $body = $this->body();
+                $rev  = array_key_exists('revision', $body) ? (int) $body['revision'] : null;
+
+                return ['change_request' => $this->changeRequestRow($svc->update($id, $body, $actor, $rev))];
+            }
+            if ($method === 'POST') {
+                $body = $this->body();
+                switch ($action) {
+                    case 'status':
+                        $requireManage();
+
+                        return ['change_request' => $this->changeRequestRow($svc->transition($id, (string) ($body['status'] ?? ''), $actor, (string) ($body['reason'] ?? '')))];
+                    case 'send':
+                        $requireManage();
+                        $siteUrl = rtrim((string) $this->kirby->site()->url(), '/');
+                        $result  = $svc->send($id, $siteUrl, $actor);
+
+                        return ['change_request' => $this->changeRequestRow($result['change_request']), 'url' => $result['url']];
+                    case 'decision':
+                        // Staff recording a decision taken offline (e.g. by email).
+                        $requireManage();
+
+                        return ['change_request' => $this->changeRequestRow($svc->decide($id, (string) ($body['decision'] ?? ''), [
+                            'name'    => (string) ($body['name'] ?? $actor),
+                            'email'   => (string) ($body['email'] ?? ''),
+                            'comment' => (string) ($body['comment'] ?? ''),
+                            'wording' => 'Recorded by ' . $actor . ' on the client’s behalf.',
+                        ], $actor))];
+                    case 'apply':
+                        if (!PanelGate::canApplyChangeRequests($user)) {
+                            throw new ApiException(403, 'Only an administrator can apply a change to the project.', 'forbidden');
+                        }
+
+                        return ['result' => $svc->apply($id, is_array($body['options'] ?? null) ? $body['options'] : [], $actor), 'change_request' => $this->changeRequestRow($svc->find($id) ?? [])];
+                }
+            }
+
+            throw new ApiException(404, 'Unknown change-request endpoint.', 'not_found');
+        } catch (\Breakfast\Platform\ChangeRequests\ChangeRequestException $e) {
+            throw new ApiException($e->status, $e->getMessage(), 'change_request');
+        }
+    }
+
+    /**
+     * Shape a change request for the admin UI: money in pounds, a staff download
+     * URL when a document exists, and a client URL when sent.
+     *
+     * @param array<string,mixed> $cr
+     * @return array<string,mixed>
+     */
+    private function changeRequestRow(array $cr): array
+    {
+        $pounds = static fn ($pence): float => (int) $pence / 100;
+        $token  = (string) ($cr['public_token'] ?? '');
+        $items  = is_array($cr['items'] ?? null) ? $cr['items'] : [];
+        $row = [
+            'uuid'        => (string) ($cr['uuid'] ?? ''),
+            'number'      => (string) ($cr['number'] ?? ''),
+            'title'       => (string) ($cr['title'] ?? ''),
+            'project_uuid' => (string) ($cr['project_uuid'] ?? ''),
+            'status'      => (string) ($cr['status'] ?? ''),
+            'source'      => (string) ($cr['source'] ?? ''),
+            'description' => (string) ($cr['description'] ?? ''),
+            'reason'      => (string) ($cr['reason'] ?? ''),
+            'scope_impact' => (string) ($cr['scope_impact'] ?? ''),
+            'time_impact' => (string) ($cr['time_impact'] ?? ''),
+            'target_date_impact' => (string) ($cr['target_date_impact'] ?? ''),
+            'internal_notes' => (string) ($cr['internal_notes'] ?? ''),
+            'currency'    => (string) ($cr['currency'] ?? 'GBP'),
+            'discount'    => (int) ($cr['discount_bps'] ?? 0) / 100,
+            'tax_rate'    => (int) ($cr['tax_bps'] ?? 0) / 100,
+            'subtotal'    => $pounds($cr['subtotal'] ?? 0),
+            'tax_total'   => $pounds($cr['tax_total'] ?? 0),
+            'total'       => $pounds($cr['total'] ?? 0),
+            'applied'     => (int) ($cr['applied'] ?? 0) === 1,
+            'expiry_date' => (string) ($cr['expiry_date'] ?? ''),
+            'revision'    => (int) ($cr['revision'] ?? 1),
+            'created_at'  => (string) ($cr['created_at'] ?? ''),
+            'sent_at'     => (string) ($cr['sent_at'] ?? ''),
+            'decided_at'  => (string) ($cr['decided_at'] ?? ''),
+            'document_status' => (string) ($cr['document_status'] ?? 'none'),
+            'has_document' => (string) ($cr['document_key'] ?? '') !== '',
+            'download_url' => (string) ($cr['document_key'] ?? '') !== '' ? '/breakfast-admin/change-requests/' . (string) ($cr['uuid'] ?? '') . '/download' : '',
+            'public_url'  => $token !== '' ? rtrim((string) $this->kirby->site()->url(), '/') . '/change/' . $token : '',
+            'items' => array_map(static fn (array $it): array => [
+                'uuid'        => (string) ($it['uuid'] ?? ''),
+                'kind'        => (string) ($it['kind'] ?? 'fixed'),
+                'description' => (string) ($it['description'] ?? ''),
+                'quantity'    => (int) ($it['quantity'] ?? 1000) / 1000,
+                'unit_price'  => (int) ($it['unit_price'] ?? 0) / 100,
+                'line_total'  => (int) ($it['line_total'] ?? 0) / 100,
+                'estimate_hours' => (int) ($it['estimate_seconds'] ?? 0) / 3600,
+            ], $items),
+            'events' => array_map(static fn (array $ev): array => [
+                'type' => (string) ($ev['type'] ?? ''), 'detail' => (string) ($ev['detail'] ?? ''),
+                'actor' => (string) ($ev['actor'] ?? ''), 'created_at' => (string) ($ev['created_at'] ?? ''),
+            ], is_array($cr['events'] ?? null) ? $cr['events'] : []),
+            'acceptances' => array_map(static fn (array $a): array => [
+                'decision' => (string) ($a['decision'] ?? ''), 'name' => (string) ($a['name'] ?? ''),
+                'email' => (string) ($a['email'] ?? ''), 'approved_total' => (int) ($a['approved_total'] ?? 0) / 100,
+                'created_at' => (string) ($a['created_at'] ?? ''),
+            ], is_array($cr['acceptances'] ?? null) ? $cr['acceptances'] : []),
+        ];
+
+        return $row;
     }
 
     /**

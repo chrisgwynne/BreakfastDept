@@ -249,6 +249,14 @@ final class Platform
         return $this->service(\Breakfast\Platform\Projects\ProjectTasks::class, fn () => new \Breakfast\Platform\Projects\ProjectTasks($this->db()));
     }
 
+    public function changeRequests(): \Breakfast\Platform\ChangeRequests\ChangeRequests
+    {
+        return $this->service(\Breakfast\Platform\ChangeRequests\ChangeRequests::class, fn () => new \Breakfast\Platform\ChangeRequests\ChangeRequests(
+            $this,
+            $this->storageDir() . '/change-requests'
+        ));
+    }
+
     public function stripeSettings(): \Breakfast\Platform\Payments\StripeSettings
     {
         return $this->service(\Breakfast\Platform\Payments\StripeSettings::class, fn () => new \Breakfast\Platform\Payments\StripeSettings(

@@ -20,7 +20,7 @@ const loading = ref(true)
 const error = ref<string | null>(null)
 const busy = ref('')
 
-const tab = ref<'overview' | 'milestones' | 'board' | 'onboarding' | 'files'>('overview')
+const tab = ref<'overview' | 'milestones' | 'board' | 'onboarding' | 'files' | 'changes'>('overview')
 type Milestone = { uuid: string; title: string; status: string; progress_percent: number; due_date: string; is_ready: boolean; blocked_by: string[] }
 type Task = { uuid: string; title: string; status: string; milestone_uuid: string | null; is_ready: boolean; revision: number }
 const milestones = ref<Milestone[]>([])
@@ -37,12 +37,71 @@ async function loadBoard() {
   if (!project.value) return
   board.value = (await api.get<{ columns: Record<string, Task[]> }>(`/projects/${project.value.id}/board`)).columns
 }
-async function switchTab(t: 'overview' | 'milestones' | 'board' | 'onboarding' | 'files') {
+async function switchTab(t: 'overview' | 'milestones' | 'board' | 'onboarding' | 'files' | 'changes') {
   tab.value = t
   if (t === 'milestones') await loadMilestones()
   if (t === 'board') await loadBoard()
   if (t === 'onboarding') await loadOnboarding()
   if (t === 'files') await loadFiles()
+  if (t === 'changes') await loadChangeRequests()
+}
+
+// --- Change requests ---
+interface CrItem { kind: string; description: string; quantity: number; unit_price: number; line_total: number; estimate_hours: number }
+interface ChangeRequest {
+  uuid: string; number: string; title: string; status: string; total: number; subtotal: number; tax_total: number
+  applied: boolean; document_status: string; has_document: boolean; download_url: string; public_url: string
+  description: string; items: CrItem[]; revision: number
+  acceptances: { decision: string; name: string; approved_total: number; created_at: string }[]
+}
+const changeRequests = ref<ChangeRequest[]>([])
+const crBusy = ref('')
+const crDraft = ref<{ title: string; description: string; items: { description: string; unit_price: string; estimate_hours: string; kind: string }[] }>({ title: '', description: '', items: [{ description: '', unit_price: '', estimate_hours: '', kind: 'fixed' }] })
+const crExpanded = ref<string | null>(null)
+async function loadChangeRequests() {
+  if (!project.value) return
+  changeRequests.value = (await api.get<{ items: ChangeRequest[] }>(`/change-requests?project=${project.value.id}`)).items
+}
+function crAddRow() { crDraft.value.items.push({ description: '', unit_price: '', estimate_hours: '', kind: 'fixed' }) }
+function crMoney(n: number): string { return '£' + n.toFixed(2) }
+async function createChangeRequest() {
+  if (!project.value || !crDraft.value.title.trim()) return
+  crBusy.value = 'create'
+  try {
+    const items = crDraft.value.items
+      .filter((i) => i.description.trim() || i.unit_price)
+      .map((i) => ({ description: i.description.trim(), unit_price: Number(i.unit_price) || 0, quantity: 1, kind: i.kind, estimate_hours: Number(i.estimate_hours) || 0 }))
+    await api.post('/change-requests', { project_uuid: project.value.id, title: crDraft.value.title.trim(), description: crDraft.value.description.trim(), items })
+    crDraft.value = { title: '', description: '', items: [{ description: '', unit_price: '', estimate_hours: '', kind: 'fixed' }] }
+    await loadChangeRequests(); ui.toast('Change request drafted')
+  } catch (e) { ui.toast(e instanceof ApiError ? e.message : 'Could not create change request') }
+  finally { crBusy.value = '' }
+}
+async function sendChangeRequest(cr: ChangeRequest) {
+  crBusy.value = cr.uuid
+  try {
+    const res = await api.post<{ url: string }>(`/change-requests/${cr.uuid}/send`, {})
+    await loadChangeRequests(); ui.toast('Sent — client link ready')
+    crExpanded.value = cr.uuid
+    void res
+  } catch (e) { ui.toast(e instanceof ApiError ? e.message : 'Could not send') }
+  finally { crBusy.value = '' }
+}
+async function recordDecision(cr: ChangeRequest, decision: string) {
+  crBusy.value = cr.uuid
+  try { await api.post(`/change-requests/${cr.uuid}/decision`, { decision }); await loadChangeRequests(); ui.toast('Decision recorded') }
+  catch (e) { ui.toast(e instanceof ApiError ? e.message : 'Could not record decision') }
+  finally { crBusy.value = '' }
+}
+async function applyChangeRequest(cr: ChangeRequest) {
+  if (!confirm(`Apply ${cr.number} to the project? This adds ${crMoney(cr.total)} of approved variations, generates tasks and drafts an invoice.`)) return
+  crBusy.value = cr.uuid
+  try {
+    const res = await api.post<{ result: { tasks: number; invoice: string | null } }>(`/change-requests/${cr.uuid}/apply`, {})
+    await loadChangeRequests(); await reloadProject()
+    ui.toast(`Applied: ${res.result.tasks} task(s)${res.result.invoice ? ', invoice drafted' : ''}`)
+  } catch (e) { ui.toast(e instanceof ApiError ? e.message : 'Could not apply') }
+  finally { crBusy.value = '' }
 }
 
 // --- Files ---
@@ -255,6 +314,7 @@ onMounted(load)
           <button class="tab" :class="{ 'tab--active': tab === 'board' }" role="tab" @click="switchTab('board')">Board</button>
           <button class="tab" :class="{ 'tab--active': tab === 'onboarding' }" role="tab" @click="switchTab('onboarding')">Onboarding</button>
           <button class="tab" :class="{ 'tab--active': tab === 'files' }" role="tab" @click="switchTab('files')">Files</button>
+          <button class="tab" :class="{ 'tab--active': tab === 'changes' }" role="tab" @click="switchTab('changes')">Change requests</button>
         </div>
 
         <!-- Files -->
@@ -311,6 +371,57 @@ onMounted(load)
             </div>
           </div>
           <p v-if="!onbInstances.length" class="faint">No onboarding started yet.</p>
+        </section>
+
+        <!-- Change requests -->
+        <section v-if="tab === 'changes'" class="card card--pad" data-test="project-change-requests">
+          <form v-if="canManage" class="crnew" data-test="cr-new" @submit.prevent="createChangeRequest">
+            <input class="input" v-model="crDraft.title" data-test="cr-title" placeholder="Change request title (e.g. Add a bilingual blog)" />
+            <textarea class="input" v-model="crDraft.description" data-test="cr-description" placeholder="What is changing and why?"></textarea>
+            <div v-for="(row, i) in crDraft.items" :key="i" class="crnew__item">
+              <input class="input" v-model="row.description" :data-test="'cr-item-desc-' + i" placeholder="Line item" />
+              <input class="input input--sm" v-model="row.unit_price" :data-test="'cr-item-price-' + i" type="number" step="0.01" min="0" placeholder="£" />
+              <select class="input input--sm" v-model="row.kind">
+                <option value="fixed">Fixed</option>
+                <option value="optional">Optional</option>
+              </select>
+            </div>
+            <div class="crnew__actions">
+              <button type="button" class="btn btn--sm" data-test="cr-add-row" @click="crAddRow">Add line</button>
+              <button type="submit" class="btn btn--sm btn--primary" data-test="cr-create" :disabled="!crDraft.title.trim() || crBusy === 'create'">Create draft</button>
+            </div>
+          </form>
+
+          <div class="card list">
+            <div v-for="cr in changeRequests" :key="cr.uuid" class="crrow" :data-test="'cr-' + cr.status">
+              <div class="crrow__head" @click="crExpanded = crExpanded === cr.uuid ? null : cr.uuid">
+                <StatusPill :status="cr.status" />
+                <span class="crrow__title truncate">{{ cr.number || 'Draft' }} · {{ cr.title }}</span>
+                <span class="crrow__total">{{ crMoney(cr.total) }}</span>
+                <span v-if="cr.applied" class="chip">applied</span>
+              </div>
+              <div v-if="crExpanded === cr.uuid" class="crrow__body">
+                <p v-if="cr.description" class="faint">{{ cr.description }}</p>
+                <table class="crtable">
+                  <tr v-for="(it, k) in cr.items" :key="k">
+                    <td>{{ it.description }}<span v-if="it.kind === 'optional'" class="faint"> (optional)</span></td>
+                    <td class="crtable__amt">{{ crMoney(it.line_total) }}</td>
+                  </tr>
+                </table>
+                <p v-if="cr.acceptances.length" class="faint" data-test="cr-acceptance">
+                  {{ cr.acceptances[0].decision }} by {{ cr.acceptances[0].name }} · {{ crMoney(cr.acceptances[0].approved_total) }}
+                </p>
+                <div v-if="cr.public_url" class="paylink"><input class="input mono" :value="cr.public_url" readonly data-test="cr-public-url" @focus="($event.target as HTMLInputElement).select()" /></div>
+                <div class="crrow__actions" v-if="canManage">
+                  <button v-if="['draft','internal_review','ready'].includes(cr.status)" class="btn btn--sm btn--primary" data-test="cr-send" :disabled="crBusy === cr.uuid" @click="sendChangeRequest(cr)">Send to client</button>
+                  <button v-if="['sent','viewed'].includes(cr.status)" class="btn btn--sm" data-test="cr-record-approve" :disabled="crBusy === cr.uuid" @click="recordDecision(cr, 'approved')">Record approval</button>
+                  <button v-if="cr.status === 'approved' && !cr.applied && auth.can('admin')" class="btn btn--sm btn--primary" data-test="cr-apply" :disabled="crBusy === cr.uuid" @click="applyChangeRequest(cr)">Apply to project</button>
+                  <a v-if="cr.has_document" class="pdflink" :href="cr.download_url" target="_blank" rel="noopener" data-test="cr-download">Download PDF</a>
+                </div>
+              </div>
+            </div>
+            <p v-if="!changeRequests.length" class="faint" style="padding:var(--sp-3)">No change requests yet.</p>
+          </div>
         </section>
 
         <!-- Milestones -->
@@ -494,5 +605,17 @@ onMounted(load)
 .fmeta { font-size: var(--text-xs); white-space: nowrap; }
 .factions { display: inline-flex; gap: var(--sp-2); align-items: center; }
 .chip { font-size: 10px; padding: 1px 6px; border-radius: var(--r-pill); background: var(--paper-2); color: var(--ink-3); }
-@media (max-width: 820px) { .cols { grid-template-columns: 1fr; } .grid2 { grid-template-columns: 1fr; } }
+.crnew { display: flex; flex-direction: column; gap: var(--sp-2); margin-bottom: var(--sp-3); }
+.crnew__item { display: grid; grid-template-columns: 1fr 120px 120px; gap: var(--sp-2); }
+.crnew__actions { display: flex; gap: var(--sp-2); justify-content: flex-end; }
+.crrow + .crrow { border-top: 1px solid var(--line); }
+.crrow__head { display: flex; align-items: center; gap: var(--sp-3); padding: 10px var(--sp-3); cursor: pointer; }
+.crrow__title { flex: 1; font-size: var(--text-sm); }
+.crrow__total { font-weight: 700; white-space: nowrap; }
+.crrow__body { padding: 0 var(--sp-3) var(--sp-3); display: flex; flex-direction: column; gap: var(--sp-2); }
+.crrow__actions { display: flex; gap: var(--sp-2); align-items: center; flex-wrap: wrap; }
+.crtable { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
+.crtable td { padding: 4px 0; border-bottom: 1px solid var(--line); }
+.crtable__amt { text-align: right; white-space: nowrap; }
+@media (max-width: 820px) { .cols { grid-template-columns: 1fr; } .grid2 { grid-template-columns: 1fr; } .crnew__item { grid-template-columns: 1fr; } }
 </style>

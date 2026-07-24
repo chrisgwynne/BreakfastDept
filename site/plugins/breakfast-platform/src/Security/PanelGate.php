@@ -234,6 +234,28 @@ final class PanelGate
     }
 
     /**
+     * Change requests + scope control. Viewing follows CRM access; creating,
+     * editing a draft, moving through the state machine and sending require the
+     * 'manage' grant. Applying an approved change to the project (which adds
+     * value, generates tasks and drafts an invoice) is admin-only. Clients
+     * decide through a separate tokened public route.
+     */
+    public static function canViewChangeRequests(?User $user): bool
+    {
+        return self::canAccess($user);
+    }
+
+    public static function canManageChangeRequests(?User $user): bool
+    {
+        return self::canManage($user);
+    }
+
+    public static function canApplyChangeRequests(?User $user): bool
+    {
+        return $user !== null && $user->isAdmin();
+    }
+
+    /**
      * Credential vault. Viewing MASKED metadata follows the CRM 'manage' grant;
      * everything that touches a secret — create, edit a secret, reveal, copy,
      * rotate keys, view the access log — is admin-only and requires step-up

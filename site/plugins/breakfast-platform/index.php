@@ -639,6 +639,30 @@ Kirby::plugin('breakfast/platform', [
             },
         ],
 
+        // Authenticated staff download of a change request's frozen PDF. Streams
+        // the immutable document from the private store with a sha256 integrity
+        // check. Registered before the SPA catch-all.
+        [
+            'pattern' => 'breakfast-admin/change-requests/(:any)/download',
+            'method'  => 'GET',
+            'action'  => function (string $id) {
+                if (!\Breakfast\Platform\Security\PanelGate::canViewChangeRequests(kirby()->user())) {
+                    return new \Kirby\Http\Response('Not found', 'text/plain', 404);
+                }
+                try {
+                    $result = breakfast()->changeRequests()->download($id);
+                } catch (\Breakfast\Platform\ChangeRequests\ChangeRequestException $e) {
+                    return new \Kirby\Http\Response($e->getMessage(), 'text/plain', $e->status);
+                }
+
+                return new \Kirby\Http\Response($result['bytes'], 'application/pdf', 200, [
+                    'Content-Disposition' => 'attachment; filename="' . $result['filename'] . '"',
+                    'X-Content-Type-Options' => 'nosniff',
+                    'Cache-Control' => 'private, no-store',
+                ]);
+            },
+        ],
+
         // The standalone Breakfast Admin application shell. The Vue SPA is built to
         // public/breakfast-admin/ (base=/breakfast-admin/). Real built assets are
         // served directly by the web server; every other in-app path (deep links
@@ -925,6 +949,61 @@ Kirby::plugin('breakfast/platform', [
                 $svc->markViewed((string) $c['uuid']);
 
                 return new \Kirby\Http\Response(snippet('contract-sign', ['contract' => $svc->find((string) $c['uuid']), 'token' => $token], true), 'text/html', 200, [
+                    'X-Robots-Tag' => 'noindex, nofollow',
+                ]);
+            },
+        ],
+
+        // Public client change-request decision (POST /change/<token>/approve|reject).
+        // The opaque token is the capability; approval is explicit + evidenced.
+        // Registered before the GET view route.
+        [
+            'pattern' => 'change/(:any)/(approve|reject)',
+            'method'  => 'POST',
+            'action'  => function (string $token, string $verb) {
+                $svc = breakfast()->changeRequests();
+                $cr  = $svc->findByToken($token);
+                if ($cr === null) {
+                    return new \Kirby\Http\Response('Not found', 'text/plain', 404);
+                }
+                $decision = $verb === 'approve' ? 'approved' : 'rejected';
+                if ($decision === 'approved' && trim((string) get('name', '')) === '') {
+                    return new \Kirby\Http\Response('Please enter your name to approve.', 'text/plain', 422);
+                }
+                $ipHash = hash('sha256', (string) (kirby()->option('breakfast.webhookSecret', '') ?? '') . '|' . (string) (kirby()->visitor()->ip() ?? ''));
+                try {
+                    $svc->decide((string) $cr['uuid'], $decision, [
+                        'name'       => (string) get('name', ''),
+                        'email'      => (string) get('email', ''),
+                        'comment'    => (string) get('comment', ''),
+                        'ip_hash'    => $ipHash,
+                        'user_agent' => (string) (kirby()->request()->header('User-Agent') ?? ''),
+                        'token_id'   => substr($token, 0, 8),
+                    ], 'client');
+                } catch (\Breakfast\Platform\ChangeRequests\ChangeRequestException $e) {
+                    return new \Kirby\Http\Response($e->getMessage(), 'text/plain', $e->status);
+                }
+
+                return \Kirby\Http\Response::redirect(rtrim((string) kirby()->site()->url(), '/') . '/change/' . $token);
+            },
+        ],
+
+        // Hosted client change-request page (/change/<token>). Viewing marks it
+        // 'viewed' (never approved). No login required.
+        [
+            'pattern' => 'change/(:any)',
+            'method'  => 'GET',
+            'action'  => function (string $token) {
+                $svc = breakfast()->changeRequests();
+                $cr  = $svc->findByToken($token);
+                if ($cr === null) {
+                    $error = kirby()->site()->errorPage();
+
+                    return new \Kirby\Http\Response($error !== null ? $error->render() : 'Not found', 'text/html', 404);
+                }
+                $svc->markViewed((string) $cr['uuid']);
+
+                return new \Kirby\Http\Response(snippet('change-request', ['cr' => $svc->find((string) $cr['uuid']), 'token' => $token], true), 'text/html', 200, [
                     'X-Robots-Tag' => 'noindex, nofollow',
                 ]);
             },
