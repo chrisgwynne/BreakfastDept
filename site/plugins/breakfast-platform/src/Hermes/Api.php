@@ -313,6 +313,59 @@ final class Api
         return ['status' => 201, 'body' => ['event' => ['uuid' => $event['uuid'], 'title' => $event['title'], 'status' => $event['status']]], 'target_type' => 'calendar_event', 'target_uuid' => $event['uuid']];
     }
 
+    /**
+     * Create a lead through the same validated, transactional, audited service a
+     * human uses. Hermes cannot delete, merge or edit protected fields.
+     *
+     * @param array<string,string> $m
+     * @param array<string,mixed> $in
+     * @return array<string,mixed>
+     */
+    private function createLead(array $m, array $in, Credential $c): array
+    {
+        try {
+            $result = (new \Breakfast\Platform\Admin\CrmWrite($this->platform))->createLead($in, 'hermes:' . $c->id);
+        } catch (\Breakfast\Platform\Admin\ApiException $e) {
+            return ['status' => $e->status, 'body' => ['error' => 'invalid', 'fields' => $e->fields]];
+        }
+        $enquiry = is_array($result['enquiry']) ? $result['enquiry'] : [];
+
+        return ['status' => 201, 'body' => ['lead' => ['uuid' => $enquiry['uuid'] ?? null, 'reference' => $enquiry['reference'] ?? null]], 'target_type' => 'enquiry', 'target_uuid' => (string) ($enquiry['uuid'] ?? '')];
+    }
+
+    /**
+     * @param array<string,string> $m
+     * @param array<string,mixed> $in
+     * @return array<string,mixed>
+     */
+    private function createContactRecord(array $m, array $in, Credential $c): array
+    {
+        try {
+            $result = (new \Breakfast\Platform\Admin\CrmWrite($this->platform))->createContact($in, 'hermes:' . $c->id);
+        } catch (\Breakfast\Platform\Admin\ApiException $e) {
+            return ['status' => $e->status, 'body' => ['error' => 'invalid', 'fields' => $e->fields]];
+        }
+        $contact = is_array($result['contact']) ? $result['contact'] : [];
+
+        return ['status' => 201, 'body' => ['contact' => ['uuid' => $contact['uuid'] ?? null]], 'target_type' => 'contact', 'target_uuid' => (string) ($contact['uuid'] ?? '')];
+    }
+
+    /**
+     * @param array<string,string> $m
+     * @param array<string,mixed> $in
+     * @return array<string,mixed>
+     */
+    private function createCompanyRecord(array $m, array $in, Credential $c): array
+    {
+        try {
+            $company = (new \Breakfast\Platform\Admin\CrmWrite($this->platform))->createCompany($in, 'hermes:' . $c->id);
+        } catch (\Breakfast\Platform\Admin\ApiException $e) {
+            return ['status' => $e->status, 'body' => ['error' => 'invalid', 'fields' => $e->fields]];
+        }
+
+        return ['status' => 201, 'body' => ['company' => ['uuid' => $company['uuid'] ?? null, 'name' => $company['name'] ?? null]], 'target_type' => 'company', 'target_uuid' => (string) ($company['uuid'] ?? '')];
+    }
+
     /** @return array<string,mixed> */
     private function updateTask(array $m, array $in, Credential $c): array
     {
@@ -562,6 +615,9 @@ final class Api
             ['method' => 'POST',  'pattern' => '/crm/tasks',                       'scope' => Scopes::CRM_TASKS,     'handler' => 'createTask'],
             ['method' => 'PATCH', 'pattern' => '/crm/tasks/{uuid}',                'scope' => Scopes::CRM_TASKS,     'handler' => 'updateTask'],
             ['method' => 'POST',  'pattern' => '/calendar/events',                 'scope' => Scopes::CALENDAR_CREATE, 'handler' => 'createCalendarEvent'],
+            ['method' => 'POST',  'pattern' => '/crm/leads',                       'scope' => Scopes::CRM_LEADS_CREATE,     'handler' => 'createLead'],
+            ['method' => 'POST',  'pattern' => '/crm/contacts',                    'scope' => Scopes::CRM_CONTACTS_CREATE,  'handler' => 'createContactRecord'],
+            ['method' => 'POST',  'pattern' => '/crm/companies',                   'scope' => Scopes::CRM_COMPANIES_CREATE, 'handler' => 'createCompanyRecord'],
             ['method' => 'POST',  'pattern' => '/drafts/journal',                  'scope' => Scopes::CONTENT_DRAFT, 'handler' => 'draftJournal'],
             ['method' => 'POST',  'pattern' => '/drafts/project',                  'scope' => Scopes::CONTENT_DRAFT, 'handler' => 'draftProject'],
             ['method' => 'POST',  'pattern' => '/drafts/page',                     'scope' => Scopes::CONTENT_DRAFT, 'handler' => 'draftPage'],

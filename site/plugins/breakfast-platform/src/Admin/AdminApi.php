@@ -86,6 +86,7 @@ final class AdminApi
             'hermes'        => $this->hermes($method, $seg, $user),
             'invoices'      => $this->invoices($method, $seg, $user),
             'calendar'      => $this->calendar($method, $seg, $user),
+            'search'        => $this->search(),
             'settings'      => $this->settings($method, $seg, $user),
             'reports'       => $this->reports(),
             'operations'    => $this->operations($user),
@@ -1286,6 +1287,20 @@ final class AdminApi
         }
 
         return $row;
+    }
+
+    /**
+     * Global search across CRM entities. Guarded by admin access (the route()
+     * gate already enforces authentication); results carry the in-app route.
+     *
+     * @return array<string,mixed>
+     */
+    private function search(): array
+    {
+        $q       = (string) ($this->query()['q'] ?? '');
+        $results = (new \Breakfast\Platform\Crm\SearchService($this->platform->db()))->search($q);
+
+        return ['items' => $results, 'total' => count($results), 'query' => $q];
     }
 
     /** @return array<string,mixed> */

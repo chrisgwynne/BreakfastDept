@@ -18,6 +18,12 @@ final class Scopes
     public const CRM_TASKS     = 'crm:tasks';
     public const CRM_CLASSIFY  = 'crm:classify';
     public const CRM_EXPORT    = 'crm:export';
+    // CRM record creation — Hermes may CREATE new leads/contacts/companies through
+    // the same validated, transactional, audited service a human uses. It may
+    // never delete, merge, or edit protected/financial fields.
+    public const CRM_LEADS_CREATE     = 'crm:leads:create';
+    public const CRM_CONTACTS_CREATE  = 'crm:contacts:create';
+    public const CRM_COMPANIES_CREATE = 'crm:companies:create';
     public const WEBHOOKS_TEST = 'webhooks:test';
 
     // Client Previews — read/summarise/analyse and DRAFT only. Hermes may never
@@ -46,6 +52,9 @@ final class Scopes
             self::CRM_TASKS,
             self::CRM_CLASSIFY,
             self::CRM_EXPORT,
+            self::CRM_LEADS_CREATE,
+            self::CRM_CONTACTS_CREATE,
+            self::CRM_COMPANIES_CREATE,
             self::WEBHOOKS_TEST,
             self::PREVIEWS_SUMMARY,
             self::PREVIEWS_READ,

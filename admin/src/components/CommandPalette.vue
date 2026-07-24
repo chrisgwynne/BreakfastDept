@@ -2,6 +2,7 @@
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '@/stores/auth'
+import { api } from '@/lib/api'
 import NavIcon from '@/components/NavIcon.vue'
 
 const router = useRouter()
@@ -12,6 +13,30 @@ const active = ref(0)
 const inputEl = ref<HTMLInputElement | null>(null)
 
 interface Command { label: string; hint: string; icon: string; to: string; perm?: string }
+interface SearchHit { type: string; id: string; title: string; subtitle: string; route: string }
+
+const TYPE_ICON: Record<string, string> = {
+  contact: 'users', company: 'users', lead: 'inbox', opportunity: 'columns',
+  task: 'check', invoice: 'receipt', preview: 'window', event: 'calendar',
+}
+const hits = ref<SearchHit[]>([])
+let searchSeq = 0
+let searchTimer: ReturnType<typeof setTimeout> | null = null
+
+watch(query, (q) => {
+  if (searchTimer) clearTimeout(searchTimer)
+  const term = q.trim()
+  if (term.length < 2) { hits.value = []; return }
+  searchTimer = setTimeout(async () => {
+    const seq = ++searchSeq
+    try {
+      const res = await api.get<{ items: SearchHit[] }>(`/search?q=${encodeURIComponent(term)}`)
+      if (seq === searchSeq) hits.value = res.items
+    } catch {
+      if (seq === searchSeq) hits.value = []
+    }
+  }, 180)
+})
 
 const commands: Command[] = [
   { label: 'Dashboard', hint: 'Overview', icon: 'grid', to: '/' },
@@ -30,12 +55,18 @@ const commands: Command[] = [
   { label: 'Settings', hint: 'Your account', icon: 'cog', to: '/settings' },
 ]
 
-const results = computed(() => {
+interface Item { kind: 'nav' | 'hit'; label: string; sub: string; icon: string; route: string }
+
+const navItems = computed<Item[]>(() => {
   const q = query.value.trim().toLowerCase()
   const allowed = commands.filter((c) => !c.perm || auth.can(c.perm))
-  if (!q) return allowed
-  return allowed.filter((c) => (c.label + ' ' + c.hint).toLowerCase().includes(q))
+  const matched = q ? allowed.filter((c) => (c.label + ' ' + c.hint).toLowerCase().includes(q)) : allowed
+  return matched.map((c) => ({ kind: 'nav', label: c.label, sub: c.hint, icon: c.icon, route: c.to }))
 })
+const hitItems = computed<Item[]>(() =>
+  hits.value.map((h) => ({ kind: 'hit', label: h.title, sub: h.subtitle || h.type, icon: TYPE_ICON[h.type] || 'search', route: h.route })))
+
+const results = computed<Item[]>(() => [...navItems.value, ...hitItems.value])
 
 watch(results, () => { active.value = 0 })
 
@@ -44,15 +75,16 @@ function toggle(show: boolean) {
   if (show) {
     query.value = ''
     active.value = 0
+    hits.value = []
     nextTick(() => inputEl.value?.focus())
   }
 }
 
-function choose(cmd?: Command) {
-  const target = cmd ?? results.value[active.value]
+function choose(item?: Item) {
+  const target = item ?? results.value[active.value]
   if (!target) return
   toggle(false)
-  if (router.currentRoute.value.path !== target.to) router.push(target.to)
+  if (router.currentRoute.value.path !== target.route) router.push(target.route)
 }
 
 function onKeydown(e: KeyboardEvent) {
@@ -85,11 +117,11 @@ defineExpose({ open: () => toggle(true) })
             <kbd class="cp__kbd">esc</kbd>
           </div>
           <ul class="cp__list">
-            <li v-for="(c, i) in results" :key="c.to" class="cp__item" :class="{ 'cp__item--active': i === active }"
+            <li v-for="(c, i) in results" :key="c.kind + c.route + i" class="cp__item" :class="{ 'cp__item--active': i === active }"
                 @mouseenter="active = i" @click="choose(c)">
               <span class="cp__itemicon"><NavIcon :name="c.icon" /></span>
-              <span class="cp__label">{{ c.label }}</span>
-              <span class="cp__hint">{{ c.hint }}</span>
+              <span class="cp__label">{{ c.label }}<span v-if="c.kind === 'hit'" class="cp__tag">{{ c.sub }}</span></span>
+              <span v-if="c.kind === 'nav'" class="cp__hint">{{ c.sub }}</span>
             </li>
             <li v-if="!results.length" class="cp__none">No matches for “{{ query }}”.</li>
           </ul>
@@ -117,5 +149,7 @@ defineExpose({ open: () => toggle(true) })
 .cp__item--active .cp__itemicon { color: var(--purple); }
 .cp__label { font-weight: 550; font-size: var(--text-base); }
 .cp__hint { margin-left: auto; font-size: var(--text-xs); color: var(--ink-3); }
+.cp__tag { margin-left: 8px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-3);
+  background: var(--paper-2); padding: 1px 6px; border-radius: 99px; }
 .cp__none { padding: var(--sp-6); text-align: center; color: var(--ink-3); font-size: var(--text-sm); }
 </style>

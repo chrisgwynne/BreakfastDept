@@ -116,7 +116,7 @@ final class HermesAdminTest extends TestCase
     public function testScopeCatalogueGroupedAndComplete(): void
     {
         $scopes = $this->hermes()->scopes();
-        $this->assertSame(14, $scopes['total']);
+        $this->assertSame(17, $scopes['total']);
         $this->assertNotEmpty($scopes['groups']);
 
         $domains = array_column($scopes['groups'], 'domain');
