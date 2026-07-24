@@ -280,6 +280,14 @@ final class Platform
         return $this->service(AuditLog::class, fn () => new AuditLog($this->db()));
     }
 
+    public function calendar(): \Breakfast\Platform\Calendar\CalendarService
+    {
+        return $this->service(\Breakfast\Platform\Calendar\CalendarService::class, fn () => new \Breakfast\Platform\Calendar\CalendarService(
+            $this->db(),
+            $this->activities()
+        ));
+    }
+
     public function settings(): \Breakfast\Platform\Settings\SettingsStore
     {
         return $this->service(\Breakfast\Platform\Settings\SettingsStore::class, fn () => new \Breakfast\Platform\Settings\SettingsStore(
