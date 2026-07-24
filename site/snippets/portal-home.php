@@ -9,11 +9,18 @@
  * @var array<string,mixed> $identity
  * @var list<array<string,mixed>> $projects
  * @var list<array<string,mixed>> $previews
+ * @var array<string,mixed> $documents
  */
 $e = static fn ($v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
 $base = rtrim((string) kirby()->site()->url(), '/');
 $name = trim((string) ($identity['display_name'] ?? '')) ?: (string) ($identity['email'] ?? 'there');
 $previews = $previews ?? [];
+$documents = $documents ?? ['proposals' => [], 'contracts' => [], 'invoices' => []];
+$money = static fn ($p): string => '£' . number_format(((int) $p) / 100, 2);
+$docProposals = is_array($documents['proposals'] ?? null) ? $documents['proposals'] : [];
+$docContracts = is_array($documents['contracts'] ?? null) ? $documents['contracts'] : [];
+$docInvoices = is_array($documents['invoices'] ?? null) ? $documents['invoices'] : [];
+$hasDocs = count($docProposals) || count($docContracts) || count($docInvoices);
 ?><!doctype html>
 <html lang="en-GB">
 <head>
@@ -48,6 +55,12 @@ $previews = $previews ?? [];
   .prev__meta { color:var(--muted); font-size:13px; }
   .prev__go { margin-left:auto; color:var(--purple); font-size:14px; font-weight:600; }
   .lock { font-size:11px; padding:1px 8px; border-radius:99px; background:#efe9db; color:var(--muted); margin-left:6px; }
+  .doc { display:flex; align-items:center; gap:12px; background:var(--paper); border:1px solid var(--line); border-radius:10px; padding:12px 16px; margin-bottom:8px; text-decoration:none; color:inherit; }
+  .doc:hover { border-color:var(--ink); }
+  .doc__kind { font-size:11px; text-transform:uppercase; letter-spacing:.5px; color:var(--muted); width:74px; flex:none; }
+  .doc__name { font-weight:600; }
+  .doc__status { margin-left:auto; }
+  .doc__amt { font-weight:700; white-space:nowrap; min-width:80px; text-align:right; }
 </style>
 </head>
 <body>
@@ -88,6 +101,36 @@ $previews = $previews ?? [];
           <span class="prev__go">View →</span>
         </a>
       <?php endforeach; ?>
+    <?php endif; ?>
+
+    <?php if ($hasDocs): ?>
+      <h2>Documents</h2>
+      <div data-test="portal-documents">
+        <?php foreach ($docProposals as $d): ?>
+          <a class="doc" data-test="portal-doc-proposal" href="<?= $e($d['url'] ?? '') ?>" target="_blank" rel="noopener">
+            <span class="doc__kind">Proposal</span>
+            <span class="doc__name"><?= $e($d['title'] ?? '') ?></span>
+            <span class="pill doc__status"><?= $e(str_replace('_', ' ', (string) ($d['status'] ?? ''))) ?></span>
+            <span class="doc__amt"><?= $e($money($d['total'] ?? 0)) ?></span>
+          </a>
+        <?php endforeach; ?>
+        <?php foreach ($docContracts as $d): ?>
+          <a class="doc" data-test="portal-doc-contract" href="<?= $e($d['url'] ?? '') ?>" target="_blank" rel="noopener">
+            <span class="doc__kind">Contract</span>
+            <span class="doc__name"><?= $e($d['title'] ?? '') ?></span>
+            <span class="pill doc__status"><?= $e(str_replace('_', ' ', (string) ($d['status'] ?? ''))) ?></span>
+            <span class="doc__amt"><?= $e($money($d['total'] ?? 0)) ?></span>
+          </a>
+        <?php endforeach; ?>
+        <?php foreach ($docInvoices as $d): ?>
+          <a class="doc" data-test="portal-doc-invoice" href="<?= $e($d['url'] ?? '') ?>" target="_blank" rel="noopener">
+            <span class="doc__kind">Invoice</span>
+            <span class="doc__name"><?= $e($d['number'] ?? '') ?></span>
+            <span class="pill doc__status"><?= $e(str_replace('_', ' ', (string) ($d['status'] ?? ''))) ?></span>
+            <span class="doc__amt"><?= $e($money($d['total'] ?? 0)) ?></span>
+          </a>
+        <?php endforeach; ?>
+      </div>
     <?php endif; ?>
   </div>
 </body>

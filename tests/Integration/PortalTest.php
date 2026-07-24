@@ -297,6 +297,39 @@ final class PortalTest extends TestCase
         $this->assertSame('resolved', (string) $resolved['status']);
     }
 
+    public function testAccessibleDocumentsAreScopedAndSentOnly(): void
+    {
+        $p = breakfast();
+        $contact = (string) $p->portal()->findIdentity($this->identity)['contact_uuid'];
+
+        // A sent proposal for this client, and a draft one (must not appear).
+        $sent = $p->proposals()->create([
+            'title' => 'Website build proposal', 'client_name' => 'Sian', 'client_email' => 'sian@roberts.example', 'contact_uuid' => $contact,
+            'items' => [['kind' => 'fixed', 'description' => 'Build', 'quantity' => 1, 'unit_price' => 2000, 'tax_rate' => 0]],
+        ], 'staff@breakfast');
+        $p->proposals()->send((string) $sent['uuid'], 'staff@breakfast', ['company_legal_name' => 'Breakfast Ltd', 'proposal_prefix' => 'PRO']);
+        $p->proposals()->create([
+            'title' => 'Draft never sent', 'client_name' => 'Sian', 'client_email' => 'sian@roberts.example', 'contact_uuid' => $contact,
+            'items' => [['kind' => 'fixed', 'description' => 'x', 'quantity' => 1, 'unit_price' => 10, 'tax_rate' => 0]],
+        ], 'staff@breakfast');
+
+        $docs = $p->portal()->accessibleDocuments($this->identity);
+        $titles = array_map(static fn (array $d): string => (string) $d['title'], $docs['proposals']);
+        $this->assertContains('Website build proposal', $titles);
+        $this->assertNotContains('Draft never sent', $titles, 'unsent drafts are never exposed to the client');
+        $this->assertStringContainsString('/proposal/', (string) $docs['proposals'][0]['url']);
+
+        // A different contact's proposal is not visible to this identity.
+        $other = (string) $p->contacts()->create(['display_name' => 'Other', 'email' => 'o@x.co'])['uuid'];
+        $op = $p->proposals()->create([
+            'title' => 'Someone else’s proposal', 'client_name' => 'O', 'client_email' => 'o@x.co', 'contact_uuid' => $other,
+            'items' => [['kind' => 'fixed', 'description' => 'y', 'quantity' => 1, 'unit_price' => 50, 'tax_rate' => 0]],
+        ], 'staff@breakfast');
+        $p->proposals()->send((string) $op['uuid'], 'staff@breakfast', ['company_legal_name' => 'Breakfast Ltd', 'proposal_prefix' => 'PRO']);
+        $stillTitles = array_map(static fn (array $d): string => (string) $d['title'], $p->portal()->accessibleDocuments($this->identity)['proposals']);
+        $this->assertNotContains('Someone else’s proposal', $stillTitles);
+    }
+
     public function testTwoWayMessagingWithReadTracking(): void
     {
         $p = breakfast();

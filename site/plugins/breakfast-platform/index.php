@@ -1126,8 +1126,9 @@ Kirby::plugin('breakfast/platform', [
                 }
                 $projects = breakfast()->portal()->accessibleProjects((string) $identity['uuid']);
                 $previews = breakfast()->portal()->accessiblePreviews((string) $identity['uuid']);
+                $documents = breakfast()->portal()->accessibleDocuments((string) $identity['uuid']);
 
-                return new \Kirby\Http\Response(snippet('portal-home', ['identity' => $identity, 'projects' => $projects, 'previews' => $previews], true), 'text/html', 200, ['X-Robots-Tag' => 'noindex, nofollow', 'Cache-Control' => 'private, no-store']);
+                return new \Kirby\Http\Response(snippet('portal-home', ['identity' => $identity, 'projects' => $projects, 'previews' => $previews, 'documents' => $documents], true), 'text/html', 200, ['X-Robots-Tag' => 'noindex, nofollow', 'Cache-Control' => 'private, no-store']);
             },
         ],
 

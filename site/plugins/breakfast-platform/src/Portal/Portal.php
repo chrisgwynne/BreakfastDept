@@ -405,6 +405,58 @@ final class Portal
         }, $rows);
     }
 
+    /**
+     * The client's own commercial documents — proposals, contracts and invoices
+     * — surfaced in the portal for self-service viewing. Scoped to the identity's
+     * contact and to statuses the client has legitimately been sent, each linking
+     * to its existing tokened hosted page. Drafts and internal states never
+     * appear. Money is returned in pence.
+     *
+     * @return array{proposals:list<array<string,mixed>>,contracts:list<array<string,mixed>>,invoices:list<array<string,mixed>>}
+     */
+    public function accessibleDocuments(string $identityUuid): array
+    {
+        $identity = $this->findIdentity($identityUuid);
+        $contact = (string) ($identity['contact_uuid'] ?? '');
+        if ($contact === '') {
+            return ['proposals' => [], 'contracts' => [], 'invoices' => []];
+        }
+        $proposals = $this->db()->all(
+            "SELECT number, title, status, total, public_token FROM proposals
+             WHERE contact_uuid = :c AND public_token <> '' AND status IN ('sent','viewed','accepted','declined')
+             ORDER BY created_at DESC LIMIT 50",
+            ['c' => $contact]
+        );
+        $contracts = $this->db()->all(
+            "SELECT number, title, status, contract_value, public_token FROM contracts
+             WHERE contact_uuid = :c AND public_token <> '' AND status IN ('sent','viewed','signed','completed','declined')
+             ORDER BY created_at DESC LIMIT 50",
+            ['c' => $contact]
+        );
+        $invoices = $this->db()->all(
+            "SELECT number, status, total, public_token FROM invoices
+             WHERE contact_uuid = :c AND public_token <> '' AND status IN ('issued','part_paid','paid','overdue','void')
+             ORDER BY created_at DESC LIMIT 50",
+            ['c' => $contact]
+        );
+        $base = rtrim((string) kirby()->site()->url(), '/');
+
+        return [
+            'proposals' => array_map(static fn (array $p): array => [
+                'title' => (string) ($p['title'] ?? '') ?: (string) ($p['number'] ?? 'Proposal'), 'number' => (string) ($p['number'] ?? ''),
+                'status' => (string) ($p['status'] ?? ''), 'total' => (int) ($p['total'] ?? 0), 'url' => $base . '/proposal/' . (string) $p['public_token'],
+            ], $proposals),
+            'contracts' => array_map(static fn (array $c): array => [
+                'title' => (string) ($c['title'] ?? '') ?: (string) ($c['number'] ?? 'Contract'), 'number' => (string) ($c['number'] ?? ''),
+                'status' => (string) ($c['status'] ?? ''), 'total' => (int) ($c['contract_value'] ?? 0), 'url' => $base . '/contract/' . (string) $c['public_token'],
+            ], $contracts),
+            'invoices' => array_map(static fn (array $i): array => [
+                'number' => (string) ($i['number'] ?? 'Invoice'), 'status' => (string) ($i['status'] ?? ''),
+                'total' => (int) ($i['total'] ?? 0), 'url' => $base . '/invoice/' . (string) $i['public_token'],
+            ], $invoices),
+        ];
+    }
+
     // ==================================================================
     // Feedback & approvals (client voice → delivery)
     // ==================================================================
