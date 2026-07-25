@@ -3817,6 +3817,19 @@ final class AdminApi
             if ($id === 'counts' && $method === 'GET') {
                 return $svc->counts();
             }
+            // ---- Global taxonomy list / create ----
+            if ($id === 'taxonomies') {
+                if ($method === 'GET') {
+                    $kind = $this->query()['kind'] ?? null;
+                    return ['items' => $svc->taxonomies($kind !== '' ? $kind : null)];
+                }
+                if ($method === 'POST') {
+                    $requireManage();
+                    return $svc->createTaxonomy($this->body(), $actor);
+                }
+                throw new ApiException(405, 'Method not allowed.', 'method');
+            }
+
             if ($id === 'homepage') {
                 if ($method === 'GET') {
                     return ['items' => $svc->list(['on_homepage' => true])];
@@ -3873,6 +3886,72 @@ final class AdminApi
                 $this->platform->audit()->event('portfolio.duplicated', 'portfolio', (string) $rec['uuid'], $actor, ['from' => $id]);
 
                 return $rec;
+            }
+
+            // ---- Child entities: story / blocks / results / media / taxonomies ----
+            if (in_array($action, ['story', 'blocks', 'results', 'media', 'taxonomies'], true)) {
+                $requireManage();
+                $sub  = $seg[3] ?? '';
+                $sub2 = $seg[4] ?? '';
+                $body = $this->body();
+
+                if ($action === 'story') {
+                    if ($sub !== '' && in_array($method, ['POST', 'PUT', 'PATCH'], true)) {
+                        return $svc->upsertStorySection($id, $sub, $body, $actor);
+                    }
+                } elseif ($action === 'blocks') {
+                    if ($sub === '' && $method === 'POST') {
+                        return $svc->addBlock($id, $body, $actor);
+                    }
+                    if ($sub === 'reorder' && $method === 'POST') {
+                        $svc->reorderBlocks($id, (array) ($body['order'] ?? []), $actor);
+                        return ['ok' => true];
+                    }
+                    if ($sub !== '' && $sub2 === '' && $method === 'PATCH') {
+                        return $svc->updateBlock($sub, $body, $actor);
+                    }
+                    if ($sub !== '' && $sub2 === '' && $method === 'DELETE') {
+                        return $svc->setBlockDeleted($sub, true, $actor);
+                    }
+                    if ($sub !== '' && $sub2 === 'restore' && $method === 'POST') {
+                        return $svc->setBlockDeleted($sub, false, $actor);
+                    }
+                    if ($sub !== '' && in_array($sub2, ['hide', 'show'], true) && $method === 'POST') {
+                        return $svc->updateBlock($sub, ['visible' => $sub2 === 'show'], $actor);
+                    }
+                } elseif ($action === 'results') {
+                    if ($sub === '' && $method === 'POST') {
+                        return $svc->addResult($id, $body, $actor);
+                    }
+                    if ($sub !== '' && $method === 'DELETE') {
+                        $svc->deleteResult($sub, $actor);
+                        return ['ok' => true];
+                    }
+                } elseif ($action === 'media') {
+                    if ($sub === '' && $method === 'POST') {
+                        return $svc->attachMedia($id, $body, $actor);
+                    }
+                    if ($sub === 'reorder' && $method === 'POST') {
+                        $svc->reorderMedia($id, (array) ($body['order'] ?? []), $actor);
+                        return ['ok' => true];
+                    }
+                    if ($sub !== '' && $sub2 === '' && $method === 'PATCH') {
+                        return $svc->updateMedia($sub, $body, $actor);
+                    }
+                    if ($sub !== '' && $sub2 === 'approve' && $method === 'POST') {
+                        return $svc->approveMedia($sub, (bool) ($body['approved'] ?? true), $body, $actor);
+                    }
+                    if ($sub !== '' && $sub2 === 'archive' && $method === 'POST') {
+                        $svc->archiveMedia($sub, (bool) ($body['archived'] ?? true), $actor);
+                        return ['ok' => true];
+                    }
+                } elseif ($action === 'taxonomies') {
+                    if ($method === 'POST') {
+                        $svc->setRecordTaxonomies($id, (array) ($body['taxonomies'] ?? []), $actor);
+                        return ['ok' => true];
+                    }
+                }
+                throw new ApiException(405, 'Method not allowed for that portfolio sub-resource.', 'method');
             }
 
             // ---- Transitions ----

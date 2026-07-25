@@ -25,6 +25,17 @@ final class Portfolio
 {
     private const PLACEHOLDER_PATTERNS = ['lorem ipsum', 'todo', 'tbc', 'placeholder', 'xxxx', 'lorem'];
 
+    /** The fixed set of structured story sections. */
+    public const STORY_KEYS = ['client', 'problem', 'objective', 'approach', 'work', 'outcome', 'client_response', 'next'];
+
+    /** Allow-listed modular block types — no arbitrary/code blocks are permitted. */
+    public const BLOCK_TYPES = [
+        'full_image', 'browser_mock', 'mobile_mock', 'device_pair', 'image_grid', 'before_after',
+        'text_image', 'quote', 'stats', 'service_list', 'palette', 'typography', 'logo',
+        'challenge', 'solution', 'testimonial', 'video', 'website_link', 'next_project',
+        'colour_panel', 'carousel', 'caption', 'spacer',
+    ];
+
     public function __construct(private readonly Database $db)
     {
     }
@@ -497,6 +508,341 @@ final class Portfolio
     }
 
     // ==================================================================
+    // Story sections
+    // ==================================================================
+
+    /**
+     * Insert or update one structured story section (keyed by section_key).
+     *
+     * @param array<string,mixed> $data heading, body, visible, layout, sort_order
+     * @return array<string,mixed>
+     */
+    public function upsertStorySection(string $recordUuid, string $key, array $data, string $actor): array
+    {
+        if (!in_array($key, self::STORY_KEYS, true)) {
+            throw new PortfolioException(422, 'Unknown story section.', 'invalid_section');
+        }
+        $this->assertRecordExists($recordUuid);
+        $body = $this->sanitiseRich((string) ($data['body'] ?? ''));
+        $now = Clock::nowIso();
+        $existing = $this->db->one('SELECT uuid FROM portfolio_story_sections WHERE record_uuid = :r AND section_key = :k', ['r' => $recordUuid, 'k' => $key]);
+        if ($existing === null) {
+            $this->db->run(
+                'INSERT INTO portfolio_story_sections (uuid, record_uuid, section_key, heading, body, visible, layout, sort_order)
+                 VALUES (:id,:r,:k,:h,:b,:v,:l,:o)',
+                ['id' => Uuid::v4(), 'r' => $recordUuid, 'k' => $key, 'h' => (string) ($data['heading'] ?? ''), 'b' => $body,
+                 'v' => (int) (bool) ($data['visible'] ?? true), 'l' => (string) ($data['layout'] ?? 'standard'),
+                 'o' => (int) ($data['sort_order'] ?? array_search($key, self::STORY_KEYS, true))]
+            );
+        } else {
+            $this->db->run(
+                'UPDATE portfolio_story_sections SET heading = :h, body = :b, visible = :v, layout = :l, sort_order = :o WHERE uuid = :id',
+                ['id' => $existing['uuid'], 'h' => (string) ($data['heading'] ?? ''), 'b' => $body,
+                 'v' => (int) (bool) ($data['visible'] ?? true), 'l' => (string) ($data['layout'] ?? 'standard'),
+                 'o' => (int) ($data['sort_order'] ?? array_search($key, self::STORY_KEYS, true))]
+            );
+        }
+        $this->touch($recordUuid, $actor, $now);
+
+        return $this->db->one('SELECT * FROM portfolio_story_sections WHERE record_uuid = :r AND section_key = :k', ['r' => $recordUuid, 'k' => $key]) ?? [];
+    }
+
+    // ==================================================================
+    // Blocks (modular page builder)
+    // ==================================================================
+
+    /**
+     * @param array<string,mixed> $data type, content, options, media_refs, visible
+     * @return array<string,mixed>
+     */
+    public function addBlock(string $recordUuid, array $data, string $actor): array
+    {
+        $type = (string) ($data['type'] ?? '');
+        if (!in_array($type, self::BLOCK_TYPES, true)) {
+            throw new PortfolioException(422, 'Unknown block type.', 'invalid_block');
+        }
+        $this->assertRecordExists($recordUuid);
+        $now = Clock::nowIso();
+        $uuid = Uuid::v4();
+        $next = (int) $this->db->scalar('SELECT COALESCE(MAX(sort_order), -1) + 1 FROM portfolio_blocks WHERE record_uuid = :r', ['r' => $recordUuid]);
+        $this->db->run(
+            'INSERT INTO portfolio_blocks (uuid, record_uuid, type, sort_order, visible, content, options, media_refs, revision, created_at, updated_at)
+             VALUES (:id,:r,:t,:o,1,:c,:opt,:m,1,:now,:now)',
+            ['id' => $uuid, 'r' => $recordUuid, 't' => $type, 'o' => $next,
+             'c' => $this->encodeJson($data['content'] ?? []), 'opt' => $this->encodeJson($data['options'] ?? []),
+             'm' => $this->encodeJson(array_values(array_map('strval', (array) ($data['media_refs'] ?? [])))), 'now' => $now]
+        );
+        $this->touch($recordUuid, $actor, $now);
+
+        return $this->db->one('SELECT * FROM portfolio_blocks WHERE uuid = :u', ['u' => $uuid]) ?? [];
+    }
+
+    /**
+     * @param array<string,mixed> $data
+     * @return array<string,mixed>
+     */
+    public function updateBlock(string $blockUuid, array $data, string $actor): array
+    {
+        $block = $this->db->one('SELECT * FROM portfolio_blocks WHERE uuid = :u', ['u' => $blockUuid]);
+        if ($block === null) {
+            throw new PortfolioException(404, 'Block not found.', 'not_found');
+        }
+        $set = ['revision = revision + 1', 'updated_at = :now'];
+        $params = ['u' => $blockUuid, 'now' => Clock::nowIso()];
+        if (array_key_exists('content', $data)) {
+            $set[] = 'content = :c';
+            $params['c'] = $this->encodeJson($data['content']);
+        }
+        if (array_key_exists('options', $data)) {
+            $set[] = 'options = :opt';
+            $params['opt'] = $this->encodeJson($data['options']);
+        }
+        if (array_key_exists('media_refs', $data)) {
+            $set[] = 'media_refs = :m';
+            $params['m'] = $this->encodeJson(array_values(array_map('strval', (array) $data['media_refs'])));
+        }
+        if (array_key_exists('visible', $data)) {
+            $set[] = 'visible = :v';
+            $params['v'] = (int) (bool) $data['visible'];
+        }
+        $this->db->run('UPDATE portfolio_blocks SET ' . implode(', ', $set) . ' WHERE uuid = :u', $params);
+        $this->touch((string) $block['record_uuid'], $actor, (string) $params['now']);
+
+        return $this->db->one('SELECT * FROM portfolio_blocks WHERE uuid = :u', ['u' => $blockUuid]) ?? [];
+    }
+
+    /**
+     * Reorder blocks. Any block uuid not listed keeps its relative order after
+     * the listed ones.
+     *
+     * @param list<string> $orderedUuids
+     */
+    public function reorderBlocks(string $recordUuid, array $orderedUuids, string $actor): void
+    {
+        $this->db->transaction(function (Database $db) use ($recordUuid, $orderedUuids, $actor): void {
+            $i = 0;
+            foreach ($orderedUuids as $uuid) {
+                $db->run('UPDATE portfolio_blocks SET sort_order = :o WHERE uuid = :u AND record_uuid = :r', ['o' => $i++, 'u' => (string) $uuid, 'r' => $recordUuid]);
+            }
+            $this->touch($recordUuid, $actor, Clock::nowIso());
+        });
+    }
+
+    /** @return array<string,mixed> */
+    public function setBlockDeleted(string $blockUuid, bool $deleted, string $actor): array
+    {
+        $block = $this->db->one('SELECT record_uuid FROM portfolio_blocks WHERE uuid = :u', ['u' => $blockUuid]);
+        if ($block === null) {
+            throw new PortfolioException(404, 'Block not found.', 'not_found');
+        }
+        $this->db->run('UPDATE portfolio_blocks SET deleted = :d, updated_at = :now WHERE uuid = :u', ['d' => (int) $deleted, 'now' => Clock::nowIso(), 'u' => $blockUuid]);
+        $this->touch((string) $block['record_uuid'], $actor, Clock::nowIso());
+
+        return $this->db->one('SELECT * FROM portfolio_blocks WHERE uuid = :u', ['u' => $blockUuid]) ?? [];
+    }
+
+    // ==================================================================
+    // Results
+    // ==================================================================
+
+    /**
+     * @param array<string,mixed> $data value, label, note, is_numeric, source, visible
+     * @return array<string,mixed>
+     */
+    public function addResult(string $recordUuid, array $data, string $actor): array
+    {
+        $this->assertRecordExists($recordUuid);
+        // A numeric claim must carry an internal source/verification note.
+        $isNumeric = (int) (bool) ($data['is_numeric'] ?? false);
+        if ($isNumeric === 1 && trim((string) ($data['source'] ?? '')) === '') {
+            throw new PortfolioException(422, 'A numeric result needs an internal source or verification note.', 'source_required');
+        }
+        $uuid = Uuid::v4();
+        $next = (int) $this->db->scalar('SELECT COALESCE(MAX(sort_order), -1) + 1 FROM portfolio_results WHERE record_uuid = :r', ['r' => $recordUuid]);
+        $this->db->run(
+            'INSERT INTO portfolio_results (uuid, record_uuid, value, label, note, is_numeric, source, verified, visible, sort_order)
+             VALUES (:id,:r,:val,:lab,:note,:num,:src,:ver,:vis,:ord)',
+            ['id' => $uuid, 'r' => $recordUuid, 'val' => (string) ($data['value'] ?? ''), 'lab' => (string) ($data['label'] ?? ''),
+             'note' => (string) ($data['note'] ?? ''), 'num' => $isNumeric, 'src' => (string) ($data['source'] ?? ''),
+             'ver' => (int) (bool) ($data['verified'] ?? false), 'vis' => (int) (bool) ($data['visible'] ?? true), 'ord' => $next]
+        );
+        $this->touch($recordUuid, $actor, Clock::nowIso());
+
+        return $this->db->one('SELECT * FROM portfolio_results WHERE uuid = :u', ['u' => $uuid]) ?? [];
+    }
+
+    public function deleteResult(string $resultUuid, string $actor): void
+    {
+        $r = $this->db->one('SELECT record_uuid FROM portfolio_results WHERE uuid = :u', ['u' => $resultUuid]);
+        if ($r === null) {
+            throw new PortfolioException(404, 'Result not found.', 'not_found');
+        }
+        $this->db->run('DELETE FROM portfolio_results WHERE uuid = :u', ['u' => $resultUuid]);
+        $this->touch((string) $r['record_uuid'], $actor, Clock::nowIso());
+    }
+
+    // ==================================================================
+    // Media metadata + rights approval (bytes/variants handled by the pipeline)
+    // ==================================================================
+
+    /**
+     * Attach a media item to a record (referencing a stored/approved file). The
+     * bytes + variant generation are handled by the media pipeline; this records
+     * the editorial metadata. Public-use approval defaults to OFF.
+     *
+     * @param array<string,mixed> $data
+     * @return array<string,mixed>
+     */
+    public function attachMedia(string $recordUuid, array $data, string $actor): array
+    {
+        $this->assertRecordExists($recordUuid);
+        $uuid = Uuid::v4();
+        $now = Clock::nowIso();
+        $next = (int) $this->db->scalar('SELECT COALESCE(MAX(sort_order), -1) + 1 FROM portfolio_media WHERE record_uuid = :r', ['r' => $recordUuid]);
+        $this->db->run(
+            'INSERT INTO portfolio_media (uuid, record_uuid, file_uuid, source_file_uuid, kind, role, device, alt, decorative, caption, embed_url, variants, width, height, sort_order, created_by, created_at, updated_at)
+             VALUES (:id,:r,:f,:sf,:k,:ro,:dev,:alt,:dec,:cap,:eu,:var,:w,:h,:ord,:actor,:now,:now)',
+            ['id' => $uuid, 'r' => $recordUuid, 'f' => $data['file_uuid'] ?? null, 'sf' => $data['source_file_uuid'] ?? null,
+             'k' => (string) ($data['kind'] ?? 'image'), 'ro' => (string) ($data['role'] ?? 'gallery'), 'dev' => (string) ($data['device'] ?? 'none'),
+             'alt' => (string) ($data['alt'] ?? ''), 'dec' => (int) (bool) ($data['decorative'] ?? false), 'cap' => (string) ($data['caption'] ?? ''),
+             'eu' => (string) ($data['embed_url'] ?? ''), 'var' => $this->encodeJson($data['variants'] ?? []),
+             'w' => $data['width'] ?? null, 'h' => $data['height'] ?? null, 'ord' => $next, 'actor' => $actor, 'now' => $now]
+        );
+        $this->touch($recordUuid, $actor, $now);
+
+        return $this->db->one('SELECT * FROM portfolio_media WHERE uuid = :u', ['u' => $uuid]) ?? [];
+    }
+
+    /**
+     * @param array<string,mixed> $data alt, caption, focal_x, focal_y, role, device, decorative, background, treatment
+     * @return array<string,mixed>
+     */
+    public function updateMedia(string $mediaUuid, array $data, string $actor): array
+    {
+        $m = $this->db->one('SELECT record_uuid FROM portfolio_media WHERE uuid = :u', ['u' => $mediaUuid]);
+        if ($m === null) {
+            throw new PortfolioException(404, 'Media not found.', 'not_found');
+        }
+        $cols = ['alt', 'caption', 'role', 'device', 'background', 'treatment', 'embed_url', 'focal_x', 'focal_y', 'decorative', 'downloadable', 'sensitive_flag'];
+        $set = ['updated_at = :now'];
+        $params = ['u' => $mediaUuid, 'now' => Clock::nowIso()];
+        foreach ($cols as $c) {
+            if (array_key_exists($c, $data)) {
+                $set[] = "$c = :$c";
+                $params[$c] = is_bool($data[$c]) ? (int) $data[$c] : $data[$c];
+            }
+        }
+        $this->db->run('UPDATE portfolio_media SET ' . implode(', ', $set) . ' WHERE uuid = :u', $params);
+        $this->touch((string) $m['record_uuid'], $actor, (string) $params['now']);
+
+        return $this->db->one('SELECT * FROM portfolio_media WHERE uuid = :u', ['u' => $mediaUuid]) ?? [];
+    }
+
+    /**
+     * Record explicit public-use approval (rights) for a media item. This is the
+     * gate that lets an image appear publicly.
+     *
+     * @param array<string,mixed> $data rights_source, rights_note, consent_note
+     * @return array<string,mixed>
+     */
+    public function approveMedia(string $mediaUuid, bool $approved, array $data, string $actor): array
+    {
+        $m = $this->db->one('SELECT record_uuid FROM portfolio_media WHERE uuid = :u', ['u' => $mediaUuid]);
+        if ($m === null) {
+            throw new PortfolioException(404, 'Media not found.', 'not_found');
+        }
+        $now = Clock::nowIso();
+        $this->db->run(
+            'UPDATE portfolio_media SET approved_for_public = :a, approved_by = :by, approved_at = :at, rights_source = :src, rights_note = :note, consent_note = :consent, updated_at = :now WHERE uuid = :u',
+            ['a' => (int) $approved, 'by' => $approved ? $actor : '', 'at' => $approved ? $now : null,
+             'src' => (string) ($data['rights_source'] ?? ''), 'note' => (string) ($data['rights_note'] ?? ''),
+             'consent' => (string) ($data['consent_note'] ?? ''), 'now' => $now, 'u' => $mediaUuid]
+        );
+        $this->touch((string) $m['record_uuid'], $actor, $now);
+        $this->event($this->db, (string) $m['record_uuid'], $approved ? 'media_approved' : 'media_unapproved', 'Media ' . ($approved ? 'approved' : 'unapproved') . ' for public use', $actor);
+
+        return $this->db->one('SELECT * FROM portfolio_media WHERE uuid = :u', ['u' => $mediaUuid]) ?? [];
+    }
+
+    /** @param list<string> $orderedUuids */
+    public function reorderMedia(string $recordUuid, array $orderedUuids, string $actor): void
+    {
+        $this->db->transaction(function (Database $db) use ($recordUuid, $orderedUuids, $actor): void {
+            $i = 0;
+            foreach ($orderedUuids as $uuid) {
+                $db->run('UPDATE portfolio_media SET sort_order = :o WHERE uuid = :u AND record_uuid = :r', ['o' => $i++, 'u' => (string) $uuid, 'r' => $recordUuid]);
+            }
+            $this->touch($recordUuid, $actor, Clock::nowIso());
+        });
+    }
+
+    public function archiveMedia(string $mediaUuid, bool $archived, string $actor): void
+    {
+        $m = $this->db->one('SELECT record_uuid FROM portfolio_media WHERE uuid = :u', ['u' => $mediaUuid]);
+        if ($m === null) {
+            throw new PortfolioException(404, 'Media not found.', 'not_found');
+        }
+        $this->db->run('UPDATE portfolio_media SET archived = :a, updated_at = :now WHERE uuid = :u', ['a' => (int) $archived, 'now' => Clock::nowIso(), 'u' => $mediaUuid]);
+        $this->touch((string) $m['record_uuid'], $actor, Clock::nowIso());
+    }
+
+    // ==================================================================
+    // Taxonomy
+    // ==================================================================
+
+    /** @return list<array<string,mixed>> */
+    public function taxonomies(?string $kind = null): array
+    {
+        if ($kind !== null) {
+            return $this->db->all('SELECT * FROM portfolio_taxonomies WHERE kind = :k ORDER BY sort_order ASC, label ASC', ['k' => $kind]);
+        }
+
+        return $this->db->all('SELECT * FROM portfolio_taxonomies ORDER BY kind ASC, sort_order ASC, label ASC');
+    }
+
+    /**
+     * @param array<string,mixed> $data kind, label, slug, service_slug
+     * @return array<string,mixed>
+     */
+    public function createTaxonomy(array $data, string $actor): array
+    {
+        $kind = (string) ($data['kind'] ?? '');
+        if (!in_array($kind, ['service', 'industry', 'project_type', 'category'], true)) {
+            throw new PortfolioException(422, 'Unknown taxonomy kind.', 'invalid_kind');
+        }
+        $label = trim((string) ($data['label'] ?? ''));
+        if ($label === '') {
+            throw new PortfolioException(422, 'A label is required.', 'invalid');
+        }
+        $slug = $this->normaliseSlug((string) ($data['slug'] ?? $label)) ?: 'item';
+        $uuid = Uuid::v4();
+        try {
+            $this->db->run(
+                'INSERT INTO portfolio_taxonomies (uuid, kind, label, slug, service_slug, created_at) VALUES (:u,:k,:l,:s,:ss,:now)',
+                ['u' => $uuid, 'k' => $kind, 'l' => $label, 's' => $slug, 'ss' => (string) ($data['service_slug'] ?? ''), 'now' => Clock::nowIso()]
+            );
+        } catch (\Throwable) {
+            throw new PortfolioException(409, 'A taxonomy with that kind and slug already exists.', 'duplicate');
+        }
+
+        return $this->db->one('SELECT * FROM portfolio_taxonomies WHERE uuid = :u', ['u' => $uuid]) ?? [];
+    }
+
+    /** @param list<string> $taxonomyUuids */
+    public function setRecordTaxonomies(string $recordUuid, array $taxonomyUuids, string $actor): void
+    {
+        $this->assertRecordExists($recordUuid);
+        $this->db->transaction(function (Database $db) use ($recordUuid, $taxonomyUuids, $actor): void {
+            $db->run('DELETE FROM portfolio_record_taxonomies WHERE record_uuid = :r', ['r' => $recordUuid]);
+            $i = 0;
+            foreach (array_values(array_unique(array_map('strval', $taxonomyUuids))) as $tid) {
+                $db->run('INSERT OR IGNORE INTO portfolio_record_taxonomies (record_uuid, taxonomy_uuid, sort_order) VALUES (:r,:t,:o)', ['r' => $recordUuid, 't' => $tid, 'o' => $i++]);
+            }
+            $this->touch($recordUuid, $actor, Clock::nowIso());
+        });
+    }
+
+    // ==================================================================
     // Slugs
     // ==================================================================
 
@@ -772,6 +1118,48 @@ final class Portfolio
             // editor still reviews/edits it before it becomes public.
             'summary'       => trim((string) ($project['description'] ?? '')),
         ], static fn ($v) => $v !== null && $v !== '');
+    }
+
+    private function assertRecordExists(string $recordUuid): void
+    {
+        $exists = $this->db->one('SELECT uuid FROM portfolio_records WHERE uuid = :u', ['u' => $recordUuid]);
+        if ($exists === null) {
+            throw new PortfolioException(404, 'That portfolio record no longer exists.', 'not_found');
+        }
+    }
+
+    /** Bump the parent record's updated_at/by after a child edit. */
+    private function touch(string $recordUuid, string $actor, string $now): void
+    {
+        $this->db->run('UPDATE portfolio_records SET updated_at = :now, updated_by = :actor WHERE uuid = :u', ['now' => $now, 'actor' => $actor, 'u' => $recordUuid]);
+    }
+
+    private function encodeJson(mixed $value): string
+    {
+        if (is_string($value)) {
+            // Already-encoded JSON passes through; anything else is wrapped.
+            $decoded = json_decode($value, true);
+            if (is_array($decoded)) {
+                return $value;
+            }
+        }
+
+        return json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '{}';
+    }
+
+    /**
+     * Strip dangerous markup from stored rich text (story bodies, captions).
+     * Removes script/style/iframe/object/embed/svg tags, inline event handlers
+     * and javascript: URLs. The public renderer additionally escapes on output.
+     */
+    private function sanitiseRich(string $html): string
+    {
+        $html = preg_replace('#<\s*(script|style|iframe|object|embed|svg|form|input|link|meta)\b[^>]*>.*?<\s*/\s*\1\s*>#is', '', $html) ?? $html;
+        $html = preg_replace('#<\s*(script|style|iframe|object|embed|svg|form|input|link|meta)\b[^>]*/?>#is', '', $html) ?? $html;
+        $html = preg_replace('/\son\w+\s*=\s*("[^"]*"|\'[^\']*\'|[^\s>]+)/i', '', $html) ?? $html;
+        $html = preg_replace('/(href|src)\s*=\s*("|\')?\s*javascript:[^"\'>]*/i', '$1=""', $html) ?? $html;
+
+        return trim($html);
     }
 
     private function event(Database $db, string $recordUuid, string $type, string $detail, string $actor): void
