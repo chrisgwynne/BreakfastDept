@@ -231,6 +231,14 @@ final class Platform
         );
     }
 
+    public function portfolioImporter(): \Breakfast\Platform\Portfolio\PortfolioImporter
+    {
+        return $this->service(
+            \Breakfast\Platform\Portfolio\PortfolioImporter::class,
+            fn () => new \Breakfast\Platform\Portfolio\PortfolioImporter($this->portfolio(), $this->baseDir . '/content')
+        );
+    }
+
     public function vault(): \Breakfast\Platform\Vault\Vault
     {
         return $this->service(\Breakfast\Platform\Vault\Vault::class, fn () => new \Breakfast\Platform\Vault\Vault(

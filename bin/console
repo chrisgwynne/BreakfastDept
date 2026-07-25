@@ -580,6 +580,24 @@ switch ($command) {
         }
         break;
 
+    case 'portfolio:import':
+        // One-time, safe import of the existing Kirby "project" case-study content
+        // into portfolio records. Everything lands as a DRAFT and is never
+        // published automatically; concept/demo pieces are flagged for review and
+        // nothing is deleted. Idempotent per slug — a record (or retired redirect)
+        // already using a slug is reported as a duplicate and skipped. Use
+        // --dry-run to preview without writing anything.
+        $dryRun = flag($flags, 'dry-run');
+        $report = $platform->portfolioImporter()->import('cli:portfolio-import', $dryRun);
+        foreach ($report as $bucket => $slugs) {
+            out(sprintf('%-14s %d', $bucket, count($slugs)));
+            foreach ($slugs as $slug) {
+                out('  ' . $slug);
+            }
+        }
+        out($dryRun ? 'Dry run (pass without --dry-run to import). OK' : 'Imported as drafts. OK');
+        break;
+
     case 'invoices:backfill-pdfs':
         // Generate the immutable PDF for every issued invoice that doesn't have
         // one yet (issued before the PDF pipeline existed, or a prior failure).
