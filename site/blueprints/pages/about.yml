@@ -1,5 +1,5 @@
 ##
-# About page — studio story, principles, team, timeline.
+# About page — studio story, the person behind it, principles, fit.
 ##
 title: About
 icon: users
@@ -25,6 +25,45 @@ tabs:
         label: Intro
         type: blocks
         extends: fields/bodyblocks
+
+      founderheadline:
+        type: headline
+        label: The person behind Breakfast
+      founder_name:
+        label: Name
+        type: text
+        width: 1/2
+      founder_role:
+        label: Role
+        type: text
+        width: 1/2
+      founder_bio:
+        label: Short bio
+        type: textarea
+        buttons: false
+      founder_caption:
+        label: Photo caption (handwritten style)
+        type: text
+        help: Shown under the polaroid photo.
+      founder_photo:
+        label: Photo (polaroid)
+        type: files
+        max: 1
+        query: page.images
+        uploads: images
+        help: A friendly portrait works best. Leave empty to show a placeholder.
+
+      howheadline:
+        type: headline
+        label: How Breakfast works
+      how_heading:
+        label: Heading
+        type: text
+      how_text:
+        label: Text
+        type: textarea
+        buttons: false
+
       principlesheadline:
         type: headline
         label: Principles
@@ -39,38 +78,10 @@ tabs:
             label: Text
             type: textarea
             buttons: false
-      working_style:
-        label: Working style
-        type: textarea
-        buttons: false
-      location:
-        label: Location
-        type: text
-      timelineheadline:
+
+      fitheadline:
         type: headline
-        label: Timeline
-      timeline:
-        label: Timeline
-        type: structure
-        fields:
-          year:
-            label: Year
-            type: text
-            width: 1/4
-          title:
-            label: Title
-            type: text
-            width: 3/4
-          text:
-            label: Text
-            type: textarea
-            buttons: false
-      toolsheadline:
-        type: headline
-        label: Tools & fit
-      tools:
-        label: Tools
-        type: tags
+        label: Who Breakfast is for
       client_fit:
         label: A good fit
         type: structure
@@ -79,58 +90,24 @@ tabs:
             label: Text
             type: text
       not_a_fit:
-        label: Not a fit
+        label: Probably not a fit
         type: structure
         fields:
           text:
             label: Text
             type: text
 
-  team:
-    label: Team
-    icon: users
-    fields:
-      team:
-        label: Team
-        type: structure
-        fields:
-          name:
-            label: Name
-            type: text
-            width: 1/2
-          role:
-            label: Role
-            type: text
-            width: 1/2
-          bio:
-            label: Bio
-            type: textarea
-            buttons: false
-          photo:
-            label: Photo
-            type: files
-            max: 1
-            query: page.images
-            uploads: images
-      testimonialsheadline:
+      metaheadline:
         type: headline
-        label: Testimonials
-      testimonials:
-        label: Testimonials
-        type: structure
-        fields:
-          quote:
-            label: Quote
-            type: textarea
-            buttons: false
-          name:
-            label: Name
-            type: text
-            width: 1/2
-          role:
-            label: Role
-            type: text
-            width: 1/2
+        label: Details
+      location:
+        label: Location
+        type: text
+        width: 1/2
+      tools:
+        label: Tools
+        type: tags
+        width: 1/2
 
   seo:
     label: SEO & sharing

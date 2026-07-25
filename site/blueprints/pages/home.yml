@@ -1,7 +1,8 @@
 ##
 # Home page — a fixed set of individually toggleable sections.
 # Each section has an enable toggle; its fields only show when enabled.
-# Field names follow docs/content-model.md exactly.
+# Rebuilt for the conversion-focused redesign: hero → services →
+# why → diagnostic → process → client platform → journal → CTA.
 ##
 title: Home
 icon: home
@@ -27,136 +28,55 @@ tabs:
               hero_headline_group:
                 type: headline
                 label: Hero
-              hero_enabled:
-                label: Show hero
-                type: toggle
-                default: true
               hero_eyebrow:
                 label: Eyebrow
                 type: text
-                when:
-                  hero_enabled: true
               hero_headline:
                 label: Headline
                 type: text
-                when:
-                  hero_enabled: true
               hero_highlight:
-                label: Highlighted phrase
+                label: Highlighted ending
                 type: text
-                help: A fragment of the headline to emphasise.
-                when:
-                  hero_enabled: true
+                help: The closing fragment of the headline, shown in a yellow box.
               hero_text:
                 label: Intro text
                 type: textarea
                 buttons: false
-                when:
-                  hero_enabled: true
+                maxlength: 200
+                help: Keep to two or three short lines.
               hero_availability:
                 label: Availability note
                 type: text
-                when:
-                  hero_enabled: true
               hero_primary_label:
                 label: Primary button label
                 type: text
                 width: 1/2
-                when:
-                  hero_enabled: true
               hero_primary_link:
                 label: Primary button link
                 type: link
                 width: 1/2
-                when:
-                  hero_enabled: true
               hero_secondary_label:
                 label: Secondary button label
                 type: text
                 width: 1/2
-                when:
-                  hero_enabled: true
               hero_secondary_link:
                 label: Secondary button link
                 type: link
                 width: 1/2
-                when:
-                  hero_enabled: true
+              hero_aside_label:
+                label: Low-commitment link label
+                type: text
+                width: 1/2
+              hero_aside_link:
+                label: Low-commitment link
+                type: link
+                width: 1/2
               hero_image:
-                label: Hero image
+                label: Hero image (optional — replaces the built-in graphic)
                 type: files
                 max: 1
                 query: page.images
                 uploads: images
-                when:
-                  hero_enabled: true
-
-              # --------------------------------------------------- Proposition
-              proposition_headline_group:
-                type: headline
-                label: Proposition
-              proposition_enabled:
-                label: Show proposition
-                type: toggle
-                default: true
-              proposition_heading:
-                label: Heading
-                type: text
-                when:
-                  proposition_enabled: true
-              proposition_text:
-                label: Text
-                type: textarea
-                buttons: false
-                when:
-                  proposition_enabled: true
-              proposition_points:
-                label: Points
-                type: structure
-                when:
-                  proposition_enabled: true
-                fields:
-                  title:
-                    label: Title
-                    type: text
-                  text:
-                    label: Text
-                    type: textarea
-                    buttons: false
-
-              # -------------------------------------------------- Selected work
-              work_headline_group:
-                type: headline
-                label: Selected work
-              work_enabled:
-                label: Show selected work
-                type: toggle
-                default: true
-              work_heading:
-                label: Heading
-                type: text
-                when:
-                  work_enabled: true
-              work_intro:
-                label: Intro
-                type: textarea
-                buttons: false
-                when:
-                  work_enabled: true
-              work_projects:
-                label: Projects
-                type: pages
-                query: site.index.filterBy("intendedTemplate", "project")
-                when:
-                  work_enabled: true
-              work_count:
-                label: Number to show (if none picked)
-                type: number
-                default: 4
-                min: 1
-                max: 12
-                when:
-                  work_enabled: true
 
               # ------------------------------------------------------- Services
               services_headline_group:
@@ -177,39 +97,84 @@ tabs:
                 buttons: false
                 when:
                   services_enabled: true
-              services_list:
-                label: Services
-                type: pages
-                query: site.index.filterBy("intendedTemplate", "service")
+              services_cards:
+                label: Service cards (keep to three)
+                type: structure
+                max: 3
                 when:
                   services_enabled: true
-
-              # ------------------------------------------------------- Problems
-              problems_headline_group:
-                type: headline
-                label: Problems
-              problems_enabled:
-                label: Show problems
-                type: toggle
-                default: false
-              problems_heading:
-                label: Heading
-                type: text
-                when:
-                  problems_enabled: true
-              problems_items:
-                label: Problems
-                type: structure
-                when:
-                  problems_enabled: true
                 fields:
                   title:
                     label: Title
                     type: text
                   text:
-                    label: Text
-                    type: textarea
-                    buttons: false
+                    label: One-line summary
+                    type: text
+                  audience:
+                    label: Ideal client
+                    type: text
+                  link:
+                    label: Link
+                    type: link
+
+              # ---------------------------------------------------- Why Breakfast
+              why_headline_group:
+                type: headline
+                label: Why Breakfast
+              why_enabled:
+                label: Show differentiators
+                type: toggle
+                default: true
+              why_heading:
+                label: Heading
+                type: text
+                when:
+                  why_enabled: true
+              why_points:
+                label: Principles (keep to three)
+                type: structure
+                max: 3
+                when:
+                  why_enabled: true
+                fields:
+                  title:
+                    label: Title
+                    type: text
+                  text:
+                    label: One short sentence
+                    type: text
+
+              # ----------------------------------------------------- Diagnostic
+              diagnostic_headline_group:
+                type: headline
+                label: Website diagnostic
+              diagnostic_enabled:
+                label: Show diagnostic
+                type: toggle
+                default: true
+              diagnostic_heading:
+                label: Heading
+                type: text
+                when:
+                  diagnostic_enabled: true
+              diagnostic_intro:
+                label: Intro
+                type: text
+                when:
+                  diagnostic_enabled: true
+              diagnostic_checks:
+                label: Checks (four works best)
+                type: structure
+                max: 4
+                when:
+                  diagnostic_enabled: true
+                fields:
+                  question:
+                    label: Question
+                    type: text
+                  detail:
+                    label: Detail
+                    type: text
 
               # -------------------------------------------------------- Process
               process_headline_group:
@@ -218,15 +183,16 @@ tabs:
               process_enabled:
                 label: Show process
                 type: toggle
-                default: false
+                default: true
               process_heading:
                 label: Heading
                 type: text
                 when:
                   process_enabled: true
               process_steps:
-                label: Steps
+                label: Steps (four works best)
                 type: structure
+                max: 4
                 when:
                   process_enabled: true
                 fields:
@@ -234,79 +200,37 @@ tabs:
                     label: Title
                     type: text
                   text:
-                    label: Text
-                    type: textarea
-                    buttons: false
+                    label: One short sentence
+                    type: text
 
-              # ---------------------------------------------------------- Proof
-              proof_headline_group:
+              # ------------------------------------------------ Client platform
+              platform_headline_group:
                 type: headline
-                label: Proof
-              proof_enabled:
-                label: Show proof
+                label: Client platform
+              platform_enabled:
+                label: Show client platform
                 type: toggle
                 default: true
-              proof_heading:
+              platform_heading:
                 label: Heading
                 type: text
                 when:
-                  proof_enabled: true
-              testimonials:
-                label: Testimonials
-                type: structure
-                when:
-                  proof_enabled: true
-                fields:
-                  quote:
-                    label: Quote
-                    type: textarea
-                    buttons: false
-                  name:
-                    label: Name
-                    type: text
-                    width: 1/2
-                  role:
-                    label: Role
-                    type: text
-                    width: 1/2
-                  company:
-                    label: Company
-                    type: text
-                    width: 1/2
-              logos:
-                label: Logos
-                type: structure
-                when:
-                  proof_enabled: true
-                fields:
-                  name:
-                    label: Name
-                    type: text
-                    width: 1/2
-                  category:
-                    label: Category
-                    type: text
-                    width: 1/2
-
-              # ----------------------------------------------- Studio statement
-              statement_headline_group:
-                type: headline
-                label: Studio statement
-              statement_enabled:
-                label: Show statement
-                type: toggle
-                default: false
-              statement_heading:
-                label: Heading
-                type: text
-                when:
-                  statement_enabled: true
-              statement_text:
+                  platform_enabled: true
+              platform_text:
                 label: Text
                 type: textarea
                 buttons: false
                 when:
-                  statement_enabled: true
+                  platform_enabled: true
+              platform_points:
+                label: Benefits
+                type: structure
+                when:
+                  platform_enabled: true
+                fields:
+                  text:
+                    label: Benefit
+                    type: text
 
               # -------------------------------------------------------- Journal
               journal_headline_group:
@@ -326,7 +250,7 @@ tabs:
                 type: number
                 default: 3
                 min: 1
-                max: 12
+                max: 6
                 when:
                   journal_enabled: true
 

@@ -4,32 +4,52 @@ Title: About
 
 Intro:
 
-[{"id":"ab1a","type":"text","content":{"text":"<p>Breakfast is an independent web design business based in Wales. I design and build websites for local businesses that want to look more professional, communicate more clearly, and make a stronger first impression — a first site, or a long-overdue redesign.</p>"}},{"id":"ab2b","type":"text","content":{"text":"<p>It's just me, and that's the point. You talk to the person doing the work — no account managers, no handoffs, nothing lost in translation. I care whether a real customer can actually use the thing on their phone, which turns out to be rarer than it should be.</p>"}}]
+[{"id":"ab1a","type":"text","content":{"text":"<p>Breakfast is an independent web design business in North Wales. It designs and builds websites for local businesses that want to look more professional, say what they do more clearly, and make a stronger first impression — a first site, or a long-overdue rebuild.</p>"}},{"id":"ab2b","type":"text","content":{"text":"<p>It's deliberately small. You talk to the person doing the work — no account managers, no handoffs — and every site is judged on one thing: whether a real customer can actually use it on their phone.</p>"}}]
+
+----
+
+Founder_name: Chris Gwynne
+
+----
+
+Founder_role: Designer, writer & developer
+
+----
+
+Founder_bio: Breakfast is Chris Gwynne. Chris designs, writes and builds every site personally — one point of contact from the first email to launch, and someone who genuinely minds whether the thing works on a phone in a shop doorway. Plain-spoken, allergic to jargon, and happier fixing a booking button than fussing over a logo.
+
+----
+
+Founder_caption: Chris — the whole studio.
+
+----
+
+How_heading: How Breakfast works
+
+----
+
+How_text: You brief the person who builds the thing. Work happens in the open, with progress shared early and awkward questions asked now rather than guessed at later. And Breakfast stays around after launch — watching what real visitors do and fixing what confuses them.
 
 ----
 
 Principles:
 
 -
-  title: Words before colours
-  text: If a visitor can't tell what you do, the design has failed however nice it looks. I start with what you sell and who buys it, then design around that.
+  title: Words before decoration
+  text: If a visitor can't tell what you do, the design has failed however nice it looks. It starts with what you sell and who buys it.
 -
   title: One job per page
-  text: Every page should help a visitor do one clear thing. Everything that doesn't help that gets cut, however much I like it.
+  text: Every page should help a visitor do one clear thing. Anything that doesn't help that gets cut.
 -
   title: It has to work on a phone
-  text: Most people will see your site on a phone, often on patchy signal. If it's awkward there, it isn't working, full stop.
+  text: Most people arrive on a phone, often on patchy signal. If it's awkward there, it isn't working — full stop.
 -
   title: Honesty over upselling
-  text: If you need less than you think, I'll tell you. I'd rather do a smaller job well than sell you one you don't need.
+  text: If you need less than you think, you'll be told. A smaller job done well beats a bigger one you didn't need.
 
 ----
 
-Working_style: You brief the person who builds the thing — me. I work in the open, share progress early, and would always rather ask an awkward question now than guess and get it wrong later. And I'm still around after launch.
-
-----
-
-Location: Based in Wales.
+Location: Based in North Wales.
 
 ----
 
@@ -44,9 +64,9 @@ Tools: Kirby, Shopify, Plain HTML, Privacy-friendly analytics
 Client_fit:
 
 -
-  text: You run a small or independent business and want a site that works, not just one that looks nice in a portfolio.
+  text: You run a small or independent business and want a site that works, not just one that photographs well.
 -
-  text: You're happy to answer some annoying questions about what you actually sell and who buys it.
+  text: You're happy to answer a few awkward questions about what you actually sell and who buys it.
 -
   text: You value an honest opinion over being told what you want to hear.
 
@@ -55,19 +75,11 @@ Client_fit:
 Not_a_fit:
 
 -
-  text: You want the cheapest possible site and don't much mind whether it works.
+  text: You are mainly looking for the lowest possible price rather than a considered, custom website.
 -
-  text: You need a big brand campaign, an app, or a full-time in-house team — that's not me.
+  text: You need a big brand campaign, a mobile app, or a full-time in-house team — that's a different kind of studio.
 -
-  text: You'd rather not be involved at all. I need a bit of your time to get it right.
-
-----
-
-Team:
-
-----
-
-Testimonials:
+  text: You'd rather not be involved at all. A good site needs a little of your time and knowledge to get right.
 
 ----
 
@@ -75,8 +87,8 @@ Uuid: about
 
 ----
 
-Seo_title: About — Web Designer in North Wales
+Seo_title: About Breakfast — Independent Web Design in North Wales
 
 ----
 
-Meta_description: It's just me: an independent web designer in North Wales, building honest, effective websites for local businesses across Wales.
+Meta_description: Breakfast is an independent web design studio in North Wales, run by Chris Gwynne — clear, fast websites for small businesses, built by the person you actually talk to.

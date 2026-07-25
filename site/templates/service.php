@@ -55,7 +55,16 @@
       <?php endforeach ?>
     <?php endif ?>
 
-    <?php snippet('partials/related', ['related' => $page->featured_projects()->toPages(), 'heading' => t('breakfast.service.work', 'Work using this service')]) ?>
+    <?php /* Published portfolio work linked to this service (auto, with overrides). */ ?>
+    <?php $serviceWork = breakfast()->portfolio()->publicForService((string) $page->slug()); ?>
+    <?php if ($serviceWork !== []): ?>
+      <div class="section__head" style="margin-top:var(--s-16)"><h2 class="section__title" style="font-size:1.8rem"><?= esc(t('breakfast.service.work', 'Work using this service')) ?></h2></div>
+      <div class="grid grid--3">
+        <?php foreach ($serviceWork as $it) {
+            snippet('partials/portfolio-card', ['pf' => $it]);
+        } ?>
+      </div>
+    <?php endif ?>
   </div>
 </article>
 

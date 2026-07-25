@@ -102,6 +102,9 @@
 
   /* ---------- Reveal on scroll ---------- */
   var reveals = document.querySelectorAll(".reveal");
+  var revealAll = function () {
+    reveals.forEach(function (r) { r.classList.add("is-visible"); });
+  };
   if (reveals.length && "IntersectionObserver" in window) {
     var io = new IntersectionObserver(function (entries) {
       entries.forEach(function (en) {
@@ -112,8 +115,185 @@
       });
     }, { rootMargin: "0px 0px -10% 0px" });
     reveals.forEach(function (r) { io.observe(r); });
+    // Safety net: never leave content stuck hidden if the observer is slow,
+    // janky, or the element is skipped by fast programmatic scrolling. After a
+    // short grace period, anything still hidden is shown outright.
+    window.setTimeout(revealAll, 2500);
   } else {
-    reveals.forEach(function (r) { r.classList.add("is-visible"); });
+    revealAll();
+  }
+
+  /* ---------- Motion system ---------- */
+  var reduceMotion = false;
+  try {
+    reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  } catch (e) {}
+
+  /* Hero entrance sequence: reveal the staggered items once, next frame. */
+  var hero = document.querySelector("[data-hero]");
+  if (hero) {
+    window.requestAnimationFrame(function () {
+      window.requestAnimationFrame(function () { hero.classList.add("is-in"); });
+    });
+  }
+
+  /* Scroll-linked process: fill the connecting line + light the active step
+     as the section passes through the viewport. Transform/width only. */
+  var proc = document.querySelector("[data-process]");
+  if (proc && !reduceMotion) {
+    var fill = proc.querySelector("[data-process-fill]");
+    var stepItems = Array.prototype.slice.call(proc.querySelectorAll("[data-process-item]"));
+    var ticking = false;
+    var updateProcess = function () {
+      ticking = false;
+      var rect = proc.getBoundingClientRect();
+      var vh = window.innerHeight || document.documentElement.clientHeight;
+      // 0 when the section's top hits mid-viewport, 1 when its bottom does.
+      var total = rect.height + vh * 0.5;
+      var progressed = vh * 0.75 - rect.top;
+      var p = Math.max(0, Math.min(1, progressed / total));
+      if (fill) proc.style.setProperty("--process", (p * 100).toFixed(2) + "%");
+      var activeCount = Math.round(p * stepItems.length);
+      stepItems.forEach(function (it, idx) {
+        it.classList.toggle("is-active", idx < activeCount);
+      });
+    };
+    var onScroll = function () {
+      if (!ticking) { ticking = true; window.requestAnimationFrame(updateProcess); }
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll, { passive: true });
+    updateProcess();
+  }
+
+  /* Pointer tilt: subtle depth on the hero composition. Pointer devices only,
+     never under reduced motion, and paused when the element is off-screen. */
+  var tilt = document.querySelector("[data-tilt]");
+  var fine = false;
+  try { fine = window.matchMedia("(pointer: fine)").matches; } catch (e) {}
+  if (tilt && fine && !reduceMotion) {
+    var tiltActive = true;
+    if ("IntersectionObserver" in window) {
+      new IntersectionObserver(function (ents) {
+        ents.forEach(function (en) { tiltActive = en.isIntersecting; });
+      }).observe(tilt);
+    }
+    var reset = function () { tilt.style.transform = ""; };
+    tilt.parentElement.addEventListener("pointermove", function (e) {
+      if (!tiltActive) return;
+      var b = tilt.getBoundingClientRect();
+      var dx = (e.clientX - (b.left + b.width / 2)) / b.width;
+      var dy = (e.clientY - (b.top + b.height / 2)) / b.height;
+      tilt.style.transform = "rotateX(" + (-dy * 4).toFixed(2) + "deg) rotateY(" + (dx * 5).toFixed(2) + "deg)";
+    });
+    tilt.parentElement.addEventListener("pointerleave", reset);
+  }
+
+  /* Pause CSS idle animations when the tab is hidden (saves battery/CPU). */
+  document.addEventListener("visibilitychange", function () {
+    document.documentElement.classList.toggle("is-hidden", document.hidden);
+  });
+
+  /* ---------- Multi-step form (progressive enhancement) ---------- */
+  var stepForm = document.querySelector("form[data-steps]");
+  if (stepForm) {
+    stepForm.classList.add("form--js");
+    var steps = Array.prototype.slice.call(stepForm.querySelectorAll(".fstep"));
+    var progress = stepForm.querySelector("[data-steps-progress]");
+    var progressItems = progress ? Array.prototype.slice.call(progress.querySelectorAll(".fprogress__item")) : [];
+    var total = steps.length;
+    var current = Math.min(total, Math.max(1, parseInt(stepForm.getAttribute("data-error-step"), 10) || 1));
+    var draftKey = "bf-draft-" + (stepForm.getAttribute("data-form") || "form");
+
+    if (progress) progress.removeAttribute("aria-hidden");
+
+    var showStep = function (n, focus) {
+      current = Math.min(total, Math.max(1, n));
+      steps.forEach(function (s) {
+        s.classList.toggle("is-active", parseInt(s.getAttribute("data-step"), 10) === current);
+      });
+      progressItems.forEach(function (it) {
+        var i = parseInt(it.getAttribute("data-progress"), 10);
+        it.classList.toggle("is-done", i < current);
+        it.classList.toggle("is-current", i === current);
+        if (i === current) { it.setAttribute("aria-current", "step"); } else { it.removeAttribute("aria-current"); }
+      });
+      if (focus !== false) {
+        var title = steps[current - 1].querySelector(".fstep__title");
+        if (title) title.focus();
+      }
+    };
+
+    var showFieldError = function (input) {
+      input.setAttribute("aria-invalid", "true");
+      var field = input.closest(".field") || input.parentElement;
+      var err = field.querySelector(".field__error");
+      if (!err) {
+        err = document.createElement("p");
+        err.className = "field__error";
+        field.appendChild(err);
+      }
+      err.textContent = input.validationMessage || "Please check this field.";
+    };
+
+    var validateStep = function (n) {
+      var step = steps[n - 1];
+      var fields = Array.prototype.slice.call(step.querySelectorAll("input, textarea, select"));
+      var firstBad = null;
+      fields.forEach(function (f) {
+        if (f.type === "hidden" || f.disabled) return;
+        if (typeof f.checkValidity === "function" && !f.checkValidity()) {
+          showFieldError(f);
+          if (!firstBad) firstBad = f;
+        } else {
+          f.removeAttribute("aria-invalid");
+        }
+      });
+      if (firstBad) { firstBad.focus(); return false; }
+      return true;
+    };
+
+    stepForm.addEventListener("click", function (e) {
+      var next = e.target.closest("[data-step-next]");
+      var back = e.target.closest("[data-step-back]");
+      if (next) { if (validateStep(current)) showStep(current + 1); }
+      if (back) { showStep(current - 1); }
+    });
+
+    // Draft persistence: keep what's typed across an accidental reload / back.
+    var serialise = function () {
+      var data = {};
+      Array.prototype.slice.call(stepForm.elements).forEach(function (el) {
+        if (!el.name || el.type === "hidden" || el.name === "csrf" || el.name === "website_url") return;
+        if (el.type === "checkbox") { data[el.name] = data[el.name] || []; if (el.checked) data[el.name].push(el.value); }
+        else { data[el.name] = el.value; }
+      });
+      try { localStorage.setItem(draftKey, JSON.stringify(data)); } catch (e) {}
+    };
+    var restore = function () {
+      var raw;
+      try { raw = localStorage.getItem(draftKey); } catch (e) { return; }
+      if (!raw) return;
+      var data;
+      try { data = JSON.parse(raw); } catch (e) { return; }
+      Array.prototype.slice.call(stepForm.elements).forEach(function (el) {
+        if (!el.name || !(el.name in data)) return;
+        if (el.type === "checkbox") { el.checked = (data[el.name] || []).indexOf(el.value) !== -1; }
+        else if (el.type !== "hidden" && !el.value) { el.value = data[el.name]; }
+      });
+    };
+    // Only restore when the server didn't already re-populate from a failed submit.
+    if (stepForm.getAttribute("data-error-step") === "1" || !stepForm.querySelector(".field__error")) restore();
+    stepForm.addEventListener("input", serialise);
+    stepForm.addEventListener("change", serialise);
+
+    stepForm.addEventListener("submit", function () {
+      try { localStorage.removeItem(draftKey); } catch (e) {}
+      var submit = stepForm.querySelector("[data-submit]");
+      if (submit) { submit.classList.add("is-loading"); submit.setAttribute("aria-busy", "true"); submit.disabled = true; }
+    });
+
+    showStep(current, false);
   }
 
   /* ---------- Cookie consent (only present when required) ---------- */

@@ -90,6 +90,12 @@ final class Platform
         return $this->config('dbPath') ?? $this->storageDir() . '/database/crm.sqlite';
     }
 
+    /** Web-served document root (public/), where generated public media variants live. */
+    public function publicDir(): string
+    {
+        return $this->config('publicDir') ?? $this->baseDir . '/public';
+    }
+
     public function migrationsDir(): string
     {
         return __DIR__ . '/../../migrations';
@@ -210,6 +216,27 @@ final class Platform
     public function projectTemplates(): \Breakfast\Platform\Projects\ProjectTemplates
     {
         return $this->service(\Breakfast\Platform\Projects\ProjectTemplates::class, fn () => new \Breakfast\Platform\Projects\ProjectTemplates($this->db()));
+    }
+
+    public function portfolio(): \Breakfast\Platform\Portfolio\Portfolio
+    {
+        return $this->service(\Breakfast\Platform\Portfolio\Portfolio::class, fn () => new \Breakfast\Platform\Portfolio\Portfolio($this->db()));
+    }
+
+    public function portfolioMedia(): \Breakfast\Platform\Portfolio\PortfolioMediaPipeline
+    {
+        return $this->service(
+            \Breakfast\Platform\Portfolio\PortfolioMediaPipeline::class,
+            fn () => new \Breakfast\Platform\Portfolio\PortfolioMediaPipeline($this->storageDir(), $this->publicDir())
+        );
+    }
+
+    public function portfolioImporter(): \Breakfast\Platform\Portfolio\PortfolioImporter
+    {
+        return $this->service(
+            \Breakfast\Platform\Portfolio\PortfolioImporter::class,
+            fn () => new \Breakfast\Platform\Portfolio\PortfolioImporter($this->portfolio(), $this->baseDir . '/content')
+        );
     }
 
     public function vault(): \Breakfast\Platform\Vault\Vault
