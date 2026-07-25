@@ -6,7 +6,7 @@ Short_name: Website rescue
 
 ----
 
-Summary: Sometimes you don't need a new site, you need someone to fix the one you've got. I diagnose what's actually wrong and sort it, without talking you into a full rebuild you don't need.
+Summary: Sometimes you don't need a new site, you need someone to fix the one you've got. Breakfast diagnoses what's actually wrong and sorts it, without talking you into a full rebuild you don't need.
 
 ----
 

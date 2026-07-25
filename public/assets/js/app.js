@@ -102,6 +102,9 @@
 
   /* ---------- Reveal on scroll ---------- */
   var reveals = document.querySelectorAll(".reveal");
+  var revealAll = function () {
+    reveals.forEach(function (r) { r.classList.add("is-visible"); });
+  };
   if (reveals.length && "IntersectionObserver" in window) {
     var io = new IntersectionObserver(function (entries) {
       entries.forEach(function (en) {
@@ -112,8 +115,12 @@
       });
     }, { rootMargin: "0px 0px -10% 0px" });
     reveals.forEach(function (r) { io.observe(r); });
+    // Safety net: never leave content stuck hidden if the observer is slow,
+    // janky, or the element is skipped by fast programmatic scrolling. After a
+    // short grace period, anything still hidden is shown outright.
+    window.setTimeout(revealAll, 2500);
   } else {
-    reveals.forEach(function (r) { r.classList.add("is-visible"); });
+    revealAll();
   }
 
   /* ---------- Motion system ---------- */

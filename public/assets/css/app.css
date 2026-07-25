@@ -635,3 +635,36 @@ details[open] .faq__q::after { content: "–"; }
   .js .cta-band--rich .cta-band__egg { animation: none; }
   [data-tilt] { transform: none !important; }
 }
+
+/* ---------- About: founder polaroid + fit lists ---------- */
+.founder { display: grid; grid-template-columns: 300px 1fr; gap: var(--s-16); align-items: center; margin-top: var(--s-16); }
+.founder__role { font-family: var(--mono); font-size: 0.9rem; font-weight: 700; color: var(--secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-top: var(--s-2); }
+.founder__bio { margin-top: var(--s-4); font-size: 1.15rem; color: var(--muted); max-width: 42ch; }
+.polaroid { display: inline-block; background: var(--white); border: var(--border); box-shadow: var(--shadow); padding: 14px 14px 0; transform: rotate(-3deg); max-width: 300px; }
+.polaroid__img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; border: 1.5px solid var(--text); }
+.polaroid__placeholder { display: grid; place-items: center; background: var(--bg-alt); }
+.polaroid__egg { width: 84px; height: 108px; background: var(--white); border: var(--border-3); border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%; position: relative; }
+.polaroid__egg::after { content: ""; position: absolute; inset: 0; margin: auto; width: 34px; height: 34px; border-radius: 50%; background: var(--primary); border: var(--border); }
+.polaroid__cap { font-family: var(--hand); font-size: 1.5rem; color: var(--text); text-align: center; padding: var(--s-3) var(--s-2) var(--s-4); }
+@media (max-width: 720px) { .founder { grid-template-columns: 1fr; gap: var(--s-8); justify-items: start; } }
+
+.card--fit .scard__title { display: flex; align-items: center; gap: var(--s-3); }
+.fit__mark { flex: none; width: 26px; height: 26px; border-radius: 50%; border: var(--border); position: relative; }
+.fit__mark--yes { background: var(--success); }
+.fit__mark--yes::after { content: ""; position: absolute; left: 8px; top: 5px; width: 6px; height: 11px; border: solid var(--white); border-width: 0 2.5px 2.5px 0; transform: rotate(45deg); }
+.fit__mark--no { background: var(--bg-alt); }
+.fit__mark--no::before, .fit__mark--no::after { content: ""; position: absolute; inset: 0; margin: auto; width: 13px; height: 2.5px; background: var(--muted); }
+.fit__mark--no::before { transform: rotate(45deg); }
+.fit__mark--no::after { transform: rotate(-45deg); }
+.fitlist { margin-top: var(--s-4); display: grid; gap: var(--s-3); }
+.fitlist li { padding-left: var(--s-6); position: relative; color: var(--text); }
+.fitlist li::before { content: "→"; position: absolute; left: 0; color: var(--secondary); font-weight: 800; }
+.fitlist--no li { color: var(--muted); }
+.fitlist--no li::before { content: "·"; color: var(--muted); }
+
+/* ---------- Services index card meta ---------- */
+.scard__meta { display: inline-flex; align-items: center; gap: var(--s-2); font-family: var(--mono); font-size: 0.8rem; color: var(--muted); }
+.scard__meta-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--secondary); }
+.scard .scard__summary { color: var(--muted); }
+.scard { gap: var(--s-2); }
+.scard .link-cta { margin-top: var(--s-2); }

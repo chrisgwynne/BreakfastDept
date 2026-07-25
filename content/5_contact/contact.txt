@@ -4,7 +4,7 @@ Title: Contact
 
 Intro:
 
-[{"id":"ct1","type":"text","content":{"text":"<p>Got a question, or want to talk something through before committing to anything? Drop us a line. We read every message ourselves and come back with an honest view — including if we think we're not the right fit for you.</p>"}}]
+[{"id":"ct1","type":"text","content":{"text":"<p>Have a quick question, or want to talk something through before committing to anything? This is the place. Every message is read personally, and you'll get an honest reply — including if Breakfast isn't the right fit.</p>"}}]
 
 ----
 
