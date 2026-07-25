@@ -194,6 +194,108 @@
     document.documentElement.classList.toggle("is-hidden", document.hidden);
   });
 
+  /* ---------- Multi-step form (progressive enhancement) ---------- */
+  var stepForm = document.querySelector("form[data-steps]");
+  if (stepForm) {
+    stepForm.classList.add("form--js");
+    var steps = Array.prototype.slice.call(stepForm.querySelectorAll(".fstep"));
+    var progress = stepForm.querySelector("[data-steps-progress]");
+    var progressItems = progress ? Array.prototype.slice.call(progress.querySelectorAll(".fprogress__item")) : [];
+    var total = steps.length;
+    var current = Math.min(total, Math.max(1, parseInt(stepForm.getAttribute("data-error-step"), 10) || 1));
+    var draftKey = "bf-draft-" + (stepForm.getAttribute("data-form") || "form");
+
+    if (progress) progress.removeAttribute("aria-hidden");
+
+    var showStep = function (n, focus) {
+      current = Math.min(total, Math.max(1, n));
+      steps.forEach(function (s) {
+        s.classList.toggle("is-active", parseInt(s.getAttribute("data-step"), 10) === current);
+      });
+      progressItems.forEach(function (it) {
+        var i = parseInt(it.getAttribute("data-progress"), 10);
+        it.classList.toggle("is-done", i < current);
+        it.classList.toggle("is-current", i === current);
+        if (i === current) { it.setAttribute("aria-current", "step"); } else { it.removeAttribute("aria-current"); }
+      });
+      if (focus !== false) {
+        var title = steps[current - 1].querySelector(".fstep__title");
+        if (title) title.focus();
+      }
+    };
+
+    var showFieldError = function (input) {
+      input.setAttribute("aria-invalid", "true");
+      var field = input.closest(".field") || input.parentElement;
+      var err = field.querySelector(".field__error");
+      if (!err) {
+        err = document.createElement("p");
+        err.className = "field__error";
+        field.appendChild(err);
+      }
+      err.textContent = input.validationMessage || "Please check this field.";
+    };
+
+    var validateStep = function (n) {
+      var step = steps[n - 1];
+      var fields = Array.prototype.slice.call(step.querySelectorAll("input, textarea, select"));
+      var firstBad = null;
+      fields.forEach(function (f) {
+        if (f.type === "hidden" || f.disabled) return;
+        if (typeof f.checkValidity === "function" && !f.checkValidity()) {
+          showFieldError(f);
+          if (!firstBad) firstBad = f;
+        } else {
+          f.removeAttribute("aria-invalid");
+        }
+      });
+      if (firstBad) { firstBad.focus(); return false; }
+      return true;
+    };
+
+    stepForm.addEventListener("click", function (e) {
+      var next = e.target.closest("[data-step-next]");
+      var back = e.target.closest("[data-step-back]");
+      if (next) { if (validateStep(current)) showStep(current + 1); }
+      if (back) { showStep(current - 1); }
+    });
+
+    // Draft persistence: keep what's typed across an accidental reload / back.
+    var serialise = function () {
+      var data = {};
+      Array.prototype.slice.call(stepForm.elements).forEach(function (el) {
+        if (!el.name || el.type === "hidden" || el.name === "csrf" || el.name === "website_url") return;
+        if (el.type === "checkbox") { data[el.name] = data[el.name] || []; if (el.checked) data[el.name].push(el.value); }
+        else { data[el.name] = el.value; }
+      });
+      try { localStorage.setItem(draftKey, JSON.stringify(data)); } catch (e) {}
+    };
+    var restore = function () {
+      var raw;
+      try { raw = localStorage.getItem(draftKey); } catch (e) { return; }
+      if (!raw) return;
+      var data;
+      try { data = JSON.parse(raw); } catch (e) { return; }
+      Array.prototype.slice.call(stepForm.elements).forEach(function (el) {
+        if (!el.name || !(el.name in data)) return;
+        if (el.type === "checkbox") { el.checked = (data[el.name] || []).indexOf(el.value) !== -1; }
+        else if (el.type !== "hidden" && !el.value) { el.value = data[el.name]; }
+      });
+    };
+    // Only restore when the server didn't already re-populate from a failed submit.
+    if (stepForm.getAttribute("data-error-step") === "1" || !stepForm.querySelector(".field__error")) restore();
+    stepForm.addEventListener("input", serialise);
+    stepForm.addEventListener("change", serialise);
+
+    stepForm.addEventListener("submit", function () {
+      try { localStorage.removeItem(draftKey); } catch (e) {}
+      var submit = stepForm.querySelector("[data-submit]");
+      if (submit) { submit.classList.add("is-loading"); submit.setAttribute("aria-busy", "true"); submit.disabled = true; }
+    });
+
+    showStep(current, false);
+  }
+
   /* ---------- Cookie consent (only present when required) ---------- */
   var banner = document.querySelector("[data-cookie-banner]");
   if (banner) {
