@@ -429,6 +429,68 @@ Kirby::plugin('breakfast/platform', [
             'action'  => fn (?string $all = '') => breakfast_preview_dispatch((string) $all),
         ],
 
+        // ---- Public portfolio: /work listing + /work/{slug} case studies ----
+        // These read ONLY the published public-safe snapshots (Portfolio owns
+        // the editorial data; the website never touches internal records). Draft/
+        // ready/scheduled/unpublished/archived work is invisible here. Registered
+        // before the SPA/sitemap routes; the internal /work Kirby page stays a
+        // draft and is never served.
+        [
+            'pattern' => 'work',
+            'method'  => 'GET',
+            'action'  => function () {
+                $items = breakfast()->portfolio()->publicList();
+                $page = \Kirby\Cms\Page::factory([
+                    'slug'     => 'work',
+                    'template' => 'portfolio-work',
+                    'content'  => [
+                        'title'            => 'Selected work',
+                        'seo_title'        => 'Selected work — websites Breakfast has built | Breakfast',
+                        'meta_description' => 'A selection of clear, fast websites Breakfast has designed and built for small businesses across North Wales.',
+                    ],
+                ]);
+
+                return $page->render(['pfItems' => $items]);
+            },
+        ],
+        [
+            'pattern' => 'work/(:any)',
+            'method'  => 'GET',
+            'action'  => function (string $slug) {
+                $svc = breakfast()->portfolio();
+                $pf  = $svc->publicBySlug($slug);
+                if ($pf === null) {
+                    // Retired slug → safe 301 to the current one; otherwise 404.
+                    $to = $svc->redirectFor($slug);
+                    if ($to !== null) {
+                        return \Kirby\Http\Response::redirect(url('work/' . $to), 301);
+                    }
+
+                    return false;
+                }
+                $seo = is_array($pf['seo'] ?? null) ? $pf['seo'] : [];
+                $page = \Kirby\Cms\Page::factory([
+                    'slug'     => $slug,
+                    'template' => 'portfolio-case',
+                    'content'  => [
+                        'title'              => (string) ($pf['display_title'] ?? 'Case study'),
+                        'seo_title'          => (string) ($seo['title'] ?? ''),
+                        'meta_description'   => (string) ($seo['description'] ?? ''),
+                        'social_title'       => (string) ($seo['og_title'] ?? ''),
+                        'social_description' => (string) ($seo['og_description'] ?? ''),
+                        'robots'             => (string) ($seo['robots'] ?? 'index'),
+                    ],
+                ]);
+
+                return $page->render([
+                    'pf'       => $pf,
+                    'canonical' => url('work/' . $slug),
+                    'related'  => $svc->relatedFor($slug),
+                    'nextwork' => $svc->nextFor($slug),
+                ]);
+            },
+        ],
+
         // The Kirby Panel is relocated to a private slug (BREAKFAST_ADMIN_SLUG)
         // and rebranded "Breakfast Admin". The well-known `/panel` entry point is
         // retired: it and every descendant return the branded 404 page. This is a

@@ -702,3 +702,64 @@ details[open] .faq__q::after { content: "–"; }
 .btn--ghost.is-loading::after, .btn--primary.is-loading::after { color: var(--text); }
 @keyframes btnspin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .btn.is-loading::after { animation-duration: 1.4s; } }
+
+/* =========================================================
+   Public portfolio — /work listing + case studies
+   ========================================================= */
+.worklist .pcard { display: flex; flex-direction: column; }
+.pcard__mock { display: grid; gap: 8px; align-content: center; padding: var(--s-8); background: var(--bg-alt); }
+.pcard__mock-bar { height: 14px; width: 60%; background: var(--primary); border: 2px solid var(--text); border-radius: var(--radius-pill); }
+.pcard__mock-line { height: 12px; background: var(--text); border-radius: 4px; }
+.pcard__mock-line--sm { width: 70%; opacity: 0.6; }
+.pcard__media img { width: 100%; height: 100%; object-fit: cover; }
+.worklink { color: inherit; }
+
+/* Case study */
+.casestudy .breadcrumbs { margin-bottom: var(--s-8); }
+.case__head { max-width: 52rem; }
+.case__meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-3); margin-top: var(--s-6); }
+.case__metaitem { font-family: var(--mono); font-size: 0.82rem; color: var(--muted); }
+.case__cover { margin-top: var(--s-12); border: var(--border-3); border-radius: var(--radius); box-shadow: var(--shadow-lg); overflow: hidden; background: var(--bg-alt); }
+.case__coverimg { width: 100%; display: block; }
+.case__story { max-width: 44rem; margin-top: var(--s-16); display: grid; gap: var(--s-12); }
+.case__h2 { font-size: clamp(1.4rem, 3vw, 1.9rem); }
+.case__body { margin-top: var(--s-3); }
+.case__results { margin-top: var(--s-16); }
+.case__quote { max-width: 44rem; margin: var(--s-16) 0 0; border-left: 6px solid var(--primary); padding-left: var(--s-8); }
+.case__next { display: block; margin-top: var(--s-20); padding-block: var(--s-16); background: var(--ink); color: var(--surface); border-block: var(--border-3); text-decoration: none; transition: background-color var(--dur-fast); }
+.case__next:hover { background: #10192b; }
+.case__next-inner { display: flex; flex-direction: column; gap: var(--s-2); }
+.case__next-label { font-family: var(--mono); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: #cbd5e6; }
+.case__next-title { font-size: clamp(1.4rem, 3.5vw, 2.2rem); font-weight: 900; letter-spacing: -0.02em; }
+
+/* Case-study blocks */
+.pfblock { margin-top: var(--s-12); }
+.pfblock--full { border: var(--border-3); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); margin-inline: 0; }
+.pfblock--full .pfblock__img, .pfblock__img { width: 100%; display: block; }
+.pfblock__cap { font-family: var(--mono); font-size: 0.8rem; color: var(--muted); padding: var(--s-3) var(--s-4); }
+.pfblock--browser { position: relative; }
+.pfblock--mobile { display: flex; justify-content: center; }
+.pfblock__phone { display: inline-block; max-width: 260px; border: var(--border-3); border-radius: 26px; padding: 12px; background: var(--surface); box-shadow: var(--shadow-lg); }
+.pfblock__phone .pfblock__img { border-radius: 14px; }
+.pfblock--pair { display: grid; grid-template-columns: 1.6fr 0.7fr; gap: var(--s-6); align-items: end; }
+.pfblock--pair .pfblock__desktop { border: var(--border-3); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }
+.pfblock--ba { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-6); }
+.pfblock--ba figure { margin: 0; border: var(--border-3); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-sm); }
+.pfblock--grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--s-4); }
+.pfblock--grid .pfblock__img { border: var(--border); border-radius: var(--radius-sm); }
+.pfblock--textimg { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-12); align-items: center; max-width: none; }
+.pfblock--textimg.is-flipped .pfblock__media { order: -1; }
+.pfblock--textimg .pfblock__img { border: var(--border-3); border-radius: var(--radius); box-shadow: var(--shadow); }
+.pfblock--prose, .pfblock--quote, .pfblock--caption { max-width: 44rem; }
+.pfblock--quote .quote__text { font-size: clamp(1.4rem, 3vw, 2rem); }
+.pfblock--caption { font-family: var(--mono); font-size: 0.85rem; color: var(--muted); text-align: center; }
+.pfblock--panel { background: var(--panel, var(--secondary)); color: var(--white); border: var(--border-3); border-radius: var(--radius); box-shadow: var(--shadow-lg); padding: var(--s-16) var(--s-8); text-align: center; }
+.pfblock__paneltext { font-size: clamp(1.4rem, 4vw, 2.4rem); font-weight: 900; letter-spacing: -0.02em; max-width: 22ch; margin-inline: auto; }
+@media (max-width: 820px) {
+  .pfblock--pair, .pfblock--ba, .pfblock--textimg { grid-template-columns: 1fr; }
+  .pfblock--textimg.is-flipped .pfblock__media { order: 0; }
+}
+
+/* Homepage selected-work section */
+.homework { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--s-8); }
+@media (max-width: 720px) { .homework { grid-template-columns: 1fr; } }

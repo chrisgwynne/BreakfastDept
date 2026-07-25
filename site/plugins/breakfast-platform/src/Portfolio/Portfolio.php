@@ -1036,6 +1036,111 @@ final class Portfolio
     }
 
     /**
+     * Published work related to $slug, by shared service/industry/project-type,
+     * excluding the record itself. Public snapshots only.
+     *
+     * @return list<array<string,mixed>>
+     */
+    public function relatedFor(string $slug, int $limit = 3): array
+    {
+        $rec = $this->db->one("SELECT uuid FROM portfolio_records WHERE slug = :s AND status = 'published'", ['s' => $slug]);
+        if ($rec === null) {
+            return [];
+        }
+        $rows = $this->db->all(
+            "SELECT DISTINCT s.payload, r.published_at FROM portfolio_records r
+             JOIN portfolio_snapshots s ON s.record_uuid = r.uuid AND s.is_current = 1
+             JOIN portfolio_record_taxonomies rt ON rt.record_uuid = r.uuid
+             WHERE r.status = 'published' AND r.uuid != :self
+               AND rt.taxonomy_uuid IN (SELECT taxonomy_uuid FROM portfolio_record_taxonomies WHERE record_uuid = :self)
+             ORDER BY r.published_at DESC LIMIT :l",
+            ['self' => $rec['uuid'], 'l' => max(1, min(6, $limit))]
+        );
+        $out = [];
+        foreach ($rows as $row) {
+            $p = json_decode((string) $row['payload'], true);
+            if (is_array($p)) {
+                $out[] = $p;
+            }
+        }
+        // Fall back to most-recent other published work if no taxonomy overlap.
+        if ($out === []) {
+            foreach ($this->db->all(
+                "SELECT s.payload FROM portfolio_records r JOIN portfolio_snapshots s ON s.record_uuid = r.uuid AND s.is_current = 1
+                 WHERE r.status = 'published' AND r.uuid != :self ORDER BY r.published_at DESC LIMIT :l",
+                ['self' => $rec['uuid'], 'l' => max(1, min(6, $limit))]
+            ) as $row) {
+                $p = json_decode((string) $row['payload'], true);
+                if (is_array($p)) {
+                    $out[] = $p;
+                }
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * The next published case study after $slug (by publish date, wrapping), for
+     * next-project navigation. Null if it's the only published record.
+     *
+     * @return array<string,mixed>|null
+     */
+    public function nextFor(string $slug): ?array
+    {
+        $all = $this->db->all(
+            "SELECT r.slug, s.payload FROM portfolio_records r JOIN portfolio_snapshots s ON s.record_uuid = r.uuid AND s.is_current = 1
+             WHERE r.status = 'published' ORDER BY r.published_at DESC, r.slug ASC"
+        );
+        if (count($all) < 2) {
+            return null;
+        }
+        $slugs = array_map(static fn ($r) => (string) $r['slug'], $all);
+        $i = array_search($slug, $slugs, true);
+        if ($i === false) {
+            return null;
+        }
+        $next = $all[($i + 1) % count($all)];
+        $p = json_decode((string) $next['payload'], true);
+
+        return is_array($p) ? $p : null;
+    }
+
+    /**
+     * Published work linked to a Kirby service page (by its slug), honouring
+     * service-page overrides (exclude hides it, include/order can pin it).
+     * Public snapshots only.
+     *
+     * @return list<array<string,mixed>>
+     */
+    public function publicForService(string $serviceSlug, int $limit = 3): array
+    {
+        $rows = $this->db->all(
+            "SELECT s.payload, r.published_at,
+                    COALESCE(so.mode, 'auto') AS mode, so.sort_order AS ov_order
+             FROM portfolio_records r
+             JOIN portfolio_snapshots s ON s.record_uuid = r.uuid AND s.is_current = 1
+             JOIN portfolio_record_taxonomies rt ON rt.record_uuid = r.uuid
+             JOIN portfolio_taxonomies t ON t.uuid = rt.taxonomy_uuid AND t.kind = 'service' AND t.service_slug = :svc
+             LEFT JOIN portfolio_service_overrides so ON so.record_uuid = r.uuid AND so.service_slug = :svc
+             WHERE r.status = 'published' AND COALESCE(so.mode, 'auto') != 'exclude'
+             GROUP BY r.uuid
+             ORDER BY (so.sort_order IS NULL), so.sort_order ASC, r.published_at DESC
+             LIMIT :l",
+            ['svc' => $serviceSlug, 'l' => max(1, min(12, $limit))]
+        );
+        $out = [];
+        foreach ($rows as $row) {
+            $p = json_decode((string) $row['payload'], true);
+            if (is_array($p)) {
+                $out[] = $p;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
      * The current slug a retired slug should 301 to, or null. Returns null if
      * the old slug is itself a live published slug (no redirect needed / no loop).
      */

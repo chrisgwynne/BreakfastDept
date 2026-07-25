@@ -63,6 +63,27 @@
   </div>
 </section>
 
+<?php /* ======================= Selected work (portfolio) ======================= */ ?>
+<?php $homeWork = breakfast()->portfolio()->homepageSelection(); ?>
+<?php if ($homeWork !== []): ?>
+<section class="section" aria-labelledby="work-h">
+  <div class="container">
+    <div class="section__head section__head--row reveal">
+      <div>
+        <span class="kicker"><?= esc(t('breakfast.work', 'Selected work')) ?></span>
+        <h2 class="section__title" id="work-h">Recent websites</h2>
+      </div>
+      <a class="link-cta" href="<?= esc(url('work')) ?>">See all work <span aria-hidden="true">→</span></a>
+    </div>
+    <div class="homework">
+      <?php foreach ($homeWork as $it) {
+          snippet('partials/portfolio-card', ['pf' => $it]);
+      } ?>
+    </div>
+  </div>
+</section>
+<?php endif ?>
+
 <?php /* ============================ Services ============================ */ ?>
 <?php $svc = $page->services_cards()->toStructure(); ?>
 <?php if ($page->services_enabled()->toBool(true) && $svc->isNotEmpty()): ?>

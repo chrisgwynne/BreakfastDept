@@ -15,6 +15,11 @@ $nav = $site->nav()->toStructure();
         <span class="nav__toggle-bars" aria-hidden="true"><span></span><span></span><span></span></span>
       </button>
       <ul class="nav__menu" id="nav-menu">
+        <?php /* "Work" appears only once there is genuinely published portfolio work. */ ?>
+        <?php $hasWork = breakfast()->portfolio()->publicList(1) !== []; ?>
+        <?php if ($hasWork): ?>
+          <li><a class="nav__link" href="<?= esc(url('work')) ?>"<?= $page->slug() === 'work' ? ' aria-current="page"' : '' ?>><?= esc(t('breakfast.work', 'Work')) ?></a></li>
+        <?php endif ?>
         <?php foreach ($nav as $item): ?>
           <?php
             $target = $item->link()->toPage() ?? null;
