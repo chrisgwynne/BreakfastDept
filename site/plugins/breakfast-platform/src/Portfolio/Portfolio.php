@@ -1,0 +1,469 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Breakfast\Platform\Portfolio;
+
+use Breakfast\Platform\Support\Clock;
+use Breakfast\Platform\Support\Database;
+use Breakfast\Platform\Support\Uuid;
+
+/**
+ * Portfolio & Case Studies — the editorial domain service.
+ *
+ * Owns the internal portfolio_record lifecycle. Status is the server-enforced
+ * state machine in {@see PortfolioStatus}; every change is recorded as an
+ * immutable portfolio_event (the API layer additionally writes a global audit
+ * entry). The public-safe snapshot pipeline that materialises published work
+ * for the website lives in {@see Publisher} (CP2); this service exposes the
+ * validation and transition rules it builds on.
+ *
+ * Stable uuids are the only relationship key. The public `slug` is editable;
+ * changing it retires the old slug into portfolio_redirects for a safe 301.
+ */
+final class Portfolio
+{
+    private const PLACEHOLDER_PATTERNS = ['lorem ipsum', 'todo', 'tbc', 'placeholder', 'xxxx', 'lorem'];
+
+    public function __construct(private readonly Database $db)
+    {
+    }
+
+    // ==================================================================
+    // Read
+    // ==================================================================
+
+    /**
+     * @param array<string,mixed> $filters
+     * @return list<array<string,mixed>>
+     */
+    public function list(array $filters = []): array
+    {
+        $where = ['1 = 1'];
+        $params = [];
+        if (!empty($filters['status'])) {
+            $where[] = 'status = :status';
+            $params['status'] = (string) $filters['status'];
+        }
+        if (!array_key_exists('include_archived', $filters) || $filters['include_archived'] === false) {
+            if (empty($filters['status'])) {
+                $where[] = "status != 'archived'";
+            }
+        }
+        if (!empty($filters['company_uuid'])) {
+            $where[] = 'company_uuid = :company';
+            $params['company'] = (string) $filters['company_uuid'];
+        }
+        if (!empty($filters['featured'])) {
+            $where[] = 'featured = 1';
+        }
+        if (array_key_exists('on_homepage', $filters) && $filters['on_homepage']) {
+            $where[] = 'homepage_position IS NOT NULL';
+        }
+        $params['l'] = max(1, min(200, (int) ($filters['limit'] ?? 100)));
+        $order = !empty($filters['on_homepage']) ? 'homepage_position ASC' : 'updated_at DESC';
+        $rows = $this->db->all(
+            'SELECT * FROM portfolio_records WHERE ' . implode(' AND ', $where) . ' ORDER BY ' . $order . ' LIMIT :l',
+            $params
+        );
+
+        return array_map(fn (array $r): array => $this->summariseRow($r), $rows);
+    }
+
+    /**
+     * Counts per status for the navigation badges, plus a couple of operational
+     * totals used by the dashboard.
+     *
+     * @return array<string,int>
+     */
+    public function counts(): array
+    {
+        $counts = [];
+        foreach (PortfolioStatus::ALL as $s) {
+            $counts[$s] = 0;
+        }
+        foreach ($this->db->all('SELECT status, COUNT(*) AS n FROM portfolio_records GROUP BY status') as $row) {
+            $counts[(string) $row['status']] = (int) $row['n'];
+        }
+        $counts['all'] = (int) $this->db->scalar("SELECT COUNT(*) FROM portfolio_records WHERE status != 'archived'");
+        $counts['on_homepage'] = (int) $this->db->scalar('SELECT COUNT(*) FROM portfolio_records WHERE homepage_position IS NOT NULL');
+
+        return $counts;
+    }
+
+    /** @return array<string,mixed>|null */
+    public function find(string $uuid): ?array
+    {
+        $row = $this->db->one('SELECT * FROM portfolio_records WHERE uuid = :u', ['u' => $uuid]);
+        if ($row === null) {
+            return null;
+        }
+        $row['story']        = $this->db->all('SELECT * FROM portfolio_story_sections WHERE record_uuid = :u ORDER BY sort_order ASC', ['u' => $uuid]);
+        $row['blocks']       = $this->db->all('SELECT * FROM portfolio_blocks WHERE record_uuid = :u AND deleted = 0 ORDER BY sort_order ASC', ['u' => $uuid]);
+        $row['media']        = $this->db->all('SELECT * FROM portfolio_media WHERE record_uuid = :u AND archived = 0 ORDER BY sort_order ASC', ['u' => $uuid]);
+        $row['results']      = $this->db->all('SELECT * FROM portfolio_results WHERE record_uuid = :u ORDER BY sort_order ASC', ['u' => $uuid]);
+        $row['testimonial']  = $this->db->one('SELECT * FROM portfolio_testimonials WHERE record_uuid = :u LIMIT 1', ['u' => $uuid]);
+        $row['taxonomies']   = $this->db->all(
+            'SELECT t.* FROM portfolio_taxonomies t JOIN portfolio_record_taxonomies rt ON rt.taxonomy_uuid = t.uuid WHERE rt.record_uuid = :u ORDER BY rt.sort_order ASC',
+            ['u' => $uuid]
+        );
+        $row['events']       = $this->db->all('SELECT * FROM portfolio_events WHERE record_uuid = :u ORDER BY created_at DESC LIMIT 100', ['u' => $uuid]);
+
+        return $row;
+    }
+
+    // ==================================================================
+    // Create / update
+    // ==================================================================
+
+    /**
+     * @param array<string,mixed> $data
+     * @return array<string,mixed>
+     */
+    public function create(array $data, string $actor): array
+    {
+        $internalName = trim((string) ($data['internal_name'] ?? $data['project_title'] ?? $data['display_title'] ?? ''));
+        if ($internalName === '') {
+            throw new PortfolioException(422, 'Give the record an internal name so you can find it.', 'invalid');
+        }
+        $slug = $this->uniqueSlug((string) ($data['slug'] ?? $data['display_title'] ?? $internalName));
+        $now  = Clock::nowIso();
+        $uuid = Uuid::v4();
+
+        return $this->db->transaction(function (Database $db) use ($data, $uuid, $slug, $internalName, $actor, $now): array {
+            $db->run(
+                'INSERT INTO portfolio_records
+                    (uuid, slug, status, visibility, company_uuid, contact_uuid, project_uuid,
+                     internal_name, project_title, client_display_name, display_title, card_title,
+                     case_study_headline, summary, project_type, industry, location, website_url, link_label,
+                     completion_date, launch_date, template, accent, animation, revision, created_by, updated_by, created_at, updated_at)
+                 VALUES
+                    (:uuid, :slug, :status, :visibility, :company, :contact, :project,
+                     :internal, :ptitle, :client, :dtitle, :ctitle,
+                     :headline, :summary, :ptype, :industry, :location, :website, :linklabel,
+                     :completion, :launch, :template, :accent, :animation, 1, :actor, :actor, :now, :now)',
+                [
+                    'uuid' => $uuid, 'slug' => $slug, 'status' => PortfolioStatus::DRAFT, 'visibility' => 'private',
+                    'company' => $data['company_uuid'] ?? null, 'contact' => $data['contact_uuid'] ?? null, 'project' => $data['project_uuid'] ?? null,
+                    'internal' => $internalName, 'ptitle' => (string) ($data['project_title'] ?? ''),
+                    'client' => (string) ($data['client_display_name'] ?? ''), 'dtitle' => (string) ($data['display_title'] ?? ''),
+                    'ctitle' => (string) ($data['card_title'] ?? ''), 'headline' => (string) ($data['case_study_headline'] ?? ''),
+                    'summary' => (string) ($data['summary'] ?? ''), 'ptype' => (string) ($data['project_type'] ?? ''),
+                    'industry' => (string) ($data['industry'] ?? ''), 'location' => (string) ($data['location'] ?? ''),
+                    'website' => (string) ($data['website_url'] ?? ''), 'linklabel' => (string) ($data['link_label'] ?? ''),
+                    'completion' => $data['completion_date'] ?? null, 'launch' => $data['launch_date'] ?? null,
+                    'template' => (string) ($data['template'] ?? 'standard'), 'accent' => (string) ($data['accent'] ?? 'butter'),
+                    'animation' => (string) ($data['animation'] ?? 'standard'), 'actor' => $actor, 'now' => $now,
+                ]
+            );
+            $this->event($db, $uuid, 'created', 'Record created', $actor);
+
+            return $db->one('SELECT * FROM portfolio_records WHERE uuid = :u', ['u' => $uuid]) ?? [];
+        });
+    }
+
+    /**
+     * Update editorial fields with optimistic concurrency. The caller passes the
+     * revision it last read; a mismatch means someone else saved in between.
+     *
+     * @param array<string,mixed> $data
+     * @return array<string,mixed>
+     */
+    public function update(string $uuid, array $data, int $expectedRevision, string $actor): array
+    {
+        return $this->db->transaction(function (Database $db) use ($uuid, $data, $expectedRevision, $actor): array {
+            $current = $db->one('SELECT * FROM portfolio_records WHERE uuid = :u', ['u' => $uuid]);
+            if ($current === null) {
+                throw new PortfolioException(404, 'That portfolio record no longer exists.', 'not_found');
+            }
+            if ((int) $current['revision'] !== $expectedRevision) {
+                throw new PortfolioException(409, 'This record was changed elsewhere since you opened it. Reload to see the latest version.', 'revision_conflict');
+            }
+
+            // Editable text/relationship fields (public + internal). Status and
+            // publication dates are NOT settable here — they move via transition().
+            $editable = [
+                'company_uuid', 'contact_uuid', 'project_uuid', 'internal_name', 'project_title',
+                'client_display_name', 'display_title', 'card_title', 'case_study_headline', 'summary',
+                'project_type', 'industry', 'location', 'website_url', 'link_label', 'completion_date',
+                'launch_date', 'featured', 'template', 'accent', 'animation', 'cover_media_uuid',
+                'seo_title', 'seo_description', 'og_title', 'og_description', 'og_media_uuid', 'robots', 'in_sitemap',
+            ];
+            $set = [];
+            $params = ['u' => $uuid];
+            foreach ($editable as $col) {
+                if (array_key_exists($col, $data)) {
+                    $set[] = "$col = :$col";
+                    $params[$col] = is_bool($data[$col]) ? (int) $data[$col] : $data[$col];
+                }
+            }
+
+            // A slug change retires the old slug into the redirect table.
+            if (array_key_exists('slug', $data)) {
+                $newSlug = $this->normaliseSlug((string) $data['slug']);
+                if ($newSlug !== '' && $newSlug !== (string) $current['slug']) {
+                    $newSlug = $this->uniqueSlug($newSlug, $uuid);
+                    $this->retireSlug($db, $uuid, (string) $current['slug'], $newSlug);
+                    $set[] = 'slug = :slug';
+                    $params['slug'] = $newSlug;
+                    $this->event($db, $uuid, 'slug_changed', 'Slug changed', $actor);
+                }
+            }
+
+            $set[] = 'revision = revision + 1';
+            $set[] = 'updated_by = :actor';
+            $set[] = 'updated_at = :now';
+            $params['actor'] = $actor;
+            $params['now'] = Clock::nowIso();
+
+            $db->run('UPDATE portfolio_records SET ' . implode(', ', $set) . ' WHERE uuid = :u', $params);
+            $this->event($db, $uuid, 'updated', 'Record updated', $actor);
+
+            return $db->one('SELECT * FROM portfolio_records WHERE uuid = :u', ['u' => $uuid]) ?? [];
+        });
+    }
+
+    // ==================================================================
+    // State machine
+    // ==================================================================
+
+    /**
+     * Move a record to a new status. Invalid transitions are rejected here,
+     * server-side. Publishing runs editorial validation first (unless an
+     * explicit privileged override is supplied) — the actual public snapshot is
+     * materialised by the Publisher, which the API wires in at CP2.
+     *
+     * @param array<string,mixed> $opts  detail, override(bool), override_reason, scheduled_at
+     * @return array<string,mixed>
+     */
+    public function transition(string $uuid, string $to, string $actor, array $opts = []): array
+    {
+        if (!PortfolioStatus::isValid($to)) {
+            throw new PortfolioException(422, 'Unknown status.', 'invalid_status');
+        }
+
+        return $this->db->transaction(function (Database $db) use ($uuid, $to, $actor, $opts): array {
+            $record = $db->one('SELECT * FROM portfolio_records WHERE uuid = :u', ['u' => $uuid]);
+            if ($record === null) {
+                throw new PortfolioException(404, 'That portfolio record no longer exists.', 'not_found');
+            }
+            $from = (string) $record['status'];
+            if ($from === $to) {
+                return $record;
+            }
+            if (!PortfolioStatus::canTransition($from, $to)) {
+                throw new PortfolioException(422, sprintf('Cannot move a %s record to %s.', $from, $to), 'invalid_transition');
+            }
+
+            // Publishing requires a clean validation pass unless overridden.
+            if ($to === PortfolioStatus::PUBLISHED) {
+                $blockers = $this->validateForPublish($uuid);
+                $override = (bool) ($opts['override'] ?? false);
+                if ($blockers !== [] && !$override) {
+                    throw new PortfolioException(422, 'This record is not ready to publish. Resolve the blockers first.', 'validation_failed');
+                }
+                if ($blockers !== [] && $override) {
+                    $reason = trim((string) ($opts['override_reason'] ?? ''));
+                    if ($reason === '') {
+                        throw new PortfolioException(422, 'An override reason is required to publish with unresolved blockers.', 'override_reason_required');
+                    }
+                    $this->event($db, $uuid, 'validation_overridden', 'Published with override: ' . $reason, $actor);
+                }
+            }
+
+            $now = Clock::nowIso();
+            $extra = ['status' => $to, 'visibility' => PortfolioStatus::visibilityFor($to), 'now' => $now, 'actor' => $actor, 'u' => $uuid];
+            $cols = 'status = :status, visibility = :visibility, updated_at = :now, updated_by = :actor';
+
+            if ($to === PortfolioStatus::SCHEDULED) {
+                $at = trim((string) ($opts['scheduled_at'] ?? ''));
+                if ($at === '') {
+                    throw new PortfolioException(422, 'A publish time is required to schedule.', 'schedule_time_required');
+                }
+                $cols .= ', scheduled_at = :at';
+                $extra['at'] = $at;
+            }
+            if ($to === PortfolioStatus::PUBLISHED) {
+                $cols .= ', published_at = COALESCE(published_at, :pub), scheduled_at = NULL';
+                $extra['pub'] = $now;
+            }
+            if ($to === PortfolioStatus::ARCHIVED) {
+                $cols .= ', archived_at = :now';
+            }
+            if ($from === PortfolioStatus::ARCHIVED) {
+                $cols .= ', archived_at = NULL';
+            }
+
+            $db->run('UPDATE portfolio_records SET ' . $cols . ' WHERE uuid = :u', $extra);
+            $this->event($db, $uuid, 'status:' . $to, trim((string) ($opts['detail'] ?? ('Moved from ' . $from . ' to ' . $to))), $actor);
+
+            return $db->one('SELECT * FROM portfolio_records WHERE uuid = :u', ['u' => $uuid]) ?? [];
+        });
+    }
+
+    // ==================================================================
+    // Publication validation (editorial blockers)
+    // ==================================================================
+
+    /**
+     * Everything that must be true before a record may be published. Returned as
+     * a flat list of human-readable blockers so the API/UI can show them in one
+     * panel. The Publisher (CP2) reuses this.
+     *
+     * @return list<string>
+     */
+    public function validateForPublish(string $uuid): array
+    {
+        $r = $this->db->one('SELECT * FROM portfolio_records WHERE uuid = :u', ['u' => $uuid]);
+        if ($r === null) {
+            return ['Record not found.'];
+        }
+        $blockers = [];
+        if (trim((string) $r['display_title']) === '') {
+            $blockers[] = 'A public project title is required.';
+        }
+        if (trim((string) $r['client_display_name']) === '') {
+            $blockers[] = 'A client display name is required.';
+        }
+        if (trim((string) $r['summary']) === '') {
+            $blockers[] = 'A short public introduction is required.';
+        }
+        if (trim((string) $r['slug']) === '') {
+            $blockers[] = 'A public slug is required.';
+        }
+
+        // At least one linked service taxonomy.
+        $services = (int) $this->db->scalar(
+            'SELECT COUNT(*) FROM portfolio_record_taxonomies rt JOIN portfolio_taxonomies t ON t.uuid = rt.taxonomy_uuid WHERE rt.record_uuid = :u AND t.kind = :k',
+            ['u' => $uuid, 'k' => 'service']
+        );
+        if ($services === 0) {
+            $blockers[] = 'Select at least one service.';
+        }
+
+        // At least one approved public image, and every public non-decorative
+        // image needs alt text; no referenced media may be archived.
+        $media = $this->db->all('SELECT * FROM portfolio_media WHERE record_uuid = :u', ['u' => $uuid]);
+        $publicImages = array_filter($media, static fn ($m) => (int) $m['approved_for_public'] === 1 && (int) $m['archived'] === 0 && $m['kind'] === 'image');
+        if ($publicImages === []) {
+            $blockers[] = 'At least one image approved for public use is required.';
+        }
+        foreach ($publicImages as $m) {
+            if ((int) $m['decorative'] === 0 && trim((string) $m['alt']) === '') {
+                $blockers[] = 'Every public image needs alt text (or must be marked decorative).';
+                break;
+            }
+        }
+
+        // At least one visible story section with a body.
+        $story = (int) $this->db->scalar(
+            "SELECT COUNT(*) FROM portfolio_story_sections WHERE record_uuid = :u AND visible = 1 AND TRIM(body) != ''",
+            ['u' => $uuid]
+        );
+        if ($story === 0) {
+            $blockers[] = 'Add at least one part of the case-study story.';
+        }
+
+        // No placeholder text in the public fields.
+        $haystack = strtolower(trim((string) $r['display_title'] . ' ' . (string) $r['summary'] . ' ' . (string) $r['card_title'] . ' ' . (string) $r['case_study_headline']));
+        foreach (self::PLACEHOLDER_PATTERNS as $needle) {
+            if ($haystack !== '' && str_contains($haystack, $needle)) {
+                $blockers[] = 'Remove placeholder text before publishing.';
+                break;
+            }
+        }
+
+        // A social image must be resolvable (explicit og, cover, or an approved image).
+        $hasSocial = trim((string) $r['og_media_uuid']) !== '' || trim((string) $r['cover_media_uuid']) !== '' || $publicImages !== [];
+        if (!$hasSocial) {
+            $blockers[] = 'A social sharing image is required.';
+        }
+
+        return $blockers;
+    }
+
+    // ==================================================================
+    // Slugs
+    // ==================================================================
+
+    public function normaliseSlug(string $raw): string
+    {
+        $slug = strtolower(trim($raw));
+        $slug = preg_replace('/[^a-z0-9]+/', '-', $slug) ?? '';
+
+        return trim($slug, '-');
+    }
+
+    /** A unique, normalised slug, excluding $ignoreUuid (the record being renamed). */
+    public function uniqueSlug(string $raw, ?string $ignoreUuid = null): string
+    {
+        $base = $this->normaliseSlug($raw);
+        if ($base === '') {
+            $base = 'project';
+        }
+        $slug = $base;
+        $n = 1;
+        while ($this->slugTaken($slug, $ignoreUuid)) {
+            $n++;
+            $slug = $base . '-' . $n;
+        }
+
+        return $slug;
+    }
+
+    private function slugTaken(string $slug, ?string $ignoreUuid): bool
+    {
+        $row = $this->db->one('SELECT uuid FROM portfolio_records WHERE slug = :s', ['s' => $slug]);
+        if ($row !== null && $row['uuid'] !== $ignoreUuid) {
+            return true;
+        }
+        // A retired slug pointing at a DIFFERENT record also collides.
+        $red = $this->db->one('SELECT record_uuid FROM portfolio_redirects WHERE old_slug = :s', ['s' => $slug]);
+
+        return $red !== null && $red['record_uuid'] !== $ignoreUuid;
+    }
+
+    private function retireSlug(Database $db, string $uuid, string $oldSlug, string $newSlug): void
+    {
+        // The new slug must not remain a redirect target (avoid a loop).
+        $db->run('DELETE FROM portfolio_redirects WHERE old_slug = :s', ['s' => $newSlug]);
+        // Point any existing redirects that resolved to the old slug at the new one.
+        $db->run('UPDATE portfolio_redirects SET old_slug = old_slug WHERE record_uuid = :u', ['u' => $uuid]);
+        $db->run(
+            'INSERT INTO portfolio_redirects (old_slug, record_uuid, created_at) VALUES (:s, :u, :now)
+             ON CONFLICT(old_slug) DO UPDATE SET record_uuid = :u, created_at = :now',
+            ['s' => $oldSlug, 'u' => $uuid, 'now' => Clock::nowIso()]
+        );
+    }
+
+    // ==================================================================
+    // Internals
+    // ==================================================================
+
+    /**
+     * Trim a list row down to the fields the admin list/nav needs.
+     *
+     * @param array<string,mixed> $r
+     * @return array<string,mixed>
+     */
+    private function summariseRow(array $r): array
+    {
+        return [
+            'uuid' => $r['uuid'], 'slug' => $r['slug'], 'status' => $r['status'], 'visibility' => $r['visibility'],
+            'internal_name' => $r['internal_name'], 'display_title' => $r['display_title'], 'card_title' => $r['card_title'],
+            'client_display_name' => $r['client_display_name'], 'summary' => $r['summary'],
+            'featured' => (int) $r['featured'], 'homepage_position' => $r['homepage_position'],
+            'project_type' => $r['project_type'], 'industry' => $r['industry'],
+            'cover_media_uuid' => $r['cover_media_uuid'], 'published_at' => $r['published_at'], 'scheduled_at' => $r['scheduled_at'],
+            'revision' => (int) $r['revision'], 'updated_at' => $r['updated_at'],
+        ];
+    }
+
+    private function event(Database $db, string $recordUuid, string $type, string $detail, string $actor): void
+    {
+        $db->run(
+            'INSERT INTO portfolio_events (uuid, record_uuid, type, detail, actor, created_at) VALUES (:id, :r, :t, :d, :a, :now)',
+            ['id' => Uuid::v4(), 'r' => $recordUuid, 't' => $type, 'd' => $detail, 'a' => $actor, 'now' => Clock::nowIso()]
+        );
+    }
+}

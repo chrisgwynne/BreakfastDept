@@ -212,6 +212,11 @@ final class Platform
         return $this->service(\Breakfast\Platform\Projects\ProjectTemplates::class, fn () => new \Breakfast\Platform\Projects\ProjectTemplates($this->db()));
     }
 
+    public function portfolio(): \Breakfast\Platform\Portfolio\Portfolio
+    {
+        return $this->service(\Breakfast\Platform\Portfolio\Portfolio::class, fn () => new \Breakfast\Platform\Portfolio\Portfolio($this->db()));
+    }
+
     public function vault(): \Breakfast\Platform\Vault\Vault
     {
         return $this->service(\Breakfast\Platform\Vault\Vault::class, fn () => new \Breakfast\Platform\Vault\Vault(

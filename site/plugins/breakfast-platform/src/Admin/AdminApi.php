@@ -246,6 +246,21 @@ final class AdminApi
         if (PanelGate::canManageCalendar($user)) {
             $permissions[] = 'calendar.manage';
         }
+        if (PanelGate::canViewPortfolio($user)) {
+            $permissions[] = 'portfolio.view';
+        }
+        if (PanelGate::canManagePortfolio($user)) {
+            $permissions[] = 'portfolio.manage';
+        }
+        if (PanelGate::canPublishPortfolio($user)) {
+            $permissions[] = 'portfolio.publish';
+        }
+        if (PanelGate::canManagePortfolioHomepage($user)) {
+            $permissions[] = 'portfolio.homepage';
+        }
+        if (PanelGate::canOverridePortfolioValidation($user)) {
+            $permissions[] = 'portfolio.override';
+        }
 
         return [
             'user' => [
