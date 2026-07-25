@@ -3928,6 +3928,32 @@ final class AdminApi
                         return ['ok' => true];
                     }
                 } elseif ($action === 'media') {
+                    if ($sub === 'upload' && $method === 'POST') {
+                        $file = $this->kirby->request()->files()->get('file');
+                        if (!is_array($file) || empty($file['tmp_name'])) {
+                            throw new ApiException(422, 'No image was uploaded.', 'no_file');
+                        }
+                        $media = $svc->attachMedia($id, [
+                            'kind' => 'image', 'role' => (string) ($body['role'] ?? 'gallery'),
+                            'device' => (string) ($body['device'] ?? 'none'), 'alt' => (string) ($body['alt'] ?? ''),
+                        ], $actor);
+                        try {
+                            $result = $this->platform->portfolioMedia()->process(
+                                (string) $file['tmp_name'],
+                                (string) ($file['name'] ?? 'upload'),
+                                (string) $media['uuid'],
+                                (string) ($file['type'] ?? '')
+                            );
+                        } catch (\Breakfast\Platform\Portfolio\PortfolioException $e) {
+                            $svc->archiveMedia((string) $media['uuid'], true, $actor); // discard the empty row
+                            throw new ApiException($e->status, $e->getMessage(), $e->errorCode);
+                        }
+                        $updated = $svc->setMediaProcessed((string) $media['uuid'], $result['variants'], (int) $result['width'], (int) $result['height'], $actor);
+                        $updated['warnings'] = $result['warnings'];
+                        $this->platform->audit()->event('portfolio.media_added', 'portfolio', $id, $actor, []);
+
+                        return $updated;
+                    }
                     if ($sub === '' && $method === 'POST') {
                         return $svc->attachMedia($id, $body, $actor);
                     }

@@ -764,6 +764,28 @@ final class Portfolio
         return $this->db->one('SELECT * FROM portfolio_media WHERE uuid = :u', ['u' => $mediaUuid]) ?? [];
     }
 
+    /**
+     * Record the generated public variants + real dimensions after the image
+     * pipeline has run for a media item.
+     *
+     * @param array<string,string> $variants
+     * @return array<string,mixed>
+     */
+    public function setMediaProcessed(string $mediaUuid, array $variants, int $width, int $height, string $actor): array
+    {
+        $m = $this->db->one('SELECT record_uuid FROM portfolio_media WHERE uuid = :u', ['u' => $mediaUuid]);
+        if ($m === null) {
+            throw new PortfolioException(404, 'Media not found.', 'not_found');
+        }
+        $this->db->run(
+            'UPDATE portfolio_media SET variants = :v, width = :w, height = :h, updated_at = :now WHERE uuid = :u',
+            ['v' => $this->encodeJson($variants), 'w' => $width, 'h' => $height, 'now' => Clock::nowIso(), 'u' => $mediaUuid]
+        );
+        $this->touch((string) $m['record_uuid'], $actor, Clock::nowIso());
+
+        return $this->db->one('SELECT * FROM portfolio_media WHERE uuid = :u', ['u' => $mediaUuid]) ?? [];
+    }
+
     /** @param list<string> $orderedUuids */
     public function reorderMedia(string $recordUuid, array $orderedUuids, string $actor): void
     {

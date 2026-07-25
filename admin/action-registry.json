@@ -1612,6 +1612,17 @@
       "audit": "portfolio.homepage_set",
       "playwright": "admin-portfolio.spec.js",
       "status": "implemented"
+    },
+    {
+      "id": "portfolio.media_upload",
+      "label": "Upload portfolio image",
+      "resource": "portfolio",
+      "method": "POST",
+      "permission": "portfolio.manage",
+      "persistence": "Breakfast\\Platform\\Portfolio\\PortfolioMediaPipeline::process",
+      "audit": "portfolio.media_added",
+      "playwright": "admin-portfolio.spec.js",
+      "status": "implemented"
     }
   ]
 }
