@@ -125,8 +125,8 @@
   /* Hero entrance sequence: reveal the staggered items once, next frame. */
   var hero = document.querySelector("[data-hero]");
   if (hero) {
-    requestAnimationFrame(function () {
-      requestAnimationFrame(function () { hero.classList.add("is-in"); });
+    window.requestAnimationFrame(function () {
+      window.requestAnimationFrame(function () { hero.classList.add("is-in"); });
     });
   }
 
@@ -152,7 +152,7 @@
       });
     };
     var onScroll = function () {
-      if (!ticking) { ticking = true; requestAnimationFrame(updateProcess); }
+      if (!ticking) { ticking = true; window.requestAnimationFrame(updateProcess); }
     };
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onScroll, { passive: true });
