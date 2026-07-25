@@ -223,6 +223,106 @@ final class Portfolio
         });
     }
 
+    /**
+     * Duplicate a record into a fresh draft. Story, blocks, results, taxonomies
+     * and media rows are copied, but media public-use approval is RESET so a
+     * human must re-confirm rights on the copy before it can publish.
+     *
+     * @return array<string,mixed>
+     */
+    public function duplicate(string $uuid, string $actor): array
+    {
+        return $this->db->transaction(function (Database $db) use ($uuid, $actor): array {
+            $src = $db->one('SELECT * FROM portfolio_records WHERE uuid = :u', ['u' => $uuid]);
+            if ($src === null) {
+                throw new PortfolioException(404, 'That portfolio record no longer exists.', 'not_found');
+            }
+            $newUuid = Uuid::v4();
+            $newSlug = $this->uniqueSlug(((string) $src['slug']) . '-copy');
+            $now = Clock::nowIso();
+
+            $db->run(
+                'INSERT INTO portfolio_records
+                    (uuid, slug, status, visibility, company_uuid, contact_uuid, project_uuid, internal_name,
+                     project_title, client_display_name, display_title, card_title, case_study_headline, summary,
+                     project_type, industry, location, website_url, link_label, completion_date, launch_date,
+                     template, accent, animation, revision, created_by, updated_by, created_at, updated_at)
+                 SELECT :nu, :ns, \'draft\', \'private\', company_uuid, contact_uuid, project_uuid,
+                     internal_name || \' (copy)\', project_title, client_display_name, display_title, card_title,
+                     case_study_headline, summary, project_type, industry, location, website_url, link_label,
+                     completion_date, launch_date, template, accent, animation, 1, :actor, :actor, :now, :now
+                 FROM portfolio_records WHERE uuid = :src',
+                ['nu' => $newUuid, 'ns' => $newSlug, 'actor' => $actor, 'now' => $now, 'src' => $uuid]
+            );
+
+            // Story + results + taxonomy links copy verbatim.
+            foreach ($db->all('SELECT * FROM portfolio_story_sections WHERE record_uuid = :u', ['u' => $uuid]) as $s) {
+                $db->run(
+                    'INSERT INTO portfolio_story_sections (uuid, record_uuid, section_key, heading, body, visible, layout, sort_order)
+                     VALUES (:id, :r, :k, :h, :b, :v, :l, :o)',
+                    ['id' => Uuid::v4(), 'r' => $newUuid, 'k' => $s['section_key'], 'h' => $s['heading'], 'b' => $s['body'], 'v' => $s['visible'], 'l' => $s['layout'], 'o' => $s['sort_order']]
+                );
+            }
+            foreach ($db->all('SELECT * FROM portfolio_results WHERE record_uuid = :u', ['u' => $uuid]) as $r) {
+                $db->run(
+                    'INSERT INTO portfolio_results (uuid, record_uuid, value, label, note, is_numeric, source, verified, visible, sort_order)
+                     VALUES (:id,:r,:val,:lab,:note,:num,:src,:ver,:vis,:ord)',
+                    ['id' => Uuid::v4(), 'r' => $newUuid, 'val' => $r['value'], 'lab' => $r['label'], 'note' => $r['note'], 'num' => $r['is_numeric'], 'src' => $r['source'], 'ver' => $r['verified'], 'vis' => $r['visible'], 'ord' => $r['sort_order']]
+                );
+            }
+            foreach ($db->all('SELECT * FROM portfolio_record_taxonomies WHERE record_uuid = :u', ['u' => $uuid]) as $t) {
+                $db->run('INSERT INTO portfolio_record_taxonomies (record_uuid, taxonomy_uuid, sort_order) VALUES (:r,:t,:o)', ['r' => $newUuid, 't' => $t['taxonomy_uuid'], 'o' => $t['sort_order']]);
+            }
+            // Media copies with approval RESET (rights must be reconfirmed).
+            foreach ($db->all('SELECT * FROM portfolio_media WHERE record_uuid = :u AND archived = 0', ['u' => $uuid]) as $m) {
+                $db->run(
+                    'INSERT INTO portfolio_media (uuid, record_uuid, file_uuid, source_file_uuid, kind, role, device, alt, decorative, caption, focal_x, focal_y, background, treatment, embed_url, downloadable, width, height, variants, approved_for_public, sort_order, created_by, created_at, updated_at)
+                     VALUES (:id,:r,:f,:sf,:k,:ro,:d,:alt,:dec,:cap,:fx,:fy,:bg,:tr,:eu,:dl,:w,:h,:var,0,:ord,:actor,:now,:now)',
+                    ['id' => Uuid::v4(), 'r' => $newUuid, 'f' => $m['file_uuid'], 'sf' => $m['source_file_uuid'], 'k' => $m['kind'], 'ro' => $m['role'], 'd' => $m['device'], 'alt' => $m['alt'], 'dec' => $m['decorative'], 'cap' => $m['caption'], 'fx' => $m['focal_x'], 'fy' => $m['focal_y'], 'bg' => $m['background'], 'tr' => $m['treatment'], 'eu' => $m['embed_url'], 'dl' => $m['downloadable'], 'w' => $m['width'], 'h' => $m['height'], 'var' => $m['variants'], 'ord' => $m['sort_order'], 'actor' => $actor, 'now' => $now]
+                );
+            }
+            $this->event($db, $newUuid, 'created', 'Duplicated from ' . $uuid, $actor);
+
+            return $db->one('SELECT * FROM portfolio_records WHERE uuid = :u', ['u' => $newUuid]) ?? [];
+        });
+    }
+
+    /**
+     * Set the homepage selection: an ordered list of record uuids. Only
+     * published records may be featured; unpublished/archived are rejected. Any
+     * record not in the list is removed from the homepage (without unpublishing).
+     *
+     * @param list<string> $orderedUuids
+     * @return list<array<string,mixed>>
+     */
+    public function setHomepageSelection(array $orderedUuids, string $actor, int $max = 4): array
+    {
+        $orderedUuids = array_values(array_unique(array_filter(array_map('strval', $orderedUuids))));
+        if (count($orderedUuids) > $max) {
+            throw new PortfolioException(422, sprintf('The homepage shows at most %d projects.', $max), 'too_many');
+        }
+
+        return $this->db->transaction(function (Database $db) use ($orderedUuids, $actor): array {
+            foreach ($orderedUuids as $uuid) {
+                $rec = $db->one('SELECT status FROM portfolio_records WHERE uuid = :u', ['u' => $uuid]);
+                if ($rec === null) {
+                    throw new PortfolioException(404, 'A selected record no longer exists.', 'not_found');
+                }
+                if ((string) $rec['status'] !== PortfolioStatus::PUBLISHED) {
+                    throw new PortfolioException(422, 'Only published work can be featured on the homepage.', 'not_published');
+                }
+            }
+            // Clear all, then set positions for the chosen few.
+            $db->run('UPDATE portfolio_records SET homepage_position = NULL WHERE homepage_position IS NOT NULL');
+            foreach ($orderedUuids as $i => $uuid) {
+                $db->run('UPDATE portfolio_records SET homepage_position = :p, updated_at = :now WHERE uuid = :u', ['p' => $i + 1, 'now' => Clock::nowIso(), 'u' => $uuid]);
+                $this->event($db, $uuid, 'homepage_feature_added', 'Featured on the homepage at position ' . ($i + 1), $actor);
+            }
+
+            return $this->list(['on_homepage' => true]);
+        });
+    }
+
     // ==================================================================
     // State machine
     // ==================================================================

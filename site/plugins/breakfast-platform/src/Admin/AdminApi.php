@@ -104,6 +104,7 @@ final class AdminApi
             'files'         => $this->files($method, $seg, $user),
             'vault'         => $this->vault($method, $seg, $user),
             'calendar'      => $this->calendar($method, $seg, $user),
+            'portfolio'     => $this->portfolio($method, $seg, $user),
             'search'        => $this->search(),
             'settings'      => $this->settings($method, $seg, $user),
             'reports'       => $this->reports(),
@@ -3756,6 +3757,164 @@ final class AdminApi
     private function crmWrite(): CrmWrite
     {
         return new CrmWrite($this->platform);
+    }
+
+    /**
+     * Portfolio & Case Studies API. Record lifecycle, transitions, validation,
+     * history, duplicate and homepage selection. Child-entity editing (blocks,
+     * media, story, results, taxonomy) is handled by portfolioChildren().
+     *
+     * @param list<string> $seg
+     * @return mixed
+     */
+    private function portfolio(string $method, array $seg, \Kirby\Cms\User $user)
+    {
+        if (!PanelGate::canViewPortfolio($user)) {
+            throw new ApiException(403, 'You don’t have access to the portfolio.', 'forbidden');
+        }
+        $svc   = $this->platform->portfolio();
+        $actor = (string) $user->email();
+        $id    = $seg[1] ?? '';
+        $action = $seg[2] ?? '';
+
+        $requireManage = function () use ($user): void {
+            if (!PanelGate::canManagePortfolio($user)) {
+                throw new ApiException(403, 'You can’t manage the portfolio.', 'forbidden');
+            }
+        };
+        $requirePublish = function () use ($user): void {
+            if (!PanelGate::canPublishPortfolio($user)) {
+                throw new ApiException(403, 'You can’t publish portfolio work.', 'forbidden');
+            }
+        };
+
+        try {
+            // ---- Collection ----
+            if ($id === '') {
+                if ($method === 'GET') {
+                    $filters = [];
+                    $q = $this->query();
+                    if (!empty($q['status'])) {
+                        $filters['status'] = $q['status'];
+                    }
+                    if (($q['include_archived'] ?? '') === '1') {
+                        $filters['include_archived'] = true;
+                    }
+
+                    return ['items' => $svc->list($filters), 'counts' => $svc->counts()];
+                }
+                if ($method === 'POST') {
+                    $requireManage();
+                    $rec = $svc->create($this->body(), $actor);
+                    $this->platform->audit()->event('portfolio.created', 'portfolio', (string) $rec['uuid'], $actor, []);
+
+                    return $rec;
+                }
+                throw new ApiException(405, 'Method not allowed.', 'method');
+            }
+
+            // ---- Counts / homepage selection ----
+            if ($id === 'counts' && $method === 'GET') {
+                return $svc->counts();
+            }
+            if ($id === 'homepage') {
+                if ($method === 'GET') {
+                    return ['items' => $svc->list(['on_homepage' => true])];
+                }
+                if ($method === 'POST') {
+                    if (!PanelGate::canManagePortfolioHomepage($user)) {
+                        throw new ApiException(403, 'You can’t manage the homepage selection.', 'forbidden');
+                    }
+                    $order = $this->body()['order'] ?? [];
+                    $items = $svc->setHomepageSelection(is_array($order) ? $order : [], $actor);
+                    $this->platform->audit()->event('portfolio.homepage_set', 'portfolio', null, $actor, ['count' => count($items)]);
+
+                    return ['items' => $items];
+                }
+                throw new ApiException(405, 'Method not allowed.', 'method');
+            }
+
+            // ---- Single record ----
+            if ($action === '') {
+                if ($method === 'GET') {
+                    $rec = $svc->find($id);
+                    if ($rec === null) {
+                        throw new ApiException(404, 'Portfolio record not found.', 'not_found');
+                    }
+
+                    return $rec;
+                }
+                if ($method === 'PATCH') {
+                    $requireManage();
+                    $body = $this->body();
+                    $rev = (int) ($body['revision'] ?? 0);
+                    $rec = $svc->update($id, $body, $rev, $actor);
+                    $this->platform->audit()->event('portfolio.updated', 'portfolio', $id, $actor, []);
+
+                    return $rec;
+                }
+                throw new ApiException(405, 'Method not allowed.', 'method');
+            }
+
+            if ($method === 'GET' && $action === 'validate') {
+                return ['blockers' => $svc->validateForPublish($id)];
+            }
+            if ($method === 'GET' && $action === 'history') {
+                $rec = $svc->find($id);
+                if ($rec === null) {
+                    throw new ApiException(404, 'Portfolio record not found.', 'not_found');
+                }
+
+                return ['events' => $rec['events'] ?? []];
+            }
+            if ($method === 'POST' && $action === 'duplicate') {
+                $requireManage();
+                $rec = $svc->duplicate($id, $actor);
+                $this->platform->audit()->event('portfolio.duplicated', 'portfolio', (string) $rec['uuid'], $actor, ['from' => $id]);
+
+                return $rec;
+            }
+
+            // ---- Transitions ----
+            $transitions = [
+                'submit-review'   => \Breakfast\Platform\Portfolio\PortfolioStatus::INTERNAL_REVIEW,
+                'request-changes' => \Breakfast\Platform\Portfolio\PortfolioStatus::CHANGES_REQUESTED,
+                'mark-ready'      => \Breakfast\Platform\Portfolio\PortfolioStatus::READY,
+                'schedule'        => \Breakfast\Platform\Portfolio\PortfolioStatus::SCHEDULED,
+                'publish'         => \Breakfast\Platform\Portfolio\PortfolioStatus::PUBLISHED,
+                'unpublish'       => \Breakfast\Platform\Portfolio\PortfolioStatus::UNPUBLISHED,
+                'archive'         => \Breakfast\Platform\Portfolio\PortfolioStatus::ARCHIVED,
+                'restore'         => \Breakfast\Platform\Portfolio\PortfolioStatus::DRAFT,
+            ];
+            if ($method === 'POST' && isset($transitions[$action])) {
+                $to = $transitions[$action];
+                if (in_array($action, ['publish', 'schedule', 'unpublish'], true)) {
+                    $requirePublish();
+                } else {
+                    $requireManage();
+                }
+                $body = $this->body();
+                $opts = [];
+                if ($action === 'schedule') {
+                    $opts['scheduled_at'] = (string) ($body['scheduled_at'] ?? '');
+                }
+                if ($action === 'publish' && !empty($body['override'])) {
+                    if (!PanelGate::canOverridePortfolioValidation($user)) {
+                        throw new ApiException(403, 'You can’t override publication validation.', 'forbidden');
+                    }
+                    $opts['override'] = true;
+                    $opts['override_reason'] = (string) ($body['override_reason'] ?? '');
+                }
+                $rec = $svc->transition($id, $to, $actor, $opts);
+                $this->platform->audit()->event('portfolio.' . str_replace('-', '_', $action), 'portfolio', $id, $actor, []);
+
+                return $rec;
+            }
+
+            throw new ApiException(404, 'Unknown portfolio endpoint.', 'not_found');
+        } catch (\Breakfast\Platform\Portfolio\PortfolioException $e) {
+            throw new ApiException($e->status, $e->getMessage(), $e->errorCode);
+        }
     }
 
     private function requireCsrf(): void
