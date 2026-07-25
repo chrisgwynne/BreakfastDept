@@ -9,9 +9,9 @@ test("homepage loads with hero and primary CTA", async ({ page }) => {
 
 test("primary navigation links work", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("link", { name: "Work", exact: true }).first().click();
-  await expect(page).toHaveURL(/\/work$/);
-  await expect(page.locator("h1")).toContainText(/work/i);
+  await page.getByRole("link", { name: "Services", exact: true }).first().click();
+  await expect(page).toHaveURL(/\/services$/);
+  await expect(page.locator("h1")).toBeVisible();
 });
 
 test("404 page returns friendly error", async ({ page }) => {

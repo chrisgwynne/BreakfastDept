@@ -116,6 +116,77 @@
     reveals.forEach(function (r) { r.classList.add("is-visible"); });
   }
 
+  /* ---------- Motion system ---------- */
+  var reduceMotion = false;
+  try {
+    reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  } catch (e) {}
+
+  /* Hero entrance sequence: reveal the staggered items once, next frame. */
+  var hero = document.querySelector("[data-hero]");
+  if (hero) {
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () { hero.classList.add("is-in"); });
+    });
+  }
+
+  /* Scroll-linked process: fill the connecting line + light the active step
+     as the section passes through the viewport. Transform/width only. */
+  var proc = document.querySelector("[data-process]");
+  if (proc && !reduceMotion) {
+    var fill = proc.querySelector("[data-process-fill]");
+    var stepItems = Array.prototype.slice.call(proc.querySelectorAll("[data-process-item]"));
+    var ticking = false;
+    var updateProcess = function () {
+      ticking = false;
+      var rect = proc.getBoundingClientRect();
+      var vh = window.innerHeight || document.documentElement.clientHeight;
+      // 0 when the section's top hits mid-viewport, 1 when its bottom does.
+      var total = rect.height + vh * 0.5;
+      var progressed = vh * 0.75 - rect.top;
+      var p = Math.max(0, Math.min(1, progressed / total));
+      if (fill) proc.style.setProperty("--process", (p * 100).toFixed(2) + "%");
+      var activeCount = Math.round(p * stepItems.length);
+      stepItems.forEach(function (it, idx) {
+        it.classList.toggle("is-active", idx < activeCount);
+      });
+    };
+    var onScroll = function () {
+      if (!ticking) { ticking = true; requestAnimationFrame(updateProcess); }
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll, { passive: true });
+    updateProcess();
+  }
+
+  /* Pointer tilt: subtle depth on the hero composition. Pointer devices only,
+     never under reduced motion, and paused when the element is off-screen. */
+  var tilt = document.querySelector("[data-tilt]");
+  var fine = false;
+  try { fine = window.matchMedia("(pointer: fine)").matches; } catch (e) {}
+  if (tilt && fine && !reduceMotion) {
+    var tiltActive = true;
+    if ("IntersectionObserver" in window) {
+      new IntersectionObserver(function (ents) {
+        ents.forEach(function (en) { tiltActive = en.isIntersecting; });
+      }).observe(tilt);
+    }
+    var reset = function () { tilt.style.transform = ""; };
+    tilt.parentElement.addEventListener("pointermove", function (e) {
+      if (!tiltActive) return;
+      var b = tilt.getBoundingClientRect();
+      var dx = (e.clientX - (b.left + b.width / 2)) / b.width;
+      var dy = (e.clientY - (b.top + b.height / 2)) / b.height;
+      tilt.style.transform = "rotateX(" + (-dy * 4).toFixed(2) + "deg) rotateY(" + (dx * 5).toFixed(2) + "deg)";
+    });
+    tilt.parentElement.addEventListener("pointerleave", reset);
+  }
+
+  /* Pause CSS idle animations when the tab is hidden (saves battery/CPU). */
+  document.addEventListener("visibilitychange", function () {
+    document.documentElement.classList.toggle("is-hidden", document.hidden);
+  });
+
   /* ---------- Cookie consent (only present when required) ---------- */
   var banner = document.querySelector("[data-cookie-banner]");
   if (banner) {

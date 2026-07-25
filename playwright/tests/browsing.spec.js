@@ -1,13 +1,7 @@
 const { test, expect } = require("@playwright/test");
 
-test("work filtering hides non-matching projects", async ({ page }) => {
-  await page.goto("/work");
-  const filters = page.locator("[data-filters] [data-filter]");
-  const count = await filters.count();
-  test.skip(count < 2, "no filters rendered (needs projects with services/industries)");
-  await filters.nth(1).click();
-  await expect(page.locator("[data-filter-item]:visible").first()).toBeVisible();
-});
+// Note: the concept-work portfolio is unpublished (drafts) until real client
+// projects exist, so there is deliberately no public /work section.
 
 test("journal lists articles and article opens", async ({ page }) => {
   await page.goto("/journal");

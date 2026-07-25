@@ -6,19 +6,19 @@ Hero_eyebrow: Web design in North Wales
 
 ----
 
-Hero_headline: Your business has moved on.
+Hero_headline: Websites you'll be proud to
 
 ----
 
-Hero_highlight: Has your website?
+Hero_highlight: send people to.
 
 ----
 
-Hero_text: I design and build fresh, professional websites for local businesses across North Wales and the rest of Wales — the kind that finally match how good the business already is. First website or a long-overdue redesign, either way.
+Hero_text: Breakfast designs and builds clear, fast websites that help small businesses across North Wales win more enquiries, bookings and sales.
 
 ----
 
-Hero_primary_label: Tell me about your website
+Hero_primary_label: Start a project
 
 ----
 
@@ -26,57 +26,23 @@ Hero_primary_link: /start-a-project
 
 ----
 
-Hero_secondary_label: See the work
+Hero_secondary_label: How it works
 
 ----
 
-Hero_secondary_link: /work
+Hero_secondary_link: #process
+
+----
+
+Hero_aside_label: Or ask a quick question
+
+----
+
+Hero_aside_link: /contact
 
 ----
 
 Hero_availability: Booking new projects for the coming months.
-
-----
-
-Proposition_enabled: true
-
-----
-
-Proposition_heading: I spend more time on words than colours.
-
-----
-
-Proposition_text: If someone lands on your website and still can't tell what you do, the design has failed — however nice it looks. So I start with what you sell and who buys it, then design around that.
-
-----
-
-Proposition_points:
-
--
-  title: What I do
-  text: Web design and build for local and independent businesses across North Wales — clear, fast sites, usually a first one or a long-overdue rebuild.
--
-  title: Who it's for
-  text: Independents tired of explaining their own website over the phone. Cafés, trades, shops, makers, professional services.
--
-  title: What's different
-  text: You deal with me directly, and I care whether a real customer can actually use the thing on their phone.
-
-----
-
-Work_enabled: true
-
-----
-
-Work_heading: The kind of work I do.
-
-----
-
-Work_intro: Every business is a little different. Here's how I'd approach a few common ones — shown as concept pieces while I build up a portfolio of client sites.
-
-----
-
-Work_count: 3
 
 ----
 
@@ -88,32 +54,78 @@ Services_heading: What's on the menu.
 
 ----
 
-Services_intro: Most people start by sending a few lines about what they need, and we work out the rest together. Sometimes the answer is "less than you think".
+Services_intro: Three ways Breakfast helps. Most people start with a few lines about what they need — the rest gets worked out together.
 
 ----
 
-Problems_enabled: true
+Services_cards:
+
+-
+  title: Websites
+  text: A clear, fast website that turns visitors into enquiries.
+  audience: For independents who've outgrown their current site.
+  link: /services
+-
+  title: Online shops
+  text: Sell online without the clunk — simple to run, easy to buy from.
+  audience: For makers and shops ready to take orders.
+  link: /services
+-
+  title: Rescue & ongoing support
+  text: Fix a site that's holding you back, then keep it healthy.
+  audience: For businesses stuck with a site that fights them.
+  link: /services
 
 ----
 
-Problems_heading: The quiet things losing you customers.
+Why_enabled: true
 
 ----
 
-Problems_items:
+Why_heading: Why Breakfast
+
+----
+
+Why_points:
 
 -
-  title: Nobody can tell what you do
-  text: If the homepage doesn't say it in a sentence, most visitors leave before they scroll.
+  title: Words before decoration
+  text: People should understand what you sell before they admire the design.
 -
-  title: The thing you want them to do is hidden
-  text: A booking button below three folds of text may as well not exist.
+  title: Direct access
+  text: You deal with the person actually designing and building your site.
 -
-  title: It falls apart on a phone
-  text: Most people will see your site on a phone. If it's awkward there, it's not working.
+  title: Support after launch
+  text: Breakfast doesn't disappear the moment the site goes live.
+
+----
+
+Diagnostic_enabled: true
+
+----
+
+Diagnostic_heading: Is your website making things harder?
+
+----
+
+Diagnostic_intro: Four quick checks. If any answer is "not really", it's costing you enquiries.
+
+----
+
+Diagnostic_checks:
+
 -
-  title: It doesn't sound like you
-  text: Brochure language makes a real business feel like a template. The words are the fix.
+  question: Can people tell what you do?
+  detail: In one sentence, above the fold — or do they have to dig for it?
+-
+  question: Is the next step obvious?
+  detail: Booking, buying, calling — the main action should be impossible to miss.
+-
+  question: Does it work on a phone?
+  detail: Most visitors arrive on mobile. If it's awkward there, it isn't working.
+-
+  question: Does it sound like your business?
+  detail: Template language makes a real business feel generic. The words are the fix.
 
 ----
 
@@ -121,52 +133,51 @@ Process_enabled: true
 
 ----
 
-Process_heading: How a project actually goes.
+Process_heading: Four steps. No drama.
 
 ----
 
 Process_steps:
 
 -
-  title: We have a proper chat
-  text: What you actually sell, who buys it, and why. The least glamorous part of the job and easily the most important.
+  title: Questions first
+  text: What you sell, who buys it, and why — settled before anything gets designed.
 -
-  title: I decide what goes where
-  text: I plan the site around the one thing a visitor needs to do. Everything that doesn't help that gets cut.
+  title: A clear plan
+  text: The site gets planned around the one thing a visitor most needs to do.
 -
-  title: I write it, then build it
-  text: Words first, design around them. Fast, clear, and it works properly on a phone.
+  title: Written, then built
+  text: Words first, design around them. Fast, clear, and right on a phone.
 -
-  title: I don't disappear
-  text: I launch, watch what people actually do, and fix what's confusing. Launch is the start, not the end.
+  title: Launched, then looked after
+  text: Launch is the start. What's confusing gets watched and quietly fixed.
 
 ----
 
-Proof_enabled: false
+Platform_enabled: true
 
 ----
 
-Proof_heading:
+Platform_heading: Everything in one place.
 
 ----
 
-Testimonials:
+Platform_text: Projects, feedback, files, approvals and invoices stay organised — from the first conversation to launch.
 
 ----
 
-Logos:
+Platform_points:
 
-----
-
-Statement_enabled: false
-
-----
-
-Statement_heading: You deal with me. That's the point.
-
-----
-
-Statement_text: No account managers, no sales handoff, nothing lost in translation. The person you talk to is the person designing and building your site — and I'm still around after it launches.
+-
+  text: A private client area, not a scattered email thread
+-
+  text: See progress and what's next at a glance
+-
+  text: Review website previews and leave feedback in one place
+-
+  text: Approvals, proposals and contracts without the paper chase
+-
+  text: Invoices and messages kept tidy and findable
 
 ----
 
@@ -174,7 +185,7 @@ Journal_enabled: true
 
 ----
 
-Journal_heading: From the journal
+Journal_heading: A few honest reads
 
 ----
 
@@ -186,11 +197,11 @@ Final_cta_enabled: true
 
 ----
 
-Final_cta_heading: Is your website still doing your business justice?
+Final_cta_heading: Not sure what your website needs?
 
 ----
 
-Final_cta_text: Tell me a bit about your business and what you're hoping to achieve. I'll come back with an honest view on whether I'm the right fit.
+Final_cta_text: Send a few lines about your business. You'll get an honest view on what would actually help — no jargon, no pressure.
 
 ----
 
@@ -202,4 +213,4 @@ Seo_title: Web Design in North Wales | Websites for Local Businesses | Breakfast
 
 ----
 
-Meta_description: Web designer in North Wales. I design and build fresh, professional websites for local businesses across North Wales and Wales — first sites and long-overdue redesigns.
+Meta_description: Breakfast designs and builds clear, fast websites for small businesses across North Wales — first sites and long-overdue rebuilds that win more enquiries, bookings and sales.
