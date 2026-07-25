@@ -295,6 +295,20 @@ final class Portfolio
             }
 
             $db->run('UPDATE portfolio_records SET ' . $cols . ' WHERE uuid = :u', $extra);
+
+            // Publishing materialises a fresh public-safe snapshot and flips the
+            // current pointer, all inside this transaction. If anything here
+            // throws, the whole transaction rolls back and the previously
+            // published snapshot (last-known-good) stays live and untouched.
+            if ($to === PortfolioStatus::PUBLISHED) {
+                $this->materialiseSnapshot($db, $uuid, $actor);
+            }
+            // Unpublishing / archiving takes the public representation offline
+            // without destroying the snapshot history.
+            if ($to === PortfolioStatus::UNPUBLISHED || $to === PortfolioStatus::ARCHIVED) {
+                $db->run('UPDATE portfolio_snapshots SET is_current = 0 WHERE record_uuid = :u', ['u' => $uuid]);
+            }
+
             $this->event($db, $uuid, 'status:' . $to, trim((string) ($opts['detail'] ?? ('Moved from ' . $from . ' to ' . $to))), $actor);
 
             return $db->one('SELECT * FROM portfolio_records WHERE uuid = :u', ['u' => $uuid]) ?? [];
@@ -457,6 +471,207 @@ final class Portfolio
             'cover_media_uuid' => $r['cover_media_uuid'], 'published_at' => $r['published_at'], 'scheduled_at' => $r['scheduled_at'],
             'revision' => (int) $r['revision'], 'updated_at' => $r['updated_at'],
         ];
+    }
+
+    /**
+     * Build the public-safe snapshot from the record's current state and flip it
+     * to current in one step. The previous snapshot is retained (last-known-good).
+     */
+    private function materialiseSnapshot(Database $db, string $recordUuid, string $actor): void
+    {
+        $record = $db->one('SELECT * FROM portfolio_records WHERE uuid = :u', ['u' => $recordUuid]);
+        if ($record === null) {
+            throw new PortfolioException(404, 'Record vanished mid-publish.', 'not_found');
+        }
+        $story = $db->all('SELECT * FROM portfolio_story_sections WHERE record_uuid = :u ORDER BY sort_order ASC', ['u' => $recordUuid]);
+        $blocks = $db->all('SELECT * FROM portfolio_blocks WHERE record_uuid = :u AND deleted = 0 ORDER BY sort_order ASC', ['u' => $recordUuid]);
+        $media = $db->all('SELECT * FROM portfolio_media WHERE record_uuid = :u ORDER BY sort_order ASC', ['u' => $recordUuid]);
+        $results = $db->all('SELECT * FROM portfolio_results WHERE record_uuid = :u ORDER BY sort_order ASC', ['u' => $recordUuid]);
+        $testimonial = $db->one('SELECT * FROM portfolio_testimonials WHERE record_uuid = :u LIMIT 1', ['u' => $recordUuid]);
+        $taxonomies = $db->all(
+            'SELECT t.* FROM portfolio_taxonomies t JOIN portfolio_record_taxonomies rt ON rt.taxonomy_uuid = t.uuid WHERE rt.record_uuid = :u ORDER BY rt.sort_order ASC',
+            ['u' => $recordUuid]
+        );
+
+        $payload = PortfolioSnapshot::build($record, $story, $blocks, $media, $results, $testimonial, $taxonomies);
+        $json = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        if ($json === false) {
+            throw new PortfolioException(500, 'Could not build the public snapshot.', 'snapshot_failed');
+        }
+
+        // Pointer swap: retire the old current, insert + mark the new one current.
+        $db->run('UPDATE portfolio_snapshots SET is_current = 0 WHERE record_uuid = :u', ['u' => $recordUuid]);
+        $db->run(
+            'INSERT INTO portfolio_snapshots (uuid, record_uuid, slug, revision, payload, is_current, created_by, created_at)
+             VALUES (:id, :r, :slug, :rev, :payload, 1, :actor, :now)',
+            [
+                'id' => Uuid::v4(), 'r' => $recordUuid, 'slug' => (string) $record['slug'],
+                'rev' => (int) $record['revision'], 'payload' => $json, 'actor' => $actor, 'now' => Clock::nowIso(),
+            ]
+        );
+    }
+
+    // ==================================================================
+    // Public reads (what the website serves — is_current snapshots only)
+    // ==================================================================
+
+    /**
+     * The published, public-safe payload for a slug, or null. Only records that
+     * are currently published (is_current snapshot) resolve; drafts, ready,
+     * scheduled, unpublished and archived records are invisible here.
+     *
+     * @return array<string,mixed>|null
+     */
+    public function publicBySlug(string $slug): ?array
+    {
+        $row = $this->db->one(
+            "SELECT s.payload FROM portfolio_snapshots s
+             JOIN portfolio_records r ON r.uuid = s.record_uuid
+             WHERE s.slug = :slug AND s.is_current = 1 AND r.status = 'published'",
+            ['slug' => $slug]
+        );
+        if ($row === null) {
+            return null;
+        }
+        $payload = json_decode((string) $row['payload'], true);
+
+        return is_array($payload) ? $payload : null;
+    }
+
+    /**
+     * Published records for the public /work listing, newest first.
+     *
+     * @return list<array<string,mixed>>
+     */
+    public function publicList(int $limit = 60): array
+    {
+        $rows = $this->db->all(
+            "SELECT s.payload FROM portfolio_snapshots s
+             JOIN portfolio_records r ON r.uuid = s.record_uuid
+             WHERE s.is_current = 1 AND r.status = 'published'
+             ORDER BY r.published_at DESC LIMIT :l",
+            ['l' => max(1, min(200, $limit))]
+        );
+        $out = [];
+        foreach ($rows as $row) {
+            $payload = json_decode((string) $row['payload'], true);
+            if (is_array($payload)) {
+                $out[] = $payload;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * Published records selected for the homepage, in homepage order. Never
+     * returns unpublished/archived work (guarded by the is_current + status join).
+     *
+     * @return list<array<string,mixed>>
+     */
+    public function homepageSelection(int $limit = 4): array
+    {
+        $rows = $this->db->all(
+            "SELECT s.payload FROM portfolio_snapshots s
+             JOIN portfolio_records r ON r.uuid = s.record_uuid
+             WHERE s.is_current = 1 AND r.status = 'published' AND r.homepage_position IS NOT NULL
+             ORDER BY r.homepage_position ASC LIMIT :l",
+            ['l' => max(1, min(12, $limit))]
+        );
+        $out = [];
+        foreach ($rows as $row) {
+            $payload = json_decode((string) $row['payload'], true);
+            if (is_array($payload)) {
+                $out[] = $payload;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * The current slug a retired slug should 301 to, or null. Returns null if
+     * the old slug is itself a live published slug (no redirect needed / no loop).
+     */
+    public function redirectFor(string $oldSlug): ?string
+    {
+        $live = $this->db->one("SELECT 1 FROM portfolio_records WHERE slug = :s AND status = 'published'", ['s' => $oldSlug]);
+        if ($live !== null) {
+            return null;
+        }
+        $red = $this->db->one('SELECT record_uuid FROM portfolio_redirects WHERE old_slug = :s', ['s' => $oldSlug]);
+        if ($red === null) {
+            return null;
+        }
+        $target = $this->db->one("SELECT slug FROM portfolio_records WHERE uuid = :u AND status = 'published'", ['u' => $red['record_uuid']]);
+        if ($target === null || (string) $target['slug'] === $oldSlug) {
+            return null; // target not public, or would loop
+        }
+
+        return (string) $target['slug'];
+    }
+
+    // ==================================================================
+    // Scheduled publishing (idempotent — safe to run on any cadence)
+    // ==================================================================
+
+    /**
+     * Publish every record whose scheduled time has arrived. Idempotent: a
+     * record leaves the `scheduled` state the moment it publishes, so a repeated
+     * run never republishes it. A record that fails to publish (e.g. validation
+     * regressed) is left scheduled and reported, never half-published.
+     *
+     * @return array{published:list<string>, failed:array<string,string>}
+     */
+    public function publishDue(string $asOfIso, string $actor): array
+    {
+        $due = $this->db->all(
+            "SELECT uuid FROM portfolio_records WHERE status = 'scheduled' AND scheduled_at IS NOT NULL AND scheduled_at <= :now ORDER BY scheduled_at ASC",
+            ['now' => $asOfIso]
+        );
+        $published = [];
+        $failed = [];
+        foreach ($due as $row) {
+            $uuid = (string) $row['uuid'];
+            try {
+                $this->transition($uuid, PortfolioStatus::PUBLISHED, $actor, ['detail' => 'Scheduled publish']);
+                $published[] = $uuid;
+            } catch (PortfolioException $e) {
+                $failed[$uuid] = $e->getMessage();
+            }
+        }
+
+        return ['published' => $published, 'failed' => $failed];
+    }
+
+    // ==================================================================
+    // Linked-project population (explicit opt-in; never auto-exposes internals)
+    // ==================================================================
+
+    /**
+     * Public-safe field suggestions drawn from a linked delivery project. This
+     * only ever SUGGESTS values for the editor to accept via update() — it never
+     * writes them and never surfaces private project data (budgets, notes,
+     * internal names, files). Returns [] if the project is unknown.
+     *
+     * @param array<string,mixed> $project a projects row (from Projects::find)
+     * @return array<string,mixed>
+     */
+    public function projectSuggestions(array $project): array
+    {
+        if ($project === []) {
+            return [];
+        }
+
+        return array_filter([
+            'display_title' => trim((string) ($project['name'] ?? '')),
+            'project_type'  => trim((string) ($project['project_type'] ?? '')),
+            'completion_date' => $project['target_date'] ?? null,
+            'launch_date'   => $project['target_date'] ?? null,
+            // A public summary suggestion from the project description — the
+            // editor still reviews/edits it before it becomes public.
+            'summary'       => trim((string) ($project['description'] ?? '')),
+        ], static fn ($v) => $v !== null && $v !== '');
     }
 
     private function event(Database $db, string $recordUuid, string $type, string $detail, string $actor): void
