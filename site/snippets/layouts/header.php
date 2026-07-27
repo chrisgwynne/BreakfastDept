@@ -66,6 +66,11 @@ if ($page->isHomePage() === false) {
 
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='42' fill='%23FBFBF9' stroke='%231C293C' stroke-width='6'/%3E%3Ccircle cx='50' cy='50' r='16' fill='%23FDC800'/%3E%3C/svg%3E">
   <link rel="alternate" type="application/rss+xml" title="<?= esc($site->title()) ?> — Journal" href="<?= esc($site->url()) ?>/journal/feed.rss">
+  <?php /* Preload the body font so text paints without waiting for CSS to be parsed
+          first. Only Inter (body) is preloaded — the mono + handwriting faces are
+          decorative and font-display:swap covers them. crossorigin is required
+          even same-origin because fonts are always fetched in CORS mode. */ ?>
+  <link rel="preload" href="<?= esc(url('assets/fonts/inter-variable.woff2')) ?>" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="<?= esc(url('assets/css/app.css')) ?>?v=<?= $assetVer ?>">
 
   <?= StructuredData::toScript($structured->business()) ?>

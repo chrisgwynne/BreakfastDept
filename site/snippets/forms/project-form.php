@@ -81,7 +81,7 @@ foreach (array_keys($errors) as $ef) {
     </div>
     <div class="field">
       <label class="field__label" for="field-website"><?= esc(t('breakfast.form.website', 'Existing website (if any)')) ?></label>
-      <input class="input" id="field-website" name="website" type="url" inputmode="url" maxlength="200" placeholder="yourbusiness.co.uk" value="<?= $field('website') ?>" <?= isset($errors['website']) ? 'aria-invalid="true"' : '' ?>>
+      <input class="input" id="field-website" name="website" type="url" inputmode="url" maxlength="200" autocomplete="url" placeholder="yourbusiness.co.uk" value="<?= $field('website') ?>" <?= isset($errors['website']) ? 'aria-invalid="true"' : '' ?>>
       <?php if (isset($errors['website'])): ?><p class="field__error" id="err-website"><?= esc($errors['website']) ?></p><?php endif ?>
     </div>
     <?php $services = page('services'); if ($services): ?>
@@ -131,7 +131,8 @@ foreach (array_keys($errors) as $ef) {
       </div>
     </div>
     <?php if ($page->form_consent_text()->isNotEmpty()): ?>
-    <div class="checkbox"><input type="checkbox" id="field-consent" name="consent" value="1" <?= isset($errors['consent']) ? 'aria-invalid="true"' : '' ?>><label for="field-consent"><?= esc($page->form_consent_text()) ?></label></div>
+    <?php /* Optional marketing/follow-up opt-in — replying relies on legitimate interest, so never required. */ ?>
+    <div class="checkbox"><input type="checkbox" id="field-consent" name="consent" value="1" <?= isset($errors['consent']) ? 'aria-invalid="true"' : '' ?>><label for="field-consent"><?= esc($page->form_consent_text()) ?> <span class="field__optional">(optional)</span></label></div>
     <?php if (isset($errors['consent'])): ?><p class="field__error" id="err-consent"><?= esc($errors['consent']) ?></p><?php endif ?>
     <?php endif ?>
     <p class="form__note"><?= esc(t('breakfast.form.privacy', 'Your details are only used to reply to your enquiry. Nothing is shared or added to a marketing list.')) ?></p>

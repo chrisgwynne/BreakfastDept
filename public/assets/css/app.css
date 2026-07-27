@@ -295,6 +295,7 @@ details[open] .faq__q::after { content: "–"; }
 .field__label { font-weight: 700; }
 .field__hint { color: var(--muted); font-size: 0.9rem; }
 .field__req { color: var(--danger); }
+.field__optional { color: var(--muted); font-weight: 400; font-size: 0.85em; }
 .input, .textarea, .select {
   width: 100%; padding: var(--s-3) var(--s-4); font: inherit; color: var(--text);
   background: var(--white); border: var(--border); border-radius: var(--radius-sm); box-shadow: var(--shadow-sm);
@@ -598,7 +599,9 @@ details[open] .faq__q::after { content: "–"; }
 .portal__egg { width: 20px; height: 20px; border-radius: 48% 52% 55% 45% / 52% 48% 52% 48%; background: var(--white); border: 2px solid var(--text); position: relative; }
 .portal__egg::after { content: ""; position: absolute; inset: 0; margin: auto; width: 9px; height: 9px; border-radius: 50%; background: var(--primary); border: 1.5px solid var(--text); }
 .portal__title { font-weight: 800; }
-.portal__pill { margin-left: auto; font-family: var(--mono); font-size: 0.72rem; font-weight: 700; text-transform: uppercase; background: var(--success); color: var(--white); border: 2px solid var(--text); border-radius: var(--radius-pill); padding: 2px 10px; }
+/* Darker green than the --success token: white on this 0.72rem bold text needs
+   4.5:1 (small text), which #16a34a misses at 3.3:1. #15803d passes at ~5:1. */
+.portal__pill { margin-left: auto; font-family: var(--mono); font-size: 0.72rem; font-weight: 700; text-transform: uppercase; background: #15803d; color: var(--white); border: 2px solid var(--text); border-radius: var(--radius-pill); padding: 2px 10px; }
 .portal__bar { height: 8px; background: var(--bg-alt); border-bottom: var(--border); }
 .portal__bar-fill { display: block; height: 100%; width: 62%; background: var(--primary); }
 .portal__rows { display: grid; gap: 0; }

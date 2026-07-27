@@ -77,7 +77,6 @@ final class Analytics
             'service_viewed',
             'external_project_link',
             'email_link',
-            'phone_link',
         ];
     }
 
