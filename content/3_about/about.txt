@@ -8,7 +8,7 @@ Heading: The person you'll actually work with
 
 Intro:
 
-[{"id":"ab1a","type":"text","content":{"text":"<p>Breakfast is an independent web design business in North Wales. It designs and builds websites for local businesses that want to look more professional, say what they do more clearly, and make a stronger first impression — a first site, or a long-overdue rebuild.</p>"}},{"id":"ab2b","type":"text","content":{"text":"<p>It's deliberately small. You talk to the person doing the work — no account managers, no handoffs — and every site is judged on one thing: whether a real customer can actually use it on their phone.</p>"}}]
+[{"id":"ab1a","type":"text","content":{"text":"<p>I'm Chris Gwynne, an independent web designer in North Wales. I design and build websites for local businesses that want to look more professional, say what they do more clearly, and make a stronger first impression — a first site, or a long-overdue rebuild.</p>"}},{"id":"ab2b","type":"text","content":{"text":"<p>Breakfast is deliberately small — it's just me. You talk to the person doing the work, with no account managers and no handoffs, and I judge every site on one thing: whether a real customer can actually use it on their phone.</p>"}}]
 
 ----
 
@@ -20,7 +20,7 @@ Founder_role: Designer, writer & developer
 
 ----
 
-Founder_bio: Breakfast is Chris Gwynne. Chris designs, writes and builds every site personally — one point of contact from the first email to launch, and someone who genuinely minds whether the thing works on a phone in a shop doorway. Plain-spoken, allergic to jargon, and happier fixing a booking button than fussing over a logo.
+Founder_bio: I'm Chris. I design, write and build every site personally — one point of contact from the first email to launch, and someone who genuinely minds whether the thing works on a phone in a shop doorway. Plain-spoken, allergic to jargon, and happier fixing a booking button than fussing over a logo.
 
 ----
 
@@ -28,11 +28,11 @@ Founder_caption: Chris — the whole studio.
 
 ----
 
-How_heading: How Breakfast works
+How_heading: How I work
 
 ----
 
-How_text: You brief the person who builds the thing. Work happens in the open, with progress shared early and awkward questions asked now rather than guessed at later. And Breakfast stays around after launch — watching what real visitors do and fixing what confuses them.
+How_text: You brief me directly — the person who builds the thing. Work happens in the open, with progress shared early and awkward questions asked now rather than guessed at later. And I stay around after launch, watching what real visitors do and fixing what confuses them.
 
 ----
 

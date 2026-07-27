@@ -124,7 +124,7 @@ Analytics_site:
 
 ----
 
-Cookie_message: We use privacy-respecting analytics that don't track you across the web. Is that OK?
+Cookie_message: I use privacy-respecting analytics that don't track you across the web. Is that OK?
 
 ----
 

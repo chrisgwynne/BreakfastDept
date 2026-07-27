@@ -14,7 +14,7 @@ Hero_highlight: send people to.
 
 ----
 
-Hero_text: Breakfast designs and builds clear, fast websites that help small businesses across North Wales win more enquiries, bookings and sales.
+Hero_text: I design and build clear, fast websites that help small businesses across North Wales win more enquiries, bookings and sales.
 
 ----
 
@@ -54,7 +54,7 @@ Services_heading: What's on the menu.
 
 ----
 
-Services_intro: Three ways Breakfast helps. Most people start with a few lines about what they need — the rest gets worked out together.
+Services_intro: Three ways I can help. Most people start with a few lines about what they need — the rest gets worked out together.
 
 ----
 
@@ -96,7 +96,7 @@ Why_points:
   text: You deal with the person actually designing and building your site.
 -
   title: Support after launch
-  text: Breakfast doesn't disappear the moment the site goes live.
+  text: I don't disappear the moment the site goes live.
 
 ----
 

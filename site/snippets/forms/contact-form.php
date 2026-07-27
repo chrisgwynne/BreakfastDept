@@ -59,7 +59,7 @@ $old    = $old ?? [];
   </div>
 
   <div class="field">
-    <label class="field__label" for="field-message"><?= esc($page->form_message_label()->or('How can we help?')) ?> <span class="field__req" aria-hidden="true">*</span></label>
+    <label class="field__label" for="field-message"><?= esc($page->form_message_label()->or('How can I help?')) ?> <span class="field__req" aria-hidden="true">*</span></label>
     <textarea class="textarea" id="field-message" name="message" required minlength="10" maxlength="5000"
               placeholder="<?= esc($page->form_message_placeholder()) ?>"
               <?= $page->form_message_help()->isNotEmpty() ? 'aria-describedby="help-message"' : '' ?>

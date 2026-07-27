@@ -67,7 +67,7 @@ $social    = $site->social()->toStructure();
 
   <?php if ($analytics->enabled() && $analytics->requiresConsent()): ?>
   <div class="cookie-banner" data-cookie-banner role="dialog" aria-live="polite" aria-label="Cookie choices">
-    <p><?= esc($site->cookie_message()->or('We use privacy-respecting analytics. Accept cookies?')) ?></p>
+    <p><?= esc($site->cookie_message()->or('I use privacy-respecting analytics. Accept cookies?')) ?></p>
     <div class="cookie-banner__actions">
       <button class="btn" data-consent="decline"><?= esc(t('breakfast.cookies.decline', 'Decline')) ?></button>
       <button class="btn btn--primary" data-consent="accept"><?= esc(t('breakfast.cookies.accept', 'Accept')) ?></button>
