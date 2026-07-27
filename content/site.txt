@@ -110,7 +110,17 @@ Meta_description: Independent web designer in North Wales. I design and build fr
 
 ----
 
+Default_social_image:
+
+- og-default.png
+
+----
+
 Analytics_provider: none
+
+----
+
+Analytics_site:
 
 ----
 

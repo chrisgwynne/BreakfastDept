@@ -12,6 +12,23 @@ Options -Indexes -MultiViews +FollowSymLinks
     # Uncomment and set if the site is served from a subfolder.
     # RewriteBase /
 
+    # ------------------------------------------------------------------
+    # Canonical host: force https://www.breakfastdept.com for the public
+    # marketing site so there is exactly ONE indexable origin (the apex,
+    # www, http and https variants all 301 here — matching the canonical
+    # tags and sitemap). Scoped by host so the separate client-preview
+    # origins (*.preview.breakfastdept.com) and any admin host are never
+    # touched. X-Forwarded-Proto is honoured so we never loop behind a
+    # TLS-terminating proxy (LiteSpeed/CDN talking plain HTTP to origin).
+    # ------------------------------------------------------------------
+    RewriteCond %{HTTP_HOST} ^breakfastdept\.com$ [NC]
+    RewriteRule ^ https://www.breakfastdept.com%{REQUEST_URI} [L,R=301]
+
+    RewriteCond %{HTTP_HOST} ^www\.breakfastdept\.com$ [NC]
+    RewriteCond %{HTTPS} !=on
+    RewriteCond %{HTTP:X-Forwarded-Proto} !https [NC]
+    RewriteRule ^ https://www.breakfastdept.com%{REQUEST_URI} [L,R=301]
+
     # Block dotfiles (.env, .git, etc.) — these should not be here anyway.
     RewriteRule (^|/)\.(?!well-known) - [F]
 
@@ -24,9 +41,14 @@ Options -Indexes -MultiViews +FollowSymLinks
     <FilesMatch "\.(css|js|woff2|jpg|jpeg|png|webp|avif|svg|ico)$">
         Header set Cache-Control "public, max-age=31536000, immutable"
     </FilesMatch>
-    # Never cache the HTML entrypoint.
+    # HTML entrypoint: revalidate on every use rather than never storing it.
+    # `no-cache` (not `no-store`) keeps the response out of shared/proxy caches
+    # while still allowing Chrome's back/forward cache — so clicking a link and
+    # hitting Back is an instant restore, not a full round trip. bfcache restores
+    # the response and its per-request CSP nonce together, so inline scripts stay
+    # valid; `must-revalidate` forces a fresh nonce on any real reload.
     <FilesMatch "\.php$">
-        Header set Cache-Control "no-store"
+        Header set Cache-Control "no-cache, must-revalidate"
     </FilesMatch>
     # Baseline security headers (the app also sets a per-request CSP with a nonce
     # on its HTML responses; these are server-level defence in depth).
@@ -42,6 +64,10 @@ Options -Indexes -MultiViews +FollowSymLinks
     # Strip the framework/runtime fingerprint.
     Header always unset X-Powered-By
     Header unset X-Powered-By
+    # Suppress the server product/version banner where the runtime allows it
+    # (LiteSpeed/Apache honour this; some builds pin Server and ignore it).
+    Header always unset Server
+    Header unset Server
 </IfModule>
 
 # Compression.

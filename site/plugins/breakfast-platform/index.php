@@ -1468,7 +1468,23 @@ Kirby::plugin('breakfast/platform', [
     ],
 
     'siteMethods' => [
-        'analytics' => fn () => breakfast()->analytics(),
+        // Analytics is configurable through the admin (content) OR the
+        // environment. Content values win when set, so the measurement ID can be
+        // pasted into the website editor without a redeploy; env is the fallback
+        // for infra-managed setups. Provider stays "none" (nothing loads) until
+        // a real provider + id is supplied.
+        'analytics' => function () {
+            /** @var \Kirby\Cms\Site $this */
+            $env      = (array) (kirby()->option('breakfast')['analytics'] ?? []);
+            $provider = trim((string) $this->content()->get('analytics_provider')->value()) ?: (string) ($env['provider'] ?? 'none');
+            $siteId   = trim((string) $this->content()->get('analytics_site')->value()) ?: (string) ($env['site'] ?? '');
+
+            return new \Breakfast\Platform\Analytics\Analytics([
+                'provider'  => $provider,
+                'site'      => $siteId,
+                'scriptUrl' => (string) ($env['scriptUrl'] ?? ''),
+            ]);
+        },
     ],
 
     'fieldMethods' => [

@@ -58,13 +58,33 @@ final class StructuredData
     {
         $content = $this->site->content();
 
+        // Public brand name is the site title ("Breakfast"), matching og:site_name
+        // and the footer. The registered entity name goes in legalName so the two
+        // never contradict each other.
+        $brand = $this->site->title()->value() ?: 'Breakfast';
+        $legal = $content->get('legal_name')->value();
+
         $data = [
             '@context' => 'https://schema.org',
             '@type'    => 'ProfessionalService',
             '@id'      => $this->site->url() . '#business',
-            'name'     => $content->get('legal_name')->value() ?: $this->site->title()->value(),
+            'name'     => $brand,
             'url'      => $this->site->url(),
         ];
+        if ($legal && $legal !== $brand) {
+            $data['legalName'] = $legal;
+        }
+
+        // Logo + representative image (the default social card doubles as both).
+        $social = $content->get('default_social_image')->toFile();
+        if ($social !== null) {
+            $data['image'] = $social->url();
+            $data['logo']  = $social->url();
+        }
+
+        if ($price = $content->get('price_range')->value()) {
+            $data['priceRange'] = $price;
+        }
 
         if ($desc = $content->get('meta_description')->value()) {
             $data['description'] = $desc;
@@ -208,8 +228,11 @@ final class StructuredData
         if ($region !== '') {
             $address['addressRegion'] = $region;
         }
+        // schema.org addressCountry expects an ISO 3166-1 code, not a nation
+        // name. "Wales"/"England"/etc. are all GB; pass a real 2-letter code
+        // straight through.
         if ($country !== '') {
-            $address['addressCountry'] = $country;
+            $address['addressCountry'] = strlen($country) === 2 ? strtoupper($country) : 'GB';
         }
 
         return $address;

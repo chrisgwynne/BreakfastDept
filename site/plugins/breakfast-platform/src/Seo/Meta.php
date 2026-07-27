@@ -58,13 +58,23 @@ final class Meta
 
     public function robots(): string
     {
-        // Drafts and unlisted pages are never indexable.
-        if ($this->page->isDraft() || $this->page->isUnlisted()) {
+        // Only genuine drafts (unpublished) are fully hidden — noindex AND
+        // nofollow. Everything published stays followable so link equity is never
+        // stranded on our own pages.
+        if ($this->page->isDraft()) {
             return 'noindex, nofollow';
         }
 
+        // Utility pages (unlisted, e.g. /start-a-project, /privacy) default to
+        // noindex, and an explicit `no_index` flag forces it too. The home page
+        // is unlisted by Kirby convention (no sort number) yet must be indexed,
+        // so it is never treated as a utility page.
         $noindex = $this->page->content()->get('no_index')->toBool(false);
+        if ($noindex === false && $this->page->isHomePage() === false && $this->page->isUnlisted()) {
+            $noindex = true;
+        }
 
+        // Note: still "follow" — never "nofollow" — for noindexed pages.
         return $noindex ? 'noindex, follow' : 'index, follow';
     }
 

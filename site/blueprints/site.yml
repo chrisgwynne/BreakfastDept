@@ -264,11 +264,19 @@ tabs:
         label: Analytics provider
         type: select
         default: none
-        help: Display only — the active provider is set via environment config.
+        help: Choose a provider, then add its ID below. Nothing loads while this is “None”. (Environment config is used as a fallback if left unset.)
         options:
           none: None
           plausible: Plausible
           ga4: Google Analytics 4
+      analytics_site:
+        label: Measurement ID / domain
+        type: text
+        help: 'GA4: your Measurement ID (e.g. G-XXXXXXXXXX). Plausible: the site domain (e.g. breakfastdept.com).'
+        when:
+          analytics_provider:
+            - plausible
+            - ga4
       cookie_message:
         label: Cookie consent message
         type: textarea
