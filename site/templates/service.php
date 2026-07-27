@@ -4,7 +4,7 @@
     <?php snippet('partials/breadcrumbs') ?>
     <header class="section__head" style="max-width:52rem">
       <span class="kicker"><?= esc($page->short_name()->or(t('breakfast.service', 'Service'))) ?></span>
-      <h1 class="section__title"><?= esc($page->title()) ?></h1>
+      <h1 class="section__title"><?= esc($page->heading()->or($page->title())) ?></h1>
       <?php if ($page->summary()->isNotEmpty()): ?><p class="section__lead"><?= esc($page->summary()) ?></p><?php endif ?>
     </header>
 

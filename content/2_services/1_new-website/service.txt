@@ -2,6 +2,18 @@ Title: A new website
 
 ----
 
+Seo_title: New Business Website Design in North Wales
+
+----
+
+Heading: New business website design
+
+----
+
+Meta_description: A complete website for your North Wales business, planned around what you sell and who buys it — designed, written and built end to end.
+
+----
+
 Short_name: New website
 
 ----

@@ -2,6 +2,10 @@ Title: About
 
 ----
 
+Heading: The person you'll actually work with
+
+----
+
 Intro:
 
 [{"id":"ab1a","type":"text","content":{"text":"<p>Breakfast is an independent web design business in North Wales. It designs and builds websites for local businesses that want to look more professional, say what they do more clearly, and make a stronger first impression — a first site, or a long-overdue rebuild.</p>"}},{"id":"ab2b","type":"text","content":{"text":"<p>It's deliberately small. You talk to the person doing the work — no account managers, no handoffs — and every site is judged on one thing: whether a real customer can actually use it on their phone.</p>"}}]
@@ -87,8 +91,8 @@ Uuid: about
 
 ----
 
-Seo_title: About Breakfast — Independent Web Design in North Wales
+Seo_title: About Chris Gwynne — Web Design in North Wales
 
 ----
 
-Meta_description: Breakfast is an independent web design studio in North Wales, run by Chris Gwynne — clear, fast websites for small businesses, built by the person you actually talk to.
+Meta_description: I'm Chris Gwynne — I design, write and build websites for small businesses across North Wales. One point of contact, from the first email to launch.

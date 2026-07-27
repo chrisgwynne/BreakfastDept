@@ -4,7 +4,7 @@
     <?php snippet('partials/breadcrumbs') ?>
     <header class="section__head" style="max-width:52rem">
       <span class="kicker"><?= esc(t('breakfast.about.kicker', 'About Breakfast')) ?></span>
-      <h1 class="section__title"><?= esc($page->title()) ?></h1>
+      <h1 class="section__title"><?= esc($page->heading()->or($page->title())) ?></h1>
     </header>
     <?php if ($page->intro()->isNotEmpty()): ?><div class="prose" style="font-size:1.2rem"><?= $page->intro()->toBlocks() ?></div><?php endif ?>
 

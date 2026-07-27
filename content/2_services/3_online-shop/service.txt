@@ -2,6 +2,18 @@ Title: An online shop
 
 ----
 
+Seo_title: Shopify Online Shop Design in North Wales
+
+----
+
+Heading: Online shop design
+
+----
+
+Meta_description: A Shopify online shop for North Wales makers and independents — a custom design with reliable payments, postage and stock you can run yourself.
+
+----
+
 Short_name: Online shop
 
 ----

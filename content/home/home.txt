@@ -64,17 +64,17 @@ Services_cards:
   title: Websites
   text: A clear, fast website that turns visitors into enquiries.
   audience: For independents who've outgrown their current site.
-  link: /services
+  link: /services/new-website
 -
   title: Online shops
   text: Sell online without the clunk — simple to run, easy to buy from.
   audience: For makers and shops ready to take orders.
-  link: /services
+  link: /services/online-shop
 -
   title: Rescue & ongoing support
   text: Fix a site that's holding you back, then keep it healthy.
   audience: For businesses stuck with a site that fights them.
-  link: /services
+  link: /services/website-rescue
 
 ----
 
@@ -82,7 +82,7 @@ Why_enabled: true
 
 ----
 
-Why_heading: Why Breakfast
+Why_heading: Three things that make this different
 
 ----
 
@@ -213,4 +213,4 @@ Seo_title: Web Design in North Wales | Websites for Local Businesses | Breakfast
 
 ----
 
-Meta_description: Breakfast designs and builds clear, fast websites for small businesses across North Wales — first sites and long-overdue rebuilds that win more enquiries, bookings and sales.
+Meta_description: I design and build clear, fast websites for small businesses across North Wales — sites that win more enquiries, bookings and sales.

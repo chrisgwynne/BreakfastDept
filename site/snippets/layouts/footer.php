@@ -59,8 +59,8 @@ $social    = $site->social()->toStructure();
       </div>
 
       <div class="footer__base">
-        <p><?= $site->footer_copy()->or('© ' . date('Y') . ' ' . esc($site->title())) ?></p>
-        <p>&copy; <?= date('Y') ?> <?= esc($site->legal_name()->or($site->title())) ?></p>
+        <?php /* One copyright line only. Prefer the editable footer_copy; fall back to year + brand. */ ?>
+        <p><?= $site->footer_copy()->or('© ' . date('Y') . ' ' . esc($site->title()) . '. Independent web design in Wales.') ?></p>
       </div>
     </div>
   </footer>
