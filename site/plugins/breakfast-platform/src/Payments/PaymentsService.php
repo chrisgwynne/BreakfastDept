@@ -26,9 +26,9 @@ final class PaymentsService
     ) {
     }
 
-    private function db(): \Breakfast\Platform\Support\Database
+    private function store(): \Breakfast\Platform\Support\FileStore
     {
-        return $this->platform->db();
+        return $this->platform->fileStore();
     }
 
     private function client(): StripeGateway
@@ -104,15 +104,28 @@ final class PaymentsService
         ], $idem);
 
         $now = Clock::nowIso();
-        $this->db()->run(
-            'INSERT INTO payments (uuid, provider, provider_session_id, invoice_uuid, contact_uuid, amount, currency, status, idempotency_key, mode, created_at, updated_at)
-             VALUES (:uuid, \'stripe\', :sess, :inv, :contact, :amt, :cur, \'pending\', :idem, :mode, :now, :now)',
-            [
-                'uuid' => $paymentUuid, 'sess' => (string) ($session['id'] ?? ''), 'inv' => $invoiceUuid,
-                'contact' => $this->nullable($inv['contact_uuid'] ?? null), 'amt' => $amountDue, 'cur' => $currency,
-                'idem' => $idem, 'mode' => $this->settings->mode(), 'now' => $now,
-            ]
-        );
+        $this->store()->put('payments', [
+            'uuid'                => $paymentUuid,
+            'provider'            => 'stripe',
+            'provider_session_id' => (string) ($session['id'] ?? ''),
+            'provider_payment_id' => null,
+            'invoice_uuid'        => $invoiceUuid,
+            'contact_uuid'        => $this->nullable($inv['contact_uuid'] ?? null),
+            'amount'              => $amountDue,
+            'currency'            => $currency,
+            'status'              => 'pending',
+            'method_summary'      => null,
+            'fee'                 => 0,
+            'amount_refunded'     => 0,
+            'failure_code'        => null,
+            'failure_message'     => null,
+            'idempotency_key'     => $idem,
+            'receipt_number'      => null,
+            'mode'                => $this->settings->mode(),
+            'created_at'          => $now,
+            'paid_at'             => null,
+            'updated_at'          => $now,
+        ]);
         $this->paymentEvent($paymentUuid, $invoiceUuid, 'link_created', 'Payment link created for ' . $this->money($amountDue, $currency));
         $this->platform->invoices()->logEvent($invoiceUuid, 'payment_link', 'Stripe payment link created', $actor);
 
@@ -135,15 +148,21 @@ final class PaymentsService
         if ($eventId === '') {
             return;
         }
-        // Idempotency: record the event; skip if already seen.
-        $existing = $this->db()->one('SELECT status FROM payment_webhook_events WHERE id = :id', ['id' => $eventId]);
-        if ($existing !== null) {
+        // Idempotency: record the event; skip if already seen. putIfAbsent is the
+        // file-store equivalent of the UNIQUE primary key on the event id.
+        $eventKey = sha1($eventId);
+        $fresh = $this->store()->putIfAbsent('payment_webhook_events', $eventKey, [
+            'uuid'        => $eventKey,
+            'id'          => $eventId,
+            'type'        => $type,
+            'status'      => 'received',
+            'detail'      => null,
+            'received_at' => Clock::nowIso(),
+            'processed_at' => null,
+        ]);
+        if ($fresh === false) {
             return;
         }
-        $this->db()->run(
-            'INSERT INTO payment_webhook_events (id, type, status, received_at) VALUES (:id, :t, \'received\', :now)',
-            ['id' => $eventId, 't' => $type, 'now' => Clock::nowIso()]
-        );
         $this->settings->note('last_webhook', $type . ' @ ' . Clock::nowIso(), 'system');
 
         $obj = is_array($event['data']['object'] ?? null) ? $event['data']['object'] : [];
@@ -185,7 +204,13 @@ final class PaymentsService
             $this->settings->note('last_failure', $type . ': ' . $e->getMessage(), 'system');
         }
 
-        $this->db()->run('UPDATE payment_webhook_events SET status = :s, detail = :d, processed_at = :now WHERE id = :id', ['s' => $status, 'd' => mb_substr($detail, 0, 300), 'now' => Clock::nowIso(), 'id' => $eventId]);
+        $this->store()->update('payment_webhook_events', sha1($eventId), static function (array $row) use ($status, $detail): array {
+            $row['status']       = $status;
+            $row['detail']       = mb_substr($detail, 0, 300);
+            $row['processed_at'] = Clock::nowIso();
+
+            return $row;
+        });
     }
 
     /**
@@ -204,9 +229,9 @@ final class PaymentsService
         $intentId = (string) ($obj['payment_intent'] ?? $obj['id'] ?? '');
         $sessionId = (string) ($obj['id'] ?? '');
 
-        $payment = $paymentUuid !== '' ? $this->db()->one('SELECT * FROM payments WHERE uuid = :u', ['u' => $paymentUuid]) : null;
+        $payment = $paymentUuid !== '' ? $this->store()->find('payments', $paymentUuid) : null;
         if ($payment === null && $sessionId !== '') {
-            $payment = $this->db()->one('SELECT * FROM payments WHERE provider_session_id = :s', ['s' => $sessionId]);
+            $payment = $this->findPaymentBy('provider_session_id', $sessionId);
         }
         if ($payment === null) {
             $this->warn('Verified payment with no matching record (invoice ' . $invoiceUuid . ').');
@@ -228,34 +253,36 @@ final class PaymentsService
             $this->warn('Payment amount mismatch on invoice ' . $invoiceUuid . ' (' . $amount . ' vs ' . $payment['amount'] . ').');
         }
 
-        return $this->db()->transaction(function () use ($paymentUuid, $invoiceUuid, $amount, $currency, $intentId, $source): string {
-            $now = Clock::nowIso();
-            $this->db()->run(
-                'UPDATE payments SET status = \'succeeded\', provider_payment_id = :pi, paid_at = :now, updated_at = :now WHERE uuid = :u',
-                ['pi' => $intentId, 'now' => $now, 'u' => $paymentUuid]
-            );
-            // Drive invoice paid/part-paid through the single invoicing path.
-            $this->platform->invoices()->recordPayment($invoiceUuid, [
-                'amount' => $amount / 100,
-                'method' => 'stripe',
-                'reference' => $intentId,
-                'note' => 'Verified via ' . $source,
-            ], 'system:stripe');
+        $now = Clock::nowIso();
+        $this->store()->update('payments', $paymentUuid, static function (array $row) use ($intentId, $now): array {
+            $row['status']              = 'succeeded';
+            $row['provider_payment_id'] = $intentId;
+            $row['paid_at']             = $now;
+            $row['updated_at']          = $now;
 
-            $this->paymentEvent($paymentUuid, $invoiceUuid, 'succeeded', 'Payment verified (' . $this->money($amount, $currency) . ')');
-            $receipt = $this->generateReceipt($paymentUuid, $invoiceUuid, $amount, $currency);
-
-            // CRM + audit.
-            $inv = $this->platform->invoices()->find($invoiceUuid);
-            $contact = (string) ($inv['contact_uuid'] ?? '');
-            if ($contact !== '') {
-                $this->platform->activities()->record('contact', $contact, 'payment.received', 'Payment received: ' . $this->money($amount, $currency) . ' for ' . (string) ($inv['number'] ?? ''), 'system', null, ['invoice' => $invoiceUuid, 'payment' => $paymentUuid]);
-            }
-            $this->platform->audit()->event('payment.reconciled', 'invoice', $invoiceUuid, 'system:stripe', ['payment' => $paymentUuid, 'amount' => $amount, 'receipt' => $receipt]);
-            $this->settings->note('last_payment', $this->money($amount, $currency) . ' @ ' . $now, 'system');
-
-            return 'reconciled ' . $this->money($amount, $currency);
+            return $row;
         });
+        // Drive invoice paid/part-paid through the single invoicing path.
+        $this->platform->invoices()->recordPayment($invoiceUuid, [
+            'amount' => $amount / 100,
+            'method' => 'stripe',
+            'reference' => $intentId,
+            'note' => 'Verified via ' . $source,
+        ], 'system:stripe');
+
+        $this->paymentEvent($paymentUuid, $invoiceUuid, 'succeeded', 'Payment verified (' . $this->money($amount, $currency) . ')');
+        $receipt = $this->generateReceipt($paymentUuid, $invoiceUuid, $amount, $currency);
+
+        // CRM + audit.
+        $inv = $this->platform->invoices()->find($invoiceUuid);
+        $contact = (string) ($inv['contact_uuid'] ?? '');
+        if ($contact !== '') {
+            $this->platform->activities()->record('contact', $contact, 'payment.received', 'Payment received: ' . $this->money($amount, $currency) . ' for ' . (string) ($inv['number'] ?? ''), 'system', null, ['invoice' => $invoiceUuid, 'payment' => $paymentUuid]);
+        }
+        $this->platform->audit()->event('payment.reconciled', 'invoice', $invoiceUuid, 'system:stripe', ['payment' => $paymentUuid, 'amount' => $amount, 'receipt' => $receipt]);
+        $this->settings->note('last_payment', $this->money($amount, $currency) . ' @ ' . $now, 'system');
+
+        return 'reconciled ' . $this->money($amount, $currency);
     }
 
     /** @param array<string,mixed> $obj */
@@ -266,10 +293,19 @@ final class PaymentsService
         if ($paymentUuid === '') {
             return 'no payment ref';
         }
-        $this->db()->run(
-            "UPDATE payments SET status = 'failed', failure_code = :c, failure_message = :m, updated_at = :now WHERE uuid = :u AND status <> 'succeeded'",
-            ['c' => (string) ($obj['last_payment_error']['code'] ?? ''), 'm' => mb_substr((string) ($obj['last_payment_error']['message'] ?? 'Payment failed'), 0, 200), 'now' => Clock::nowIso(), 'u' => $paymentUuid]
-        );
+        $code    = (string) ($obj['last_payment_error']['code'] ?? '');
+        $message = mb_substr((string) ($obj['last_payment_error']['message'] ?? 'Payment failed'), 0, 200);
+        $this->store()->update('payments', $paymentUuid, static function (array $row) use ($code, $message): array {
+            if ((string) ($row['status'] ?? '') === 'succeeded') {
+                return $row;
+            }
+            $row['status']          = 'failed';
+            $row['failure_code']    = $code;
+            $row['failure_message'] = $message;
+            $row['updated_at']      = Clock::nowIso();
+
+            return $row;
+        });
         $this->paymentEvent($paymentUuid, '', 'failed', 'Payment failed');
         $this->warn('A Stripe payment failed (payment ' . $paymentUuid . ').');
 
@@ -280,7 +316,15 @@ final class PaymentsService
     private function markExpired(array $obj): string
     {
         $sessionId = (string) ($obj['id'] ?? '');
-        $this->db()->run("UPDATE payments SET status = 'cancelled', updated_at = :now WHERE provider_session_id = :s AND status = 'pending'", ['now' => Clock::nowIso(), 's' => $sessionId]);
+        $payment = $this->findPaymentBy('provider_session_id', $sessionId);
+        if ($payment !== null && (string) ($payment['status'] ?? '') === 'pending') {
+            $this->store()->update('payments', (string) $payment['uuid'], static function (array $row): array {
+                $row['status']     = 'cancelled';
+                $row['updated_at'] = Clock::nowIso();
+
+                return $row;
+            });
+        }
 
         return 'session expired';
     }
@@ -290,20 +334,32 @@ final class PaymentsService
     {
         $intentId = (string) ($charge['payment_intent'] ?? '');
         $refunded = (int) ($charge['amount_refunded'] ?? 0);
-        $payment  = $this->db()->one('SELECT * FROM payments WHERE provider_payment_id = :pi', ['pi' => $intentId]);
+        $payment  = $this->findPaymentBy('provider_payment_id', $intentId);
         if ($payment === null) {
             return 'no payment for refund';
         }
         $paymentUuid = (string) $payment['uuid'];
         $full = $refunded >= (int) $payment['amount'];
-        $this->db()->run(
-            'UPDATE payments SET amount_refunded = :r, status = :s, updated_at = :now WHERE uuid = :u',
-            ['r' => $refunded, 's' => $full ? 'refunded' : 'partially_refunded', 'now' => Clock::nowIso(), 'u' => $paymentUuid]
-        );
+        $this->store()->update('payments', $paymentUuid, static function (array $row) use ($refunded, $full): array {
+            $row['amount_refunded'] = $refunded;
+            $row['status']          = $full ? 'refunded' : 'partially_refunded';
+            $row['updated_at']      = Clock::nowIso();
+
+            return $row;
+        });
         // Reduce the invoice's paid amount + reopen status.
         $this->reduceInvoicePaid((string) $payment['invoice_uuid'], $refunded);
         $this->paymentEvent($paymentUuid, (string) $payment['invoice_uuid'], 'refunded', 'Refund of ' . $this->money($refunded, (string) $payment['currency']));
-        $this->db()->run("UPDATE payment_refunds SET status = 'succeeded', updated_at = :now WHERE payment_uuid = :u AND status = 'pending'", ['now' => Clock::nowIso(), 'u' => $paymentUuid]);
+        foreach ($this->store()->all('payment_refunds') as $refund) {
+            if ((string) ($refund['payment_uuid'] ?? '') === $paymentUuid && (string) ($refund['status'] ?? '') === 'pending') {
+                $this->store()->update('payment_refunds', (string) $refund['uuid'], static function (array $row): array {
+                    $row['status']     = 'succeeded';
+                    $row['updated_at'] = Clock::nowIso();
+
+                    return $row;
+                });
+            }
+        }
         $this->platform->audit()->event('payment.refunded', 'invoice', (string) $payment['invoice_uuid'], 'system:stripe', ['payment' => $paymentUuid, 'amount' => $refunded]);
 
         return 'refund reconciled';
@@ -318,7 +374,7 @@ final class PaymentsService
      */
     public function refund(string $paymentUuid, int $amountPence, string $reason, string $actor): array
     {
-        $payment = $this->db()->one('SELECT * FROM payments WHERE uuid = :u', ['u' => $paymentUuid]);
+        $payment = $this->store()->find('payments', $paymentUuid);
         if ($payment === null) {
             throw new PaymentException(404, 'Payment not found.');
         }
@@ -331,18 +387,30 @@ final class PaymentsService
             throw new PaymentException(422, 'There is nothing left to refund.');
         }
         $refundUuid = Uuid::v4();
-        $this->db()->run(
-            'INSERT INTO payment_refunds (uuid, payment_uuid, amount, reason, status, created_by, created_at, updated_at)
-             VALUES (:uuid, :p, :amt, :reason, \'pending\', :actor, :now, :now)',
-            ['uuid' => $refundUuid, 'p' => $paymentUuid, 'amt' => $amount, 'reason' => $reason, 'actor' => $actor, 'now' => Clock::nowIso()]
-        );
+        $now = Clock::nowIso();
+        $this->store()->put('payment_refunds', [
+            'uuid'               => $refundUuid,
+            'payment_uuid'       => $paymentUuid,
+            'amount'             => $amount,
+            'reason'             => $reason,
+            'status'             => 'pending',
+            'provider_refund_id' => null,
+            'created_by'         => $actor,
+            'created_at'         => $now,
+            'updated_at'         => $now,
+        ]);
         $result = $this->client()->createRefund([
             'payment_intent' => (string) $payment['provider_payment_id'],
             'amount' => $amount,
             'metadata' => ['payment_uuid' => $paymentUuid, 'refund_uuid' => $refundUuid],
         ], 'refund_' . $refundUuid);
 
-        $this->db()->run('UPDATE payment_refunds SET provider_refund_id = :rid WHERE uuid = :u', ['rid' => (string) ($result['id'] ?? ''), 'u' => $refundUuid]);
+        $refundId = (string) ($result['id'] ?? '');
+        $this->store()->update('payment_refunds', $refundUuid, static function (array $row) use ($refundId): array {
+            $row['provider_refund_id'] = $refundId;
+
+            return $row;
+        });
         $this->paymentEvent($paymentUuid, (string) $payment['invoice_uuid'], 'refund_requested', 'Refund requested: ' . $this->money($amount, (string) $payment['currency']) . ' (' . $reason . ')');
         $this->platform->audit()->event('payment.refund_requested', 'invoice', (string) $payment['invoice_uuid'], $actor, ['payment' => $paymentUuid, 'amount' => $amount, 'reason' => $reason]);
 
@@ -361,33 +429,59 @@ final class PaymentsService
      */
     public function list(array $filters = []): array
     {
-        $where = ['1 = 1'];
-        $params = [];
+        $rows = $this->store()->all('payments');
         if (!empty($filters['invoice_uuid'])) {
-            $where[] = 'invoice_uuid = :inv';
-            $params['inv'] = (string) $filters['invoice_uuid'];
+            $rows = array_filter($rows, static fn (array $r): bool => (string) ($r['invoice_uuid'] ?? '') === (string) $filters['invoice_uuid']);
         }
         if (!empty($filters['status'])) {
-            $where[] = 'status = :s';
-            $params['s'] = (string) $filters['status'];
+            $rows = array_filter($rows, static fn (array $r): bool => (string) ($r['status'] ?? '') === (string) $filters['status']);
         }
-        $params['l'] = (int) ($filters['limit'] ?? 100);
+        $rows = array_values($rows);
+        usort($rows, static fn ($a, $b) => strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? '')));
 
-        return $this->db()->all('SELECT * FROM payments WHERE ' . implode(' AND ', $where) . ' ORDER BY created_at DESC LIMIT :l', $params);
+        return array_slice($rows, 0, (int) ($filters['limit'] ?? 100));
     }
 
     /** @return array<string,mixed>|null */
     public function find(string $uuid): ?array
     {
-        $p = $this->db()->one('SELECT * FROM payments WHERE uuid = :u', ['u' => $uuid]);
+        $p = $this->store()->find('payments', $uuid);
         if ($p === null) {
             return null;
         }
-        $p['events'] = $this->db()->all('SELECT * FROM payment_events WHERE payment_uuid = :u ORDER BY created_at ASC', ['u' => $uuid]);
-        $p['refunds'] = $this->db()->all('SELECT * FROM payment_refunds WHERE payment_uuid = :u ORDER BY created_at DESC', ['u' => $uuid]);
-        $p['receipt'] = $this->db()->one('SELECT * FROM payment_receipts WHERE payment_uuid = :u ORDER BY created_at DESC LIMIT 1', ['u' => $uuid]);
+        $events = array_values(array_filter($this->store()->all('payment_events'), static fn (array $r): bool => (string) ($r['payment_uuid'] ?? '') === $uuid));
+        usort($events, static fn ($a, $b) => strcmp((string) ($a['created_at'] ?? ''), (string) ($b['created_at'] ?? '')));
+
+        $refunds = array_values(array_filter($this->store()->all('payment_refunds'), static fn (array $r): bool => (string) ($r['payment_uuid'] ?? '') === $uuid));
+        usort($refunds, static fn ($a, $b) => strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? '')));
+
+        $receipts = array_values(array_filter($this->store()->all('payment_receipts'), static fn (array $r): bool => (string) ($r['payment_uuid'] ?? '') === $uuid));
+        usort($receipts, static fn ($a, $b) => strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? '')));
+
+        $p['events']  = $events;
+        $p['refunds'] = $refunds;
+        $p['receipt'] = $receipts[0] ?? null;
 
         return $p;
+    }
+
+    /**
+     * Find a single payment by an indexed field (session/intent id).
+     *
+     * @return array<string,mixed>|null
+     */
+    private function findPaymentBy(string $field, string $value): ?array
+    {
+        if ($value === '') {
+            return null;
+        }
+        foreach ($this->store()->all('payments') as $row) {
+            if ((string) ($row[$field] ?? '') === $value) {
+                return $row;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -397,7 +491,9 @@ final class PaymentsService
      */
     public function downloadReceipt(string $paymentUuid): array
     {
-        $receipt = $this->db()->one('SELECT * FROM payment_receipts WHERE payment_uuid = :u ORDER BY created_at DESC LIMIT 1', ['u' => $paymentUuid]);
+        $receipts = array_values(array_filter($this->store()->all('payment_receipts'), static fn (array $r): bool => (string) ($r['payment_uuid'] ?? '') === $paymentUuid));
+        usort($receipts, static fn ($a, $b) => strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? '')));
+        $receipt = $receipts[0] ?? null;
         if ($receipt === null) {
             throw new PaymentException(404, 'No receipt available.');
         }
@@ -442,12 +538,22 @@ final class PaymentsService
             return '';
         }
         @chmod($path, 0600);
-        $this->db()->run(
-            'INSERT INTO payment_receipts (uuid, number, payment_uuid, invoice_uuid, amount, currency, storage_key, sha256, created_at)
-             VALUES (:uuid, :num, :p, :inv, :amt, :cur, :key, :hash, :now)',
-            ['uuid' => Uuid::v4(), 'num' => $number, 'p' => $paymentUuid, 'inv' => $invoiceUuid, 'amt' => $amount, 'cur' => $currency, 'key' => $key, 'hash' => hash('sha256', $bytes), 'now' => Clock::nowIso()]
-        );
-        $this->db()->run('UPDATE payments SET receipt_number = :n WHERE uuid = :u', ['n' => $number, 'u' => $paymentUuid]);
+        $this->store()->put('payment_receipts', [
+            'uuid'         => Uuid::v4(),
+            'number'       => $number,
+            'payment_uuid' => $paymentUuid,
+            'invoice_uuid' => $invoiceUuid,
+            'amount'       => $amount,
+            'currency'     => $currency,
+            'storage_key'  => $key,
+            'sha256'       => hash('sha256', $bytes),
+            'created_at'   => Clock::nowIso(),
+        ]);
+        $this->store()->update('payments', $paymentUuid, static function (array $row) use ($number): array {
+            $row['receipt_number'] = $number;
+
+            return $row;
+        });
 
         return $number;
     }
@@ -455,12 +561,7 @@ final class PaymentsService
     private function allocateReceiptNumber(): string
     {
         $year = (int) date('Y');
-        $this->db()->run(
-            'INSERT INTO payment_sequences (prefix, year, next_seq) VALUES (\'RCT\', :y, 2)
-             ON CONFLICT(prefix, year) DO UPDATE SET next_seq = next_seq + 1',
-            ['y' => $year]
-        );
-        $seq = (int) $this->db()->scalar('SELECT next_seq - 1 FROM payment_sequences WHERE prefix = \'RCT\' AND year = :y', ['y' => $year]);
+        $seq  = $this->store()->bump('payment_sequences', 'RCT-' . $year);
 
         return sprintf('RCT-%d-%04d', $year, $seq);
     }
@@ -485,10 +586,14 @@ final class PaymentsService
 
     private function paymentEvent(string $paymentUuid, string $invoiceUuid, string $type, string $detail): void
     {
-        $this->db()->run(
-            'INSERT INTO payment_events (uuid, payment_uuid, invoice_uuid, type, detail, created_at) VALUES (:uuid, :p, :inv, :t, :d, :now)',
-            ['uuid' => Uuid::v4(), 'p' => $paymentUuid, 'inv' => $invoiceUuid, 't' => $type, 'd' => $detail, 'now' => Clock::nowIso()]
-        );
+        $this->store()->put('payment_events', [
+            'uuid'         => Uuid::v4(),
+            'payment_uuid' => $paymentUuid,
+            'invoice_uuid' => $invoiceUuid,
+            'type'         => $type,
+            'detail'       => $detail,
+            'created_at'   => Clock::nowIso(),
+        ]);
     }
 
     private function warn(string $message): void
