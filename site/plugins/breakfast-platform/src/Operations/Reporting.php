@@ -37,11 +37,7 @@ final class Reporting
      */
     public function projects(int $limit = 100): array
     {
-        $rows = $this->db()->all(
-            "SELECT uuid, name, status, quoted_value, approved_variations FROM projects
-             WHERE status <> 'archived' ORDER BY updated_at DESC LIMIT :l",
-            ['l' => $limit]
-        );
+        $rows = $this->platform->projects()->list(['limit' => $limit]);
 
         return array_map(fn (array $p): array => $this->projectRow($p), $rows);
     }

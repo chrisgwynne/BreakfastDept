@@ -82,7 +82,7 @@ final class Retainers
      */
     public function create(string $projectUuid, array $data, string $actor): array
     {
-        $project = $this->db()->one('SELECT company_uuid, contact_uuid, currency FROM projects WHERE uuid = :u', ['u' => $projectUuid]);
+        $project = $this->platform->projects()->raw($projectUuid);
         if ($project === null) {
             throw new RetainerException(404, 'Project not found.');
         }

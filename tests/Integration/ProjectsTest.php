@@ -114,7 +114,11 @@ final class ProjectsTest extends TestCase
         $uuid = (string) $p['uuid'];
         $this->svc->transition($uuid, 'awaiting_client', [], 'staff@breakfast');
         // Back-date the awaiting_since so a measurable interval accrues.
-        breakfast()->db()->run("UPDATE projects SET awaiting_since = :t WHERE uuid = :u", ['t' => date('c', time() - 3600), 'u' => $uuid]);
+        $backdated = date('c', time() - 3600);
+        breakfast()->fileStore()->update('projects', $uuid, static function (array $row) use ($backdated): array {
+            $row['awaiting_since'] = $backdated;
+            return $row;
+        });
         $resumed = $this->svc->transition($uuid, 'active', [], 'staff@breakfast');
         $this->assertGreaterThanOrEqual(3500, (int) $resumed['awaiting_seconds']);
     }

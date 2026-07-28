@@ -131,7 +131,7 @@ final class Portal
      */
     public function inviteToProject(string $projectUuid, array $data, string $siteUrl, string $actor): array
     {
-        if ($this->db()->one('SELECT uuid FROM projects WHERE uuid = :u', ['u' => $projectUuid]) === null) {
+        if (!$this->platform->projects()->exists($projectUuid)) {
             throw new PortalException(404, 'Project not found.');
         }
         $email = strtolower(trim((string) ($data['email'] ?? '')));
@@ -289,20 +289,29 @@ final class Portal
      */
     public function accessibleProjects(string $identityUuid): array
     {
-        $rows = $this->db()->all(
-            "SELECT p.uuid, p.name, p.status, p.target_date
-             FROM portal_access_grants g
-             JOIN projects p ON p.uuid = g.entity_uuid
-             WHERE g.identity_uuid = :i AND g.entity_type = 'project' AND g.revoked = 0 AND p.status <> 'archived'
-             ORDER BY p.updated_at DESC",
+        // Grants live in the database; projects are flat files — resolve each
+        // granted project from the file store (progress derived from real tasks).
+        $grants = $this->db()->all(
+            "SELECT entity_uuid FROM portal_access_grants
+             WHERE identity_uuid = :i AND entity_type = 'project' AND revoked = 0",
             ['i' => $identityUuid]
         );
-        // Progress is derived from real tasks, not stored — resolve it per row.
-        foreach ($rows as &$row) {
-            $full = $this->platform->projects()->find((string) $row['uuid']);
-            $row['progress_percent'] = (int) ($full['progress_percent'] ?? 0);
+        $rows = [];
+        foreach ($grants as $grant) {
+            $full = $this->platform->projects()->find((string) $grant['entity_uuid']);
+            if ($full === null || (string) ($full['status'] ?? '') === 'archived') {
+                continue;
+            }
+            $rows[] = [
+                'uuid'             => $full['uuid'] ?? '',
+                'name'             => $full['name'] ?? '',
+                'status'           => $full['status'] ?? '',
+                'target_date'      => $full['target_date'] ?? null,
+                'progress_percent' => (int) ($full['progress_percent'] ?? 0),
+                'updated_at'       => $full['updated_at'] ?? '',
+            ];
         }
-        unset($row);
+        usort($rows, static fn ($a, $b) => strcmp((string) ($b['updated_at'] ?? ''), (string) ($a['updated_at'] ?? '')));
 
         return $rows;
     }

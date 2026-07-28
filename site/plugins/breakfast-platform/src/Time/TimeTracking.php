@@ -116,7 +116,7 @@ final class TimeTracking
      */
     public function create(string $projectUuid, array $data, string $actor): array
     {
-        if ($this->db()->one('SELECT uuid FROM projects WHERE uuid = :u', ['u' => $projectUuid]) === null) {
+        if (!$this->platform->projects()->exists($projectUuid)) {
             throw new TimeException(404, 'Project not found.');
         }
         $seconds = $this->durationToSeconds($data);
@@ -203,7 +203,7 @@ final class TimeTracking
         if ($this->runningTimer($actor) !== null) {
             throw new TimeException(409, 'You already have a running timer. Stop it first.');
         }
-        if ($this->db()->one('SELECT uuid FROM projects WHERE uuid = :u', ['u' => $projectUuid]) === null) {
+        if (!$this->platform->projects()->exists($projectUuid)) {
             throw new TimeException(404, 'Project not found.');
         }
         $uuid = Uuid::v4();

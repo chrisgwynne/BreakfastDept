@@ -88,7 +88,7 @@ final class Onboarding
      */
     public function createForProject(string $projectUuid, string $templateUuid, array $data, string $actor): array
     {
-        $project = $this->db->one('SELECT * FROM projects WHERE uuid = :u', ['u' => $projectUuid]);
+        $project = $this->platform->projects()->raw($projectUuid);
         if ($project === null) {
             throw new OnboardingException(404, 'Project not found.');
         }

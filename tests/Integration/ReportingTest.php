@@ -52,7 +52,10 @@ final class ReportingTest extends TestCase
     {
         $p = breakfast();
         // A £600 approved variation (added straight to the project).
-        $p->db()->run('UPDATE projects SET approved_variations = 60000 WHERE uuid = :u', ['u' => $this->project]);
+        $p->fileStore()->update('projects', $this->project, static function (array $row): array {
+            $row['approved_variations'] = 60000;
+            return $row;
+        });
         // 4 billable hours at £75/h = £300 unbilled.
         $p->time()->create($this->project, ['hours' => 4, 'billable' => true, 'rate' => 75], 'chris@breakfast');
         // An issued invoice of £1,200 with £500 paid.

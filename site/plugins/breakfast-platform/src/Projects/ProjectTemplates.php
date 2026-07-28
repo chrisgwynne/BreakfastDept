@@ -19,8 +19,10 @@ use Breakfast\Platform\Support\Uuid;
  */
 final class ProjectTemplates
 {
-    public function __construct(private readonly Database $db)
-    {
+    public function __construct(
+        private readonly Database $db,
+        private readonly \Breakfast\Platform\Support\FileStore $store,
+    ) {
     }
 
     // ==================================================================
@@ -238,7 +240,7 @@ final class ProjectTemplates
      */
     public function applyToProject(string $projectUuid, string $templateUuid, string $actor, ?string $startOverride = null): array
     {
-        $project = $this->db->one('SELECT * FROM projects WHERE uuid = :u', ['u' => $projectUuid]);
+        $project = $this->store->find('projects', $projectUuid);
         if ($project === null) {
             throw new ProjectException(404, 'Project not found.');
         }
@@ -294,7 +296,13 @@ final class ProjectTemplates
                     }
                 }
             }
-            $db->run('UPDATE projects SET template_uuid = :t, template_version = :v, updated_at = :now WHERE uuid = :u', ['t' => $templateUuid, 'v' => (int) $version['version'], 'now' => Clock::nowIso(), 'u' => $projectUuid]);
+            $this->store->update('projects', $projectUuid, static function (array $row) use ($templateUuid, $version): array {
+                $row['template_uuid']    = $templateUuid;
+                $row['template_version'] = (int) $version['version'];
+                $row['updated_at']       = Clock::nowIso();
+
+                return $row;
+            });
 
             return ['milestones' => count($msMap), 'tasks' => count($taskMap), 'version' => (int) $version['version']];
         });
@@ -306,12 +314,12 @@ final class ProjectTemplates
 
     private function platformMilestones(): Milestones
     {
-        return new Milestones($this->db);
+        return new Milestones($this->db, $this->store);
     }
 
     private function platformTasks(): ProjectTasks
     {
-        return new ProjectTasks($this->db);
+        return new ProjectTasks($this->db, $this->store);
     }
 
     private function insertVersion(Database $db, string $templateUuid, int $version, string $status, string $notes, string $now): string

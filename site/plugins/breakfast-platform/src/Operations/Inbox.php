@@ -57,44 +57,44 @@ final class Inbox
      */
     public function items(): array
     {
+        // Projects are flat files, so the portal/onboarding/change-request tables
+        // (still database-backed) can't JOIN them — the project name is resolved
+        // from the file store per row.
         $messages = $this->db()->all(
-            "SELECT m.uuid, m.project_uuid, m.author_name, m.body, m.created_at, p.name AS project_name
-             FROM portal_messages m JOIN projects p ON p.uuid = m.project_uuid
-             WHERE m.sender = 'client' AND m.read_by_staff = 0
-             ORDER BY m.created_at DESC LIMIT 50"
+            "SELECT uuid, project_uuid, author_name, body, created_at
+             FROM portal_messages
+             WHERE sender = 'client' AND read_by_staff = 0
+             ORDER BY created_at DESC LIMIT 50"
         );
         $feedback = $this->db()->all(
-            "SELECT f.uuid, f.project_uuid, f.author_name, f.kind, f.body, f.created_at, p.name AS project_name
-             FROM portal_feedback f JOIN projects p ON p.uuid = f.project_uuid
-             WHERE f.status = 'open' ORDER BY f.created_at DESC LIMIT 50"
+            "SELECT uuid, project_uuid, author_name, kind, body, created_at
+             FROM portal_feedback WHERE status = 'open' ORDER BY created_at DESC LIMIT 50"
         );
         $onboarding = $this->db()->all(
-            "SELECT o.uuid, o.project_uuid, o.status, o.submitted_at, p.name AS project_name
-             FROM onboarding_instances o JOIN projects p ON p.uuid = o.project_uuid
-             WHERE o.status IN ('submitted','under_review') ORDER BY o.submitted_at DESC LIMIT 50"
+            "SELECT uuid, project_uuid, status, submitted_at
+             FROM onboarding_instances WHERE status IN ('submitted','under_review') ORDER BY submitted_at DESC LIMIT 50"
         );
         $changeRequests = $this->db()->all(
-            "SELECT c.uuid, c.project_uuid, c.number, c.title, c.total, c.decided_at, p.name AS project_name
-             FROM change_requests c JOIN projects p ON p.uuid = c.project_uuid
-             WHERE c.status = 'approved' AND c.applied = 0 ORDER BY c.decided_at DESC LIMIT 50"
+            "SELECT uuid, project_uuid, number, title, total, decided_at
+             FROM change_requests WHERE status = 'approved' AND applied = 0 ORDER BY decided_at DESC LIMIT 50"
         );
 
         return [
-            'messages' => array_map(static fn (array $m): array => [
-                'project_uuid' => (string) $m['project_uuid'], 'project_name' => (string) $m['project_name'],
+            'messages' => array_map(fn (array $m): array => [
+                'project_uuid' => (string) $m['project_uuid'], 'project_name' => $this->projectName((string) $m['project_uuid']),
                 'label' => (string) $m['author_name'] . ': ' . mb_substr((string) $m['body'], 0, 90), 'at' => (string) $m['created_at'],
             ], $messages),
-            'feedback' => array_map(static fn (array $f): array => [
-                'project_uuid' => (string) $f['project_uuid'], 'project_name' => (string) $f['project_name'],
+            'feedback' => array_map(fn (array $f): array => [
+                'project_uuid' => (string) $f['project_uuid'], 'project_name' => $this->projectName((string) $f['project_uuid']),
                 'label' => (string) ($f['kind'] === 'approval' ? $f['author_name'] . ' signed off' : $f['author_name'] . ': ' . mb_substr((string) $f['body'], 0, 90)),
                 'kind' => (string) $f['kind'], 'at' => (string) $f['created_at'],
             ], $feedback),
-            'onboarding' => array_map(static fn (array $o): array => [
-                'project_uuid' => (string) $o['project_uuid'], 'project_name' => (string) $o['project_name'],
+            'onboarding' => array_map(fn (array $o): array => [
+                'project_uuid' => (string) $o['project_uuid'], 'project_name' => $this->projectName((string) $o['project_uuid']),
                 'label' => 'Onboarding ' . str_replace('_', ' ', (string) $o['status']), 'at' => (string) ($o['submitted_at'] ?? ''),
             ], $onboarding),
-            'change_requests' => array_map(static fn (array $c): array => [
-                'project_uuid' => (string) $c['project_uuid'], 'project_name' => (string) $c['project_name'],
+            'change_requests' => array_map(fn (array $c): array => [
+                'project_uuid' => (string) $c['project_uuid'], 'project_name' => $this->projectName((string) $c['project_uuid']),
                 'label' => (string) $c['number'] . ' “' . (string) $c['title'] . '” approved — ready to apply', 'total' => (int) $c['total'], 'at' => (string) ($c['decided_at'] ?? ''),
             ], $changeRequests),
             'retainers' => array_map(fn (array $r): array => [
@@ -102,6 +102,12 @@ final class Inbox
                 'label' => (string) $r['title'] . ' — period due to bill', 'at' => (string) $r['next_period_start'],
             ], $this->dueRetainers()),
         ];
+    }
+
+    /** Resolve a flat-file project's name (empty string if it's gone). */
+    private function projectName(string $projectUuid): string
+    {
+        return (string) ($this->platform->projects()->raw($projectUuid)['name'] ?? '');
     }
 
     /**

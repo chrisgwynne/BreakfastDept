@@ -108,7 +108,7 @@ final class ChangeRequests
      */
     public function create(string $projectUuid, array $data, string $actor): array
     {
-        $project = $this->db()->one('SELECT * FROM projects WHERE uuid = :u', ['u' => $projectUuid]);
+        $project = $this->platform->projects()->raw($projectUuid);
         if ($project === null) {
             throw new ChangeRequestException(404, 'Project not found.');
         }
@@ -346,10 +346,8 @@ final class ChangeRequests
         return $this->db()->transaction(function () use ($uuid, $cr, $projectUuid, $options, $actor): array {
             $tasks = 0;
             // Add the approved value to the project (NOT the proposal/contract).
-            $this->db()->run('UPDATE projects SET approved_variations = approved_variations + :v, updated_at = :now, revision = revision + 1 WHERE uuid = :u', ['v' => (int) $cr['total'], 'now' => Clock::nowIso(), 'u' => $projectUuid]);
-            if (!empty($options['update_target']) && !empty($cr['target_date_impact'])) {
-                $this->db()->run('UPDATE projects SET target_date = :t, updated_at = :now WHERE uuid = :u', ['t' => (string) $cr['target_date_impact'], 'now' => Clock::nowIso(), 'u' => $projectUuid]);
-            }
+            $targetImpact = (!empty($options['update_target']) && !empty($cr['target_date_impact'])) ? (string) $cr['target_date_impact'] : null;
+            $this->platform->projects()->applyChangeVariation($projectUuid, (int) $cr['total'], $targetImpact);
             // Generate tasks idempotently (deterministic source_ref).
             if (($options['add_tasks'] ?? true)) {
                 foreach ($cr['items'] as $index => $item) {

@@ -31,8 +31,10 @@ final class Milestones
         'cancelled'       => ['not_started'],
     ];
 
-    public function __construct(private readonly Database $db)
-    {
+    public function __construct(
+        private readonly Database $db,
+        private readonly \Breakfast\Platform\Support\FileStore $store,
+    ) {
     }
 
     /** @return list<array<string,mixed>> */
@@ -57,7 +59,7 @@ final class Milestones
      */
     public function create(string $projectUuid, array $data, string $actor): array
     {
-        if ($this->db->one('SELECT uuid FROM projects WHERE uuid = :u', ['u' => $projectUuid]) === null) {
+        if (!$this->store->exists('projects', $projectUuid)) {
             throw new ProjectException(404, 'Project not found.');
         }
         $title = trim((string) ($data['title'] ?? ''));
