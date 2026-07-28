@@ -80,11 +80,8 @@ final class SearchService
             $out[] = $this->row('preview', (string) $r['uuid'], (string) $r['name'], (string) $r['public_slug'], '/previews');
         }
 
-        foreach ($this->platform->db()->all(
-            "SELECT uuid, title, starts_at FROM calendar_events WHERE title LIKE :q ESCAPE '\\' ORDER BY starts_at DESC LIMIT :l",
-            ['q' => $like, 'l' => $perType]
-        ) as $r) {
-            $out[] = $this->row('event', (string) $r['uuid'], (string) $r['title'], (string) $r['starts_at'], '/calendar');
+        foreach ($this->take($this->filter($store->all('calendar_events'), fn (array $r): bool => $this->hit($needle, $r['title'] ?? '')), 'starts_at', $perType) as $r) {
+            $out[] = $this->row('event', (string) $r['uuid'], (string) ($r['title'] ?? ''), (string) ($r['starts_at'] ?? ''), '/calendar');
         }
 
         return $out;

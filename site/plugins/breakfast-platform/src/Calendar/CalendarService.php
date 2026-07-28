@@ -6,7 +6,7 @@ namespace Breakfast\Platform\Calendar;
 
 use Breakfast\Platform\Crm\ActivityRepository;
 use Breakfast\Platform\Support\Clock;
-use Breakfast\Platform\Support\Database;
+use Breakfast\Platform\Support\FileStore;
 use Breakfast\Platform\Support\Uuid;
 use DateInterval;
 use DateTimeImmutable;
@@ -43,8 +43,11 @@ final class CalendarService
         'invoice_uuid'     => 'invoice',
     ];
 
+    /** FileStore collection holding the events. */
+    private const COLLECTION = 'calendar_events';
+
     public function __construct(
-        private readonly Database $db,
+        private readonly FileStore $store,
         private readonly ActivityRepository $activities,
     ) {
     }
@@ -56,9 +59,19 @@ final class CalendarService
     /** @return array<string,mixed>|null */
     public function find(string $uuid): ?array
     {
-        $row = $this->db->one('SELECT * FROM calendar_events WHERE uuid = :u', ['u' => $uuid]);
+        $row = $this->store->find(self::COLLECTION, $uuid);
 
         return $row === null ? null : $this->row($row);
+    }
+
+    /**
+     * Raw stored records, used internally where the DB SELECT * was used.
+     *
+     * @return list<array<string,mixed>>
+     */
+    private function allEvents(): array
+    {
+        return $this->store->all(self::COLLECTION);
     }
 
     /**
@@ -75,21 +88,22 @@ final class CalendarService
             throw new CalendarException(422, 'Invalid date range.');
         }
 
-        $where  = ['status != \'cancelled\''];
-        $params = [];
-        foreach (['contact_uuid', 'company_uuid', 'opportunity_uuid'] as $link) {
-            if (!empty($filters[$link])) {
-                $where[]        = "$link = :$link";
-                $params[$link]  = (string) $filters[$link];
+        $rows = array_filter($this->allEvents(), function (array $row) use ($filters): bool {
+            if ((string) ($row['status'] ?? '') === 'cancelled') {
+                return false;
             }
-        }
-        if (!empty($filters['type'])) {
-            $where[]        = 'event_type = :type';
-            $params['type'] = (string) $filters['type'];
-        }
+            foreach (['contact_uuid', 'company_uuid', 'opportunity_uuid'] as $link) {
+                if (!empty($filters[$link]) && (string) ($row[$link] ?? '') !== (string) $filters[$link]) {
+                    return false;
+                }
+            }
+            if (!empty($filters['type']) && (string) ($row['event_type'] ?? '') !== (string) $filters['type']) {
+                return false;
+            }
 
-        $rows = $this->db->all('SELECT * FROM calendar_events WHERE ' . implode(' AND ', $where), $params);
-        $out  = [];
+            return true;
+        });
+        $out = [];
         foreach ($rows as $row) {
             foreach ($this->expand($this->row($row), $from, $to) as $occurrence) {
                 $out[] = $occurrence;
@@ -110,10 +124,12 @@ final class CalendarService
         if (!array_key_exists($field, self::LINKS)) {
             return [];
         }
-        $rows = $this->db->all(
-            "SELECT * FROM calendar_events WHERE {$field} = :u ORDER BY starts_at DESC LIMIT :l",
-            ['u' => $uuid, 'l' => $limit]
-        );
+        $rows = array_values(array_filter(
+            $this->allEvents(),
+            fn (array $r): bool => (string) ($r[$field] ?? '') === $uuid
+        ));
+        usort($rows, static fn ($a, $b) => strcmp((string) ($b['starts_at'] ?? ''), (string) ($a['starts_at'] ?? '')));
+        $rows = array_slice($rows, 0, max(0, $limit));
 
         return array_map(fn (array $r): array => $this->row($r), $rows);
     }
@@ -125,12 +141,10 @@ final class CalendarService
      */
     public function dueReminders(string $nowIso): array
     {
-        $rows = $this->db->all(
-            "SELECT * FROM calendar_events
-             WHERE reminder_minutes > 0 AND reminder_sent = 0
-               AND status IN ('confirmed','tentative') AND recurrence = ''",
-            []
-        );
+        $rows = array_filter($this->allEvents(), static fn (array $r): bool => (int) ($r['reminder_minutes'] ?? 0) > 0
+            && (int) ($r['reminder_sent'] ?? 0) === 0
+            && in_array((string) ($r['status'] ?? ''), ['confirmed', 'tentative'], true)
+            && (string) ($r['recurrence'] ?? '') === '');
         $now = $this->parse($nowIso);
         $due = [];
         foreach ($rows as $row) {
@@ -149,7 +163,13 @@ final class CalendarService
 
     public function markReminderSent(string $uuid): void
     {
-        $this->db->run('UPDATE calendar_events SET reminder_sent = 1, updated_at = :n WHERE uuid = :u', ['n' => Clock::nowIso(), 'u' => $uuid]);
+        $now = Clock::nowIso();
+        $this->store->update(self::COLLECTION, $uuid, static function (array $row) use ($now): array {
+            $row['reminder_sent'] = 1;
+            $row['updated_at']    = $now;
+
+            return $row;
+        });
     }
 
     // ==================================================================
@@ -166,19 +186,15 @@ final class CalendarService
         $uuid = Uuid::v4();
         $now  = Clock::nowIso();
 
-        $this->db->run(
-            'INSERT INTO calendar_events
-                (uuid, title, description, starts_at, ends_at, all_day, timezone, location, meeting_link,
-                 event_type, status, contact_uuid, company_uuid, opportunity_uuid, enquiry_uuid, preview_uuid,
-                 invoice_uuid, recurrence, recurrence_interval, recurrence_until, recurrence_count, exceptions,
-                 reminder_minutes, assigned_to, created_by, source, created_at, updated_at)
-             VALUES
-                (:uuid, :title, :description, :starts_at, :ends_at, :all_day, :timezone, :location, :meeting_link,
-                 :event_type, :status, :contact_uuid, :company_uuid, :opportunity_uuid, :enquiry_uuid, :preview_uuid,
-                 :invoice_uuid, :recurrence, :recurrence_interval, :recurrence_until, :recurrence_count, \'\',
-                 :reminder_minutes, :assigned_to, :created_by, :source, :now, :now)',
-            $data + ['uuid' => $uuid, 'created_by' => $actor, 'source' => $source, 'now' => $now]
-        );
+        $this->store->put(self::COLLECTION, $data + [
+            'uuid'          => $uuid,
+            'exceptions'    => '',
+            'reminder_sent' => 0,
+            'created_by'    => $actor,
+            'source'        => $source,
+            'created_at'    => $now,
+            'updated_at'    => $now,
+        ]);
 
         $this->recordActivity($uuid, $data, $actor, 'event.scheduled', 'Scheduled: ' . $data['title']);
 
@@ -194,7 +210,7 @@ final class CalendarService
      */
     public function update(string $uuid, array $in, string $actor, string $scope = 'series', string $occurrenceDate = ''): array
     {
-        $existing = $this->db->one('SELECT * FROM calendar_events WHERE uuid = :u', ['u' => $uuid]);
+        $existing = $this->store->find(self::COLLECTION, $uuid);
         if ($existing === null) {
             throw new CalendarException(404, 'Event not found.');
         }
@@ -215,7 +231,13 @@ final class CalendarService
             $cut = $this->parse($occurrenceDate);
             if ($cut !== null) {
                 $until = $cut->sub(new DateInterval('P1D'))->format('Y-m-d');
-                $this->db->run('UPDATE calendar_events SET recurrence_until = :u, updated_at = :n WHERE uuid = :id', ['u' => $until, 'n' => Clock::nowIso(), 'id' => $uuid]);
+                $now   = Clock::nowIso();
+                $this->store->update(self::COLLECTION, $uuid, static function (array $row) use ($until, $now): array {
+                    $row['recurrence_until'] = $until;
+                    $row['updated_at']       = $now;
+
+                    return $row;
+                });
             }
             $base = $this->row($existing);
             $merged = array_merge($base, $in);
@@ -224,14 +246,10 @@ final class CalendarService
         }
 
         $data = $this->validate(array_merge($this->row($existing), $in));
-        $sets = [];
-        foreach ($data as $k => $v) {
-            $sets[] = "$k = :$k";
-        }
-        $this->db->run(
-            'UPDATE calendar_events SET ' . implode(', ', $sets) . ', reminder_sent = 0, updated_at = :now WHERE uuid = :uuid',
-            $data + ['uuid' => $uuid, 'now' => Clock::nowIso()]
-        );
+        $this->store->put(self::COLLECTION, array_merge($existing, $data, [
+            'reminder_sent' => 0,
+            'updated_at'    => Clock::nowIso(),
+        ]));
 
         return $this->find($uuid) ?? [];
     }
@@ -254,16 +272,16 @@ final class CalendarService
 
     public function delete(string $uuid, string $actor, string $scope = 'series', string $occurrenceDate = ''): void
     {
-        $existing = $this->db->one('SELECT recurrence FROM calendar_events WHERE uuid = :u', ['u' => $uuid]);
+        $existing = $this->store->find(self::COLLECTION, $uuid);
         if ($existing === null) {
             throw new CalendarException(404, 'Event not found.');
         }
-        if ($scope === 'occurrence' && (string) $existing['recurrence'] !== '' && $occurrenceDate !== '') {
+        if ($scope === 'occurrence' && (string) ($existing['recurrence'] ?? '') !== '' && $occurrenceDate !== '') {
             $this->addException($uuid, $occurrenceDate);
 
             return;
         }
-        $this->db->run('DELETE FROM calendar_events WHERE uuid = :u', ['u' => $uuid]);
+        $this->store->delete(self::COLLECTION, $uuid);
     }
 
     // ==================================================================
@@ -396,13 +414,18 @@ final class CalendarService
 
     private function addException(string $uuid, string $date): void
     {
-        $row = $this->db->one('SELECT exceptions FROM calendar_events WHERE uuid = :u', ['u' => $uuid]);
-        $existing = array_filter(explode(',', (string) ($row['exceptions'] ?? '')));
         $day = substr($date, 0, 10);
-        if (!in_array($day, $existing, true)) {
-            $existing[] = $day;
-        }
-        $this->db->run('UPDATE calendar_events SET exceptions = :e, updated_at = :n WHERE uuid = :u', ['e' => implode(',', $existing), 'n' => Clock::nowIso(), 'u' => $uuid]);
+        $now = Clock::nowIso();
+        $this->store->update(self::COLLECTION, $uuid, static function (array $row) use ($day, $now): array {
+            $existing = array_filter(explode(',', (string) ($row['exceptions'] ?? '')));
+            if (!in_array($day, $existing, true)) {
+                $existing[] = $day;
+            }
+            $row['exceptions'] = implode(',', $existing);
+            $row['updated_at'] = $now;
+
+            return $row;
+        });
     }
 
     /**

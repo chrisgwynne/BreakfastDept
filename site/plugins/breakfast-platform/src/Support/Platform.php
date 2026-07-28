@@ -470,7 +470,7 @@ final class Platform
     public function calendar(): \Breakfast\Platform\Calendar\CalendarService
     {
         return $this->service(\Breakfast\Platform\Calendar\CalendarService::class, fn () => new \Breakfast\Platform\Calendar\CalendarService(
-            $this->db(),
+            $this->fileStore(),
             $this->activities()
         ));
     }
