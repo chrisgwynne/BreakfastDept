@@ -6,8 +6,6 @@
     "version": "1.0.0",
     "require": {
         "php": "^8.3",
-        "ext-pdo": "*",
-        "ext-pdo_sqlite": "*",
         "ext-mbstring": "*"
     },
     "autoload": {

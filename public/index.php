@@ -4,7 +4,8 @@
  * Front controller.
  *
  * The web docroot is this `public/` directory. Everything sensitive — content,
- * site config, the CRM SQLite database, sessions, cache, logs, private uploads
+ * site config, the flat-file data tree (`storage/data/`), sessions, cache, logs,
+ * private uploads
  * and the Kirby/Composer vendor tree — lives ABOVE the docroot and is never
  * directly reachable over HTTP. Roots are declared explicitly so the layout is
  * unambiguous regardless of how the host resolves paths.
