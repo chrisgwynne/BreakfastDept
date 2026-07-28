@@ -65,6 +65,15 @@ final class Meta
             return 'noindex, nofollow';
         }
 
+        // An explicit `robots: index|noindex` content value wins over the
+        // unlisted heuristic below. The portfolio /work + case-study routes are
+        // virtual (factory) pages — technically unlisted — but are meant to be
+        // indexed, so they pass `robots: index` to opt in.
+        $explicit = strtolower(trim((string) $this->page->content()->get('robots')->value()));
+        if ($explicit === 'index' || $explicit === 'noindex') {
+            return $explicit === 'noindex' ? 'noindex, follow' : 'index, follow';
+        }
+
         // Utility pages (unlisted, e.g. /start-a-project, /privacy) default to
         // noindex, and an explicit `no_index` flag forces it too. The home page
         // is unlisted by Kirby convention (no sort number) yet must be indexed,

@@ -598,6 +598,14 @@ switch ($command) {
         out($dryRun ? 'Dry run (pass without --dry-run to import). OK' : 'Imported as drafts. OK');
         break;
 
+    case 'portfolio:seed-localmarkers':
+        // Create the LocalMarkers portfolio entry through the real Portfolio
+        // service (the same methods the admin API calls). Idempotent — skips if
+        // the slug already exists — so it is safe to run in production, which is
+        // where this real entry needs to live (the portfolio DB is not in git).
+        require $base . '/site/plugins/breakfast-platform/seed/localmarkers.php';
+        break;
+
     case 'invoices:backfill-pdfs':
         // Generate the immutable PDF for every issued invoice that doesn't have
         // one yet (issued before the PDF pipeline existed, or a prior failure).

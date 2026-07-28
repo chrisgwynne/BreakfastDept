@@ -58,6 +58,9 @@ Nav:
 Footer_nav:
 
 -
+  label: Work
+  link: /work
+-
   label: Services
   link: /services
 -

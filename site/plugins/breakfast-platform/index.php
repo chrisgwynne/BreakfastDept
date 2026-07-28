@@ -447,6 +447,7 @@ Kirby::plugin('breakfast/platform', [
                         'title'            => 'Selected work',
                         'seo_title'        => 'Selected work — websites Breakfast has built | Breakfast',
                         'meta_description' => 'A selection of clear, fast websites Breakfast has designed and built for small businesses across North Wales.',
+                        'robots'           => 'index',
                     ],
                 ]);
 
