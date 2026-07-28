@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Breakfast\Platform\Operations;
 
 use Breakfast\Platform\Support\Clock;
-use Breakfast\Platform\Support\Database;
 use Breakfast\Platform\Support\Platform;
 use Breakfast\Platform\Support\Uuid;
 
@@ -29,11 +28,6 @@ final class Automation
 
     public function __construct(private readonly Platform $platform)
     {
-    }
-
-    private function db(): Database
-    {
-        return $this->platform->db();
     }
 
     private function store(): \Breakfast\Platform\Support\FileStore
@@ -233,11 +227,10 @@ final class Automation
     /** @return list<array{target_ref:string,project_uuid:string,label:string}> */
     private function stalledOnboarding(string $cutoff): array
     {
-        $rows = $this->db()->all(
-            "SELECT uuid, project_uuid FROM onboarding_instances
-             WHERE status IN ('submitted','under_review') AND submitted_at IS NOT NULL AND submitted_at < :cutoff AND project_uuid IS NOT NULL",
-            ['cutoff' => $cutoff]
-        );
+        $rows = array_values(array_filter($this->store()->all('onboarding_instances'), static fn (array $r): bool => in_array((string) ($r['status'] ?? ''), ['submitted', 'under_review'], true)
+            && (string) ($r['submitted_at'] ?? '') !== ''
+            && (string) $r['submitted_at'] < $cutoff
+            && (string) ($r['project_uuid'] ?? '') !== ''));
 
         return array_map(static fn (array $r): array => [
             'target_ref' => 'onboarding:' . (string) $r['uuid'], 'project_uuid' => (string) $r['project_uuid'],

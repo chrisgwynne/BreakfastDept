@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Breakfast\Platform\Operations;
 
 use Breakfast\Platform\Support\Clock;
-use Breakfast\Platform\Support\Database;
 use Breakfast\Platform\Support\Platform;
 
 /**
@@ -24,11 +23,6 @@ final class Inbox
     {
     }
 
-    private function db(): Database
-    {
-        return $this->platform->db();
-    }
-
     /**
      * Counts per category plus the grand total — cheap enough for a nav badge.
      *
@@ -36,9 +30,9 @@ final class Inbox
      */
     public function summary(): array
     {
-        $messages = (int) $this->db()->scalar("SELECT COUNT(*) FROM portal_messages WHERE sender = 'client' AND read_by_staff = 0");
-        $feedback = (int) $this->db()->scalar("SELECT COUNT(*) FROM portal_feedback WHERE status = 'open'");
-        $onboarding = (int) $this->db()->scalar("SELECT COUNT(*) FROM onboarding_instances WHERE status IN ('submitted','under_review')");
+        $messages = count($this->unreadClientMessages());
+        $feedback = count($this->openFeedback());
+        $onboarding = count($this->submittedOnboarding());
         $changeRequests = count($this->unappliedChanges());
         $retainers = count($this->dueRetainers());
 
@@ -57,23 +51,17 @@ final class Inbox
      */
     public function items(): array
     {
-        // Projects are flat files, so the portal/onboarding/change-request tables
-        // (still database-backed) can't JOIN them — the project name is resolved
-        // from the file store per row.
-        $messages = $this->db()->all(
-            "SELECT uuid, project_uuid, author_name, body, created_at
-             FROM portal_messages
-             WHERE sender = 'client' AND read_by_staff = 0
-             ORDER BY created_at DESC LIMIT 50"
-        );
-        $feedback = $this->db()->all(
-            "SELECT uuid, project_uuid, author_name, kind, body, created_at
-             FROM portal_feedback WHERE status = 'open' ORDER BY created_at DESC LIMIT 50"
-        );
-        $onboarding = $this->db()->all(
-            "SELECT uuid, project_uuid, status, submitted_at
-             FROM onboarding_instances WHERE status IN ('submitted','under_review') ORDER BY submitted_at DESC LIMIT 50"
-        );
+        // Everything the inbox derives from is flat-file; the project name is
+        // resolved from the file store per row (no cross-file JOIN).
+        $messages = $this->unreadClientMessages();
+        usort($messages, static fn ($a, $b) => strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? '')));
+        $messages = array_slice($messages, 0, 50);
+        $feedback = $this->openFeedback();
+        usort($feedback, static fn ($a, $b) => strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? '')));
+        $feedback = array_slice($feedback, 0, 50);
+        $onboarding = $this->submittedOnboarding();
+        usort($onboarding, static fn ($a, $b) => strcmp((string) ($b['submitted_at'] ?? ''), (string) ($a['submitted_at'] ?? '')));
+        $onboarding = array_slice($onboarding, 0, 50);
         $changeRequests = $this->unappliedChanges();
         usort($changeRequests, static fn ($a, $b) => strcmp((string) ($b['decided_at'] ?? ''), (string) ($a['decided_at'] ?? '')));
         $changeRequests = array_slice($changeRequests, 0, 50);
@@ -119,6 +107,45 @@ final class Inbox
         return array_values(array_filter(
             $this->platform->fileStore()->all('change_requests'),
             static fn (array $r): bool => (string) ($r['status'] ?? '') === 'approved' && (int) ($r['applied'] ?? 0) === 0
+        ));
+    }
+
+    /**
+     * Unread client messages across all projects (flat-file).
+     *
+     * @return list<array<string,mixed>>
+     */
+    private function unreadClientMessages(): array
+    {
+        return array_values(array_filter(
+            $this->platform->fileStore()->all('portal_messages'),
+            static fn (array $r): bool => (string) ($r['sender'] ?? '') === 'client' && (int) ($r['read_by_staff'] ?? 0) === 0
+        ));
+    }
+
+    /**
+     * Open portal feedback across all projects (flat-file).
+     *
+     * @return list<array<string,mixed>>
+     */
+    private function openFeedback(): array
+    {
+        return array_values(array_filter(
+            $this->platform->fileStore()->all('portal_feedback'),
+            static fn (array $r): bool => (string) ($r['status'] ?? '') === 'open'
+        ));
+    }
+
+    /**
+     * Onboarding instances awaiting staff review (flat-file).
+     *
+     * @return list<array<string,mixed>>
+     */
+    private function submittedOnboarding(): array
+    {
+        return array_values(array_filter(
+            $this->platform->fileStore()->all('onboarding_instances'),
+            static fn (array $r): bool => in_array((string) ($r['status'] ?? ''), ['submitted', 'under_review'], true)
         ));
     }
 

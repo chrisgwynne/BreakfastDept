@@ -83,7 +83,7 @@ final class InboxTest extends TestCase
         $this->assertSame(0, $p->inbox()->summary()['messages']);
 
         // Resolving the feedback clears it too.
-        $open = $p->db()->one("SELECT uuid FROM portal_feedback WHERE status = 'open' LIMIT 1");
+        $open = array_values(array_filter($p->fileStore()->all('portal_feedback'), static fn (array $r): bool => (string) ($r['status'] ?? '') === 'open'))[0];
         $p->portal()->setFeedbackStatus((string) $open['uuid'], 'resolved', 'staff@breakfast');
         $this->assertSame(0, $p->inbox()->summary()['feedback']);
     }

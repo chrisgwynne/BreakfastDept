@@ -106,10 +106,10 @@ final class PortalTest extends TestCase
         $p = breakfast();
         // Insert a link whose expiry is already in the past.
         $raw = bin2hex(random_bytes(24));
-        breakfast()->db()->run(
-            'INSERT INTO portal_magic_links (uuid, identity_uuid, token_hash, email, expires_at, created_at) VALUES (:uuid, :i, :h, :e, :exp, :now)',
-            ['uuid' => Uuid::v4(), 'i' => $this->identity, 'h' => hash('sha256', $raw), 'e' => 'sian@roberts.example', 'exp' => date('c', time() - 60), 'now' => Clock::nowIso()]
-        );
+        breakfast()->fileStore()->put('portal_magic_links', [
+            'uuid' => Uuid::v4(), 'identity_uuid' => $this->identity, 'token_hash' => hash('sha256', $raw),
+            'email' => 'sian@roberts.example', 'ip_hash' => '', 'expires_at' => date('c', time() - 60), 'used_at' => null, 'created_at' => Clock::nowIso(),
+        ]);
         $this->expectException(PortalException::class);
         $p->portal()->consumeMagicLink($raw);
     }

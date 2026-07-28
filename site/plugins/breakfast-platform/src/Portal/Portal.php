@@ -6,6 +6,7 @@ namespace Breakfast\Platform\Portal;
 
 use Breakfast\Platform\Support\Clock;
 use Breakfast\Platform\Support\Database;
+use Breakfast\Platform\Support\FileStore;
 use Breakfast\Platform\Support\Platform;
 use Breakfast\Platform\Support\Uuid;
 
@@ -20,6 +21,11 @@ use Breakfast\Platform\Support\Uuid;
  * link for an unknown/suspended address returns the same shape as success.
  *
  * This service NEVER grants staff access and is unreachable from Hermes.
+ *
+ * Portal state lives in flat files: identities (with embedded grants + events),
+ * magic links, sessions, feedback and messages are each a JSON collection. The
+ * delivery joins it renders (milestones, tasks, client files) come from their
+ * owning services.
  */
 final class Portal
 {
@@ -36,6 +42,11 @@ final class Portal
         return $this->platform->db();
     }
 
+    private function store(): FileStore
+    {
+        return $this->platform->fileStore();
+    }
+
     // ==================================================================
     // Staff-side: identities + grants
     // ==================================================================
@@ -50,20 +61,27 @@ final class Portal
         if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
             throw new PortalException(422, 'A valid email is required.');
         }
-        if ($this->db()->one('SELECT uuid FROM portal_identities WHERE email_key = :e', ['e' => $email]) !== null) {
+        if ($this->identityUuidForEmail($email) !== null) {
             throw new PortalException(409, 'A portal identity already exists for this email.');
         }
         $uuid = Uuid::v4();
         $now = Clock::nowIso();
-        $this->db()->run(
-            'INSERT INTO portal_identities (uuid, email, email_key, display_name, contact_uuid, company_uuid, status, created_by, created_at, updated_at)
-             VALUES (:uuid, :email, :key, :name, :contact, :company, \'active\', :actor, :now, :now)',
-            [
-                'uuid' => $uuid, 'email' => (string) ($data['email'] ?? $email), 'key' => $email,
-                'name' => (string) ($data['display_name'] ?? ''), 'contact' => $this->nullable($data['contact_uuid'] ?? null),
-                'company' => $this->nullable($data['company_uuid'] ?? null), 'actor' => $actor, 'now' => $now,
-            ]
-        );
+        $this->store()->put('portal_identities', [
+            'uuid'          => $uuid,
+            'email'         => (string) ($data['email'] ?? $email),
+            'email_key'     => $email,
+            'display_name'  => (string) ($data['display_name'] ?? ''),
+            'contact_uuid'  => $this->nullable($data['contact_uuid'] ?? null),
+            'company_uuid'  => $this->nullable($data['company_uuid'] ?? null),
+            'status'        => 'active',
+            'last_login_at' => null,
+            'revision'      => 0,
+            'grants'        => [],
+            'events'        => [],
+            'created_by'    => $actor,
+            'created_at'    => $now,
+            'updated_at'    => $now,
+        ]);
         $this->event($uuid, 'identity_created', 'Portal identity created', '');
 
         return $this->findIdentity($uuid) ?? [];
@@ -72,12 +90,15 @@ final class Portal
     /** @return array<string,mixed>|null */
     public function findIdentity(string $uuid): ?array
     {
-        $id = $this->db()->one('SELECT * FROM portal_identities WHERE uuid = :u', ['u' => $uuid]);
+        $id = $this->store()->find('portal_identities', $uuid);
         if ($id === null) {
             return null;
         }
         unset($id['email_key']);
-        $id['grants'] = $this->db()->all("SELECT entity_type, entity_uuid, role FROM portal_access_grants WHERE identity_uuid = :u AND revoked = 0", ['u' => $uuid]);
+        $id['grants'] = array_values(array_map(
+            static fn (array $g): array => ['entity_type' => $g['entity_type'] ?? '', 'entity_uuid' => $g['entity_uuid'] ?? '', 'role' => $g['role'] ?? ''],
+            array_filter(is_array($id['grants'] ?? null) ? $id['grants'] : [], static fn (array $g): bool => (int) ($g['revoked'] ?? 0) === 0)
+        ));
 
         return $id;
     }
@@ -88,21 +109,24 @@ final class Portal
      */
     public function listIdentities(array $filters = []): array
     {
-        $where = ['1 = 1'];
-        $params = [];
+        $rows = $this->store()->all('portal_identities');
         if (!empty($filters['contact_uuid'])) {
-            $where[] = 'contact_uuid = :c';
-            $params['c'] = (string) $filters['contact_uuid'];
+            $rows = array_filter($rows, static fn (array $r): bool => (string) ($r['contact_uuid'] ?? '') === (string) $filters['contact_uuid']);
         }
-        $rows = $this->db()->all('SELECT uuid, email, display_name, contact_uuid, company_uuid, status, last_login_at, created_at FROM portal_identities WHERE ' . implode(' AND ', $where) . ' ORDER BY created_at DESC LIMIT 200', $params);
+        $rows = array_values($rows);
+        usort($rows, static fn ($a, $b) => strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? '')));
 
-        return $rows;
+        return array_slice(array_map(static fn (array $r): array => [
+            'uuid' => $r['uuid'] ?? '', 'email' => $r['email'] ?? '', 'display_name' => $r['display_name'] ?? '',
+            'contact_uuid' => $r['contact_uuid'] ?? null, 'company_uuid' => $r['company_uuid'] ?? null,
+            'status' => $r['status'] ?? '', 'last_login_at' => $r['last_login_at'] ?? null, 'created_at' => $r['created_at'] ?? '',
+        ], $rows), 0, 200);
     }
 
     /** @return array<string,mixed> */
     public function grantAccess(string $identityUuid, string $entityType, string $entityUuid, string $role, string $actor): array
     {
-        if ($this->findIdentity($identityUuid) === null) {
+        if ($this->store()->find('portal_identities', $identityUuid) === null) {
             throw new PortalException(404, 'Portal identity not found.');
         }
         if (!in_array($role, ['viewer', 'approver'], true)) {
@@ -110,12 +134,23 @@ final class Portal
         }
         $now = Clock::nowIso();
         // Upsert: re-granting reactivates a revoked grant and updates the role.
-        $existing = $this->db()->one('SELECT uuid FROM portal_access_grants WHERE identity_uuid = :i AND entity_type = :t AND entity_uuid = :e', ['i' => $identityUuid, 't' => $entityType, 'e' => $entityUuid]);
-        if ($existing !== null) {
-            $this->db()->run('UPDATE portal_access_grants SET role = :r, revoked = 0 WHERE uuid = :u', ['r' => $role, 'u' => (string) $existing['uuid']]);
-        } else {
-            $this->db()->run('INSERT INTO portal_access_grants (uuid, identity_uuid, entity_type, entity_uuid, role, created_by, created_at) VALUES (:uuid, :i, :t, :e, :r, :actor, :now)', ['uuid' => Uuid::v4(), 'i' => $identityUuid, 't' => $entityType, 'e' => $entityUuid, 'r' => $role, 'actor' => $actor, 'now' => $now]);
-        }
+        $this->store()->update('portal_identities', $identityUuid, static function (array $row) use ($entityType, $entityUuid, $role, $actor, $now): array {
+            $grants = is_array($row['grants'] ?? null) ? $row['grants'] : [];
+            $found = false;
+            foreach ($grants as $i => $g) {
+                if ((string) ($g['entity_type'] ?? '') === $entityType && (string) ($g['entity_uuid'] ?? '') === $entityUuid) {
+                    $grants[$i]['role']    = $role;
+                    $grants[$i]['revoked'] = 0;
+                    $found = true;
+                }
+            }
+            if (!$found) {
+                $grants[] = ['uuid' => Uuid::v4(), 'entity_type' => $entityType, 'entity_uuid' => $entityUuid, 'role' => $role, 'revoked' => 0, 'created_by' => $actor, 'created_at' => $now];
+            }
+            $row['grants'] = $grants;
+
+            return $row;
+        });
         $this->event($identityUuid, 'access_granted', $entityType . ':' . $entityUuid . ' (' . $role . ')', '');
 
         return $this->findIdentity($identityUuid) ?? [];
@@ -138,10 +173,8 @@ final class Portal
         if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
             throw new PortalException(422, 'A valid email is required.');
         }
-        $existing = $this->db()->one('SELECT uuid FROM portal_identities WHERE email_key = :e', ['e' => $email]);
-        $identityUuid = $existing !== null
-            ? (string) $existing['uuid']
-            : (string) $this->createIdentity($data, $actor)['uuid'];
+        $existing = $this->identityUuidForEmail($email);
+        $identityUuid = $existing ?? (string) $this->createIdentity($data, $actor)['uuid'];
         $this->grantAccess($identityUuid, 'project', $projectUuid, (string) ($data['role'] ?? 'viewer'), $actor);
         $link = $this->requestLogin($email);
         $url = ($link['sent'] && $link['token'] !== null) ? rtrim($siteUrl, '/') . '/portal/verify/' . $link['token'] : '';
@@ -151,7 +184,17 @@ final class Portal
 
     public function revokeAccess(string $identityUuid, string $entityType, string $entityUuid, string $actor): void
     {
-        $this->db()->run('UPDATE portal_access_grants SET revoked = 1 WHERE identity_uuid = :i AND entity_type = :t AND entity_uuid = :e', ['i' => $identityUuid, 't' => $entityType, 'e' => $entityUuid]);
+        $this->store()->update('portal_identities', $identityUuid, static function (array $row) use ($entityType, $entityUuid): array {
+            $grants = is_array($row['grants'] ?? null) ? $row['grants'] : [];
+            foreach ($grants as $i => $g) {
+                if ((string) ($g['entity_type'] ?? '') === $entityType && (string) ($g['entity_uuid'] ?? '') === $entityUuid) {
+                    $grants[$i]['revoked'] = 1;
+                }
+            }
+            $row['grants'] = $grants;
+
+            return $row;
+        });
         $this->event($identityUuid, 'access_revoked', $entityType . ':' . $entityUuid, '');
     }
 
@@ -161,10 +204,24 @@ final class Portal
         if (!in_array($status, ['active', 'suspended'], true)) {
             throw new PortalException(422, 'Unknown status.');
         }
-        $this->db()->run('UPDATE portal_identities SET status = :s, updated_at = :now, revision = revision + 1 WHERE uuid = :u', ['s' => $status, 'now' => Clock::nowIso(), 'u' => $identityUuid]);
+        $this->store()->update('portal_identities', $identityUuid, static function (array $row) use ($status): array {
+            $row['status']     = $status;
+            $row['updated_at'] = Clock::nowIso();
+            $row['revision']   = (int) ($row['revision'] ?? 0) + 1;
+
+            return $row;
+        });
         if ($status === 'suspended') {
             // Suspending kills every live session immediately.
-            $this->db()->run('UPDATE portal_sessions SET revoked = 1 WHERE identity_uuid = :u', ['u' => $identityUuid]);
+            foreach ($this->store()->all('portal_sessions') as $s) {
+                if ((string) ($s['identity_uuid'] ?? '') === $identityUuid && (int) ($s['revoked'] ?? 0) === 0) {
+                    $this->store()->update('portal_sessions', (string) $s['uuid'], static function (array $r): array {
+                        $r['revoked'] = 1;
+
+                        return $r;
+                    });
+                }
+            }
         }
         $this->event($identityUuid, 'status_' . $status, 'Identity ' . $status, '');
 
@@ -185,17 +242,24 @@ final class Portal
     public function requestLogin(string $email, string $ipHash = ''): array
     {
         $key = strtolower(trim($email));
-        $identity = $key === '' ? null : $this->db()->one("SELECT uuid, status FROM portal_identities WHERE email_key = :e", ['e' => $key]);
+        $identityUuid = $key === '' ? null : $this->identityUuidForEmail($key);
+        $identity = $identityUuid !== null ? $this->store()->find('portal_identities', $identityUuid) : null;
         if ($identity === null || (string) $identity['status'] !== 'active') {
             return ['sent' => false, 'identity_uuid' => null, 'token' => null];
         }
         $identityUuid = (string) $identity['uuid'];
         $raw = bin2hex(random_bytes(24));
         $now = Clock::nowIso();
-        $this->db()->run(
-            'INSERT INTO portal_magic_links (uuid, identity_uuid, token_hash, email, ip_hash, expires_at, created_at) VALUES (:uuid, :i, :h, :email, :ip, :exp, :now)',
-            ['uuid' => Uuid::v4(), 'i' => $identityUuid, 'h' => $this->hash($raw), 'email' => $key, 'ip' => $ipHash, 'exp' => date('c', time() + self::MAGIC_LINK_TTL), 'now' => $now]
-        );
+        $this->store()->put('portal_magic_links', [
+            'uuid'          => Uuid::v4(),
+            'identity_uuid' => $identityUuid,
+            'token_hash'    => $this->hash($raw),
+            'email'         => $key,
+            'ip_hash'       => $ipHash,
+            'expires_at'    => date('c', time() + self::MAGIC_LINK_TTL),
+            'used_at'       => null,
+            'created_at'    => $now,
+        ]);
         $this->event($identityUuid, 'login_requested', 'Magic link requested', $ipHash);
 
         return ['sent' => true, 'identity_uuid' => $identityUuid, 'token' => $raw];
@@ -209,35 +273,49 @@ final class Portal
      */
     public function consumeMagicLink(string $rawToken, string $ipHash = '', string $userAgent = ''): array
     {
-        $link = $this->db()->one('SELECT * FROM portal_magic_links WHERE token_hash = :h', ['h' => $this->hash($rawToken)]);
+        $link = $this->findByTokenHash('portal_magic_links', $this->hash($rawToken));
         if ($link === null) {
             throw new PortalException(404, 'This sign-in link is invalid.');
         }
-        if ($link['used_at'] !== null) {
+        if (($link['used_at'] ?? null) !== null) {
             throw new PortalException(410, 'This sign-in link has already been used.');
         }
         if ($this->isPast((string) $link['expires_at'])) {
             throw new PortalException(410, 'This sign-in link has expired. Please request a new one.');
         }
         $identityUuid = (string) $link['identity_uuid'];
-        $identity = $this->db()->one("SELECT * FROM portal_identities WHERE uuid = :u AND status = 'active'", ['u' => $identityUuid]);
-        if ($identity === null) {
+        $identity = $this->store()->find('portal_identities', $identityUuid);
+        if ($identity === null || (string) $identity['status'] !== 'active') {
             throw new PortalException(403, 'This account is not active.');
         }
         $rawSession = bin2hex(random_bytes(32));
         $now = Clock::nowIso();
 
-        return $this->db()->transaction(function () use ($link, $identityUuid, $rawSession, $ipHash, $userAgent, $now): array {
-            $this->db()->run('UPDATE portal_magic_links SET used_at = :now WHERE uuid = :u', ['now' => $now, 'u' => (string) $link['uuid']]);
-            $this->db()->run(
-                'INSERT INTO portal_sessions (uuid, identity_uuid, token_hash, ip_hash, user_agent, expires_at, last_seen_at, created_at) VALUES (:uuid, :i, :h, :ip, :ua, :exp, :now, :now)',
-                ['uuid' => Uuid::v4(), 'i' => $identityUuid, 'h' => $this->hash($rawSession), 'ip' => $ipHash, 'ua' => substr($userAgent, 0, 255), 'exp' => date('c', time() + self::SESSION_TTL), 'now' => $now]
-            );
-            $this->db()->run('UPDATE portal_identities SET last_login_at = :now, updated_at = :now WHERE uuid = :u', ['now' => $now, 'u' => $identityUuid]);
-            $this->event($identityUuid, 'login', 'Signed in', $ipHash);
+        $this->store()->update('portal_magic_links', (string) $link['uuid'], static function (array $r) use ($now): array {
+            $r['used_at'] = $now;
 
-            return ['session_token' => $rawSession, 'identity' => $this->findIdentity($identityUuid) ?? []];
+            return $r;
         });
+        $this->store()->put('portal_sessions', [
+            'uuid'          => Uuid::v4(),
+            'identity_uuid' => $identityUuid,
+            'token_hash'    => $this->hash($rawSession),
+            'ip_hash'       => $ipHash,
+            'user_agent'    => substr($userAgent, 0, 255),
+            'expires_at'    => date('c', time() + self::SESSION_TTL),
+            'last_seen_at'  => $now,
+            'revoked'       => 0,
+            'created_at'    => $now,
+        ]);
+        $this->store()->update('portal_identities', $identityUuid, static function (array $r) use ($now): array {
+            $r['last_login_at'] = $now;
+            $r['updated_at']    = $now;
+
+            return $r;
+        });
+        $this->event($identityUuid, 'login', 'Signed in', $ipHash);
+
+        return ['session_token' => $rawSession, 'identity' => $this->findIdentity($identityUuid) ?? []];
     }
 
     /**
@@ -251,15 +329,19 @@ final class Portal
         if (trim($rawToken) === '') {
             return null;
         }
-        $session = $this->db()->one('SELECT * FROM portal_sessions WHERE token_hash = :h', ['h' => $this->hash($rawToken)]);
-        if ($session === null || (int) $session['revoked'] === 1 || $this->isPast((string) $session['expires_at'])) {
+        $session = $this->findByTokenHash('portal_sessions', $this->hash($rawToken));
+        if ($session === null || (int) ($session['revoked'] ?? 0) === 1 || $this->isPast((string) $session['expires_at'])) {
             return null;
         }
-        $identity = $this->db()->one("SELECT * FROM portal_identities WHERE uuid = :u AND status = 'active'", ['u' => (string) $session['identity_uuid']]);
-        if ($identity === null) {
+        $identity = $this->store()->find('portal_identities', (string) $session['identity_uuid']);
+        if ($identity === null || (string) $identity['status'] !== 'active') {
             return null;
         }
-        $this->db()->run('UPDATE portal_sessions SET last_seen_at = :now WHERE uuid = :u', ['now' => Clock::nowIso(), 'u' => (string) $session['uuid']]);
+        $this->store()->update('portal_sessions', (string) $session['uuid'], static function (array $r): array {
+            $r['last_seen_at'] = Clock::nowIso();
+
+            return $r;
+        });
 
         return $this->findIdentity((string) $session['identity_uuid']);
     }
@@ -269,7 +351,14 @@ final class Portal
         if (trim($rawToken) === '') {
             return;
         }
-        $this->db()->run('UPDATE portal_sessions SET revoked = 1 WHERE token_hash = :h', ['h' => $this->hash($rawToken)]);
+        $session = $this->findByTokenHash('portal_sessions', $this->hash($rawToken));
+        if ($session !== null) {
+            $this->store()->update('portal_sessions', (string) $session['uuid'], static function (array $r): array {
+                $r['revoked'] = 1;
+
+                return $r;
+            });
+        }
     }
 
     // ==================================================================
@@ -278,7 +367,17 @@ final class Portal
 
     public function canAccessProject(string $identityUuid, string $projectUuid): bool
     {
-        return $this->db()->one('SELECT uuid FROM portal_access_grants WHERE identity_uuid = :i AND entity_type = \'project\' AND entity_uuid = :e AND revoked = 0', ['i' => $identityUuid, 'e' => $projectUuid]) !== null;
+        $identity = $this->store()->find('portal_identities', $identityUuid);
+        if ($identity === null) {
+            return false;
+        }
+        foreach (is_array($identity['grants'] ?? null) ? $identity['grants'] : [] as $g) {
+            if ((string) ($g['entity_type'] ?? '') === 'project' && (string) ($g['entity_uuid'] ?? '') === $projectUuid && (int) ($g['revoked'] ?? 0) === 0) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -289,16 +388,16 @@ final class Portal
      */
     public function accessibleProjects(string $identityUuid): array
     {
-        // Grants live in the database; projects are flat files — resolve each
-        // granted project from the file store (progress derived from real tasks).
-        $grants = $this->db()->all(
-            "SELECT entity_uuid FROM portal_access_grants
-             WHERE identity_uuid = :i AND entity_type = 'project' AND revoked = 0",
-            ['i' => $identityUuid]
-        );
+        $identity = $this->store()->find('portal_identities', $identityUuid);
+        if ($identity === null) {
+            return [];
+        }
         $rows = [];
-        foreach ($grants as $grant) {
-            $full = $this->platform->projects()->find((string) $grant['entity_uuid']);
+        foreach (is_array($identity['grants'] ?? null) ? $identity['grants'] : [] as $grant) {
+            if ((string) ($grant['entity_type'] ?? '') !== 'project' || (int) ($grant['revoked'] ?? 0) !== 0) {
+                continue;
+            }
+            $full = $this->platform->projects()->find((string) ($grant['entity_uuid'] ?? ''));
             if ($full === null || (string) ($full['status'] ?? '') === 'archived') {
                 continue;
             }
@@ -334,6 +433,7 @@ final class Portal
         if ($project === null || (string) $project['status'] === 'archived') {
             throw new PortalException(404, 'Project not found.');
         }
+        // Milestones + delivery tasks are still database-backed.
         $milestones = $this->db()->all(
             "SELECT uuid, title, status, due_date FROM milestones WHERE project_uuid = :p AND client_visible = 1 AND status <> 'cancelled' ORDER BY sort_order ASC",
             ['p' => $projectUuid]
@@ -359,7 +459,7 @@ final class Portal
                 'extension' => (string) ($f['extension'] ?? ''), 'byte_size' => (int) ($f['byte_size'] ?? 0), 'current_version' => (int) ($f['current_version'] ?? 1),
             ], $files),
             'feedback' => $this->feedbackForIdentity($identityUuid, $projectUuid),
-            'has_approved' => $this->db()->one("SELECT uuid FROM portal_feedback WHERE project_uuid = :p AND identity_uuid = :i AND kind = 'approval' LIMIT 1", ['p' => $projectUuid, 'i' => $identityUuid]) !== null,
+            'has_approved' => $this->hasApproval($projectUuid, $identityUuid),
             'messages' => $this->messageThread($projectUuid, $identityUuid, 'client'),
         ];
     }
@@ -371,6 +471,7 @@ final class Portal
      */
     public function assertFileDownloadable(string $identityUuid, string $fileUuid): void
     {
+        // Client files are still database-backed.
         $file = $this->db()->one('SELECT project_uuid, client_visible, archived FROM client_files WHERE uuid = :u', ['u' => $fileUuid]);
         if ($file === null || (int) ($file['client_visible'] ?? 0) !== 1 || (int) ($file['archived'] ?? 0) === 1) {
             throw new PortalException(404, 'File not found.');
@@ -512,15 +613,21 @@ final class Portal
         $uuid = Uuid::v4();
         $now = Clock::nowIso();
         $name = trim((string) ($identity['display_name'] ?? '')) ?: (string) ($identity['email'] ?? 'Client');
-        $this->db()->run(
-            'INSERT INTO portal_feedback (uuid, project_uuid, identity_uuid, kind, body, author_name, status, approved_label, ip_hash, user_agent, created_at)
-             VALUES (:uuid, :p, :i, :kind, :body, :name, \'open\', :label, :ip, :ua, :now)',
-            [
-                'uuid' => $uuid, 'p' => $projectUuid, 'i' => $identityUuid, 'kind' => $kind, 'body' => $body, 'name' => $name,
-                'label' => (string) ($data['approved_label'] ?? ($kind === 'approval' ? 'Project sign-off' : '')),
-                'ip' => (string) ($data['ip_hash'] ?? ''), 'ua' => substr((string) ($data['user_agent'] ?? ''), 0, 255), 'now' => $now,
-            ]
-        );
+        $this->store()->put('portal_feedback', [
+            'uuid'           => $uuid,
+            'project_uuid'   => $projectUuid,
+            'identity_uuid'  => $identityUuid,
+            'kind'           => $kind,
+            'body'           => $body,
+            'author_name'    => $name,
+            'status'         => 'open',
+            'approved_label' => (string) ($data['approved_label'] ?? ($kind === 'approval' ? 'Project sign-off' : '')),
+            'ip_hash'        => (string) ($data['ip_hash'] ?? ''),
+            'user_agent'     => substr((string) ($data['user_agent'] ?? ''), 0, 255),
+            'handled_by'     => null,
+            'handled_at'     => null,
+            'created_at'     => $now,
+        ]);
         $this->event($identityUuid, 'feedback_' . $kind, $projectUuid, (string) ($data['ip_hash'] ?? ''));
 
         $summary = $kind === 'approval' ? 'Client signed off the project' : 'Client left feedback';
@@ -531,7 +638,7 @@ final class Portal
         $this->platform->projects()->logEvent($projectUuid, 'portal_feedback', $summary . ($body !== '' ? ': ' . mb_substr($body, 0, 140) : ''), 'portal:' . $identityUuid);
         $this->platform->audit()->event('portal.feedback_' . $kind, 'project', $projectUuid, 'portal:' . $identityUuid, ['feedback' => $uuid]);
 
-        return $this->db()->one('SELECT * FROM portal_feedback WHERE uuid = :u', ['u' => $uuid]) ?? [];
+        return $this->store()->find('portal_feedback', $uuid) ?? [];
     }
 
     /**
@@ -541,10 +648,13 @@ final class Portal
      */
     public function feedbackForIdentity(string $identityUuid, string $projectUuid): array
     {
-        return $this->db()->all(
-            'SELECT uuid, kind, body, status, approved_label, created_at FROM portal_feedback WHERE project_uuid = :p AND identity_uuid = :i ORDER BY created_at DESC LIMIT 100',
-            ['p' => $projectUuid, 'i' => $identityUuid]
-        );
+        $rows = array_values(array_filter($this->store()->all('portal_feedback'), static fn (array $r): bool => (string) ($r['project_uuid'] ?? '') === $projectUuid && (string) ($r['identity_uuid'] ?? '') === $identityUuid));
+        usort($rows, static fn ($a, $b) => strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? '')));
+
+        return array_slice(array_map(static fn (array $r): array => [
+            'uuid' => $r['uuid'] ?? '', 'kind' => $r['kind'] ?? '', 'body' => $r['body'] ?? '', 'status' => $r['status'] ?? '',
+            'approved_label' => $r['approved_label'] ?? '', 'created_at' => $r['created_at'] ?? '',
+        ], $rows), 0, 100);
     }
 
     /**
@@ -554,10 +664,10 @@ final class Portal
      */
     public function feedbackForProject(string $projectUuid): array
     {
-        return $this->db()->all(
-            'SELECT * FROM portal_feedback WHERE project_uuid = :p ORDER BY created_at DESC LIMIT 200',
-            ['p' => $projectUuid]
-        );
+        $rows = array_values(array_filter($this->store()->all('portal_feedback'), static fn (array $r): bool => (string) ($r['project_uuid'] ?? '') === $projectUuid));
+        usort($rows, static fn ($a, $b) => strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? '')));
+
+        return array_slice($rows, 0, 200);
     }
 
     /**
@@ -570,13 +680,29 @@ final class Portal
         if (!in_array($status, ['open', 'acknowledged', 'resolved'], true)) {
             throw new PortalException(422, 'Unknown status.');
         }
-        $fb = $this->db()->one('SELECT project_uuid FROM portal_feedback WHERE uuid = :u', ['u' => $feedbackUuid]);
-        if ($fb === null) {
+        if ($this->store()->find('portal_feedback', $feedbackUuid) === null) {
             throw new PortalException(404, 'Feedback not found.');
         }
-        $this->db()->run('UPDATE portal_feedback SET status = :s, handled_by = :actor, handled_at = :now WHERE uuid = :u', ['s' => $status, 'actor' => $actor, 'now' => Clock::nowIso(), 'u' => $feedbackUuid]);
+        $updated = $this->store()->update('portal_feedback', $feedbackUuid, static function (array $row) use ($status, $actor): array {
+            $row['status']     = $status;
+            $row['handled_by'] = $actor;
+            $row['handled_at'] = Clock::nowIso();
 
-        return $this->db()->one('SELECT * FROM portal_feedback WHERE uuid = :u', ['u' => $feedbackUuid]) ?? [];
+            return $row;
+        });
+
+        return $updated ?? [];
+    }
+
+    private function hasApproval(string $projectUuid, string $identityUuid): bool
+    {
+        foreach ($this->store()->all('portal_feedback') as $r) {
+            if ((string) ($r['project_uuid'] ?? '') === $projectUuid && (string) ($r['identity_uuid'] ?? '') === $identityUuid && (string) ($r['kind'] ?? '') === 'approval') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     // ==================================================================
@@ -609,7 +735,7 @@ final class Portal
         }
         $this->platform->projects()->logEvent($projectUuid, 'portal_message', 'Client message: ' . mb_substr($body, 0, 140), 'portal:' . $identityUuid);
 
-        return $this->db()->one('SELECT * FROM portal_messages WHERE uuid = :u', ['u' => $uuid]) ?? [];
+        return $this->store()->find('portal_messages', $uuid) ?? [];
     }
 
     /**
@@ -619,7 +745,7 @@ final class Portal
      */
     public function postStaffMessage(string $projectUuid, string $identityUuid, string $body, string $actor): array
     {
-        if ($this->findIdentity($identityUuid) === null) {
+        if ($this->store()->find('portal_identities', $identityUuid) === null) {
             throw new PortalException(404, 'Portal identity not found.');
         }
         $body = trim($body);
@@ -629,7 +755,7 @@ final class Portal
         $uuid = $this->insertMessage($projectUuid, $identityUuid, 'staff', $actor, $body, readByClient: 0, readByStaff: 1);
         $this->platform->projects()->logEvent($projectUuid, 'portal_message', 'Reply to client', $actor);
 
-        return $this->db()->one('SELECT * FROM portal_messages WHERE uuid = :u', ['u' => $uuid]) ?? [];
+        return $this->store()->find('portal_messages', $uuid) ?? [];
     }
 
     /**
@@ -640,32 +766,51 @@ final class Portal
      */
     public function messageThread(string $projectUuid, string $identityUuid, string $viewer = ''): array
     {
-        if ($viewer === 'client') {
-            $this->db()->run('UPDATE portal_messages SET read_by_client = 1 WHERE project_uuid = :p AND identity_uuid = :i AND sender = \'staff\'', ['p' => $projectUuid, 'i' => $identityUuid]);
-        } elseif ($viewer === 'staff') {
-            $this->db()->run('UPDATE portal_messages SET read_by_staff = 1 WHERE project_uuid = :p AND identity_uuid = :i AND sender = \'client\'', ['p' => $projectUuid, 'i' => $identityUuid]);
-        }
+        $rows = array_values(array_filter($this->store()->all('portal_messages'), static fn (array $r): bool => (string) ($r['project_uuid'] ?? '') === $projectUuid && (string) ($r['identity_uuid'] ?? '') === $identityUuid));
+        if ($viewer === 'client' || $viewer === 'staff') {
+            $flag = $viewer === 'client' ? 'read_by_client' : 'read_by_staff';
+            $otherSide = $viewer === 'client' ? 'staff' : 'client';
+            foreach ($rows as $m) {
+                if ((string) ($m['sender'] ?? '') === $otherSide && (int) ($m[$flag] ?? 0) === 0) {
+                    $this->store()->update('portal_messages', (string) $m['uuid'], static function (array $r) use ($flag): array {
+                        $r[$flag] = 1;
 
-        return $this->db()->all(
-            'SELECT uuid, sender, author_name, body, created_at FROM portal_messages WHERE project_uuid = :p AND identity_uuid = :i ORDER BY created_at ASC LIMIT 500',
-            ['p' => $projectUuid, 'i' => $identityUuid]
-        );
+                        return $r;
+                    });
+                }
+            }
+        }
+        usort($rows, static fn ($a, $b) => [(string) ($a['created_at'] ?? ''), (int) ($a['seq'] ?? 0)] <=> [(string) ($b['created_at'] ?? ''), (int) ($b['seq'] ?? 0)]);
+
+        return array_slice(array_map(static fn (array $r): array => [
+            'uuid' => $r['uuid'] ?? '', 'sender' => $r['sender'] ?? '', 'author_name' => $r['author_name'] ?? '', 'body' => $r['body'] ?? '', 'created_at' => $r['created_at'] ?? '',
+        ], $rows), 0, 500);
     }
 
     /** Count of messages from the client that staff have not yet read, for a project. */
     public function unreadForStaff(string $projectUuid): int
     {
-        return (int) $this->db()->scalar("SELECT COUNT(*) FROM portal_messages WHERE project_uuid = :p AND sender = 'client' AND read_by_staff = 0", ['p' => $projectUuid]);
+        return count(array_filter($this->store()->all('portal_messages'), static fn (array $r): bool => (string) ($r['project_uuid'] ?? '') === $projectUuid && (string) ($r['sender'] ?? '') === 'client' && (int) ($r['read_by_staff'] ?? 0) === 0));
     }
 
     private function insertMessage(string $projectUuid, string $identityUuid, string $sender, string $name, string $body, int $readByClient, int $readByStaff): string
     {
         $uuid = Uuid::v4();
-        $this->db()->run(
-            'INSERT INTO portal_messages (uuid, project_uuid, identity_uuid, sender, author_name, body, read_by_client, read_by_staff, created_at)
-             VALUES (:uuid, :p, :i, :sender, :name, :body, :rc, :rs, :now)',
-            ['uuid' => $uuid, 'p' => $projectUuid, 'i' => $identityUuid, 'sender' => $sender, 'name' => $name, 'body' => $body, 'rc' => $readByClient, 'rs' => $readByStaff, 'now' => Clock::nowIso()]
-        );
+        // Second-resolution timestamps tie for messages posted in the same second;
+        // a monotonic sequence guarantees a stable oldest-first thread order.
+        $seq = $this->store()->bump('portal_message_seq', 'n');
+        $this->store()->put('portal_messages', [
+            'uuid'           => $uuid,
+            'project_uuid'   => $projectUuid,
+            'identity_uuid'  => $identityUuid,
+            'sender'         => $sender,
+            'author_name'    => $name,
+            'body'           => $body,
+            'read_by_client' => $readByClient,
+            'read_by_staff'  => $readByStaff,
+            'seq'            => $seq,
+            'created_at'     => Clock::nowIso(),
+        ]);
 
         return $uuid;
     }
@@ -673,6 +818,31 @@ final class Portal
     // ==================================================================
     // Internals
     // ==================================================================
+
+    private function identityUuidForEmail(string $emailKey): ?string
+    {
+        foreach ($this->store()->all('portal_identities') as $i) {
+            if ((string) ($i['email_key'] ?? '') === $emailKey) {
+                return (string) $i['uuid'];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array<string,mixed>|null
+     */
+    private function findByTokenHash(string $collection, string $hash): ?array
+    {
+        foreach ($this->store()->all($collection) as $row) {
+            if ((string) ($row['token_hash'] ?? '') === $hash) {
+                return $row;
+            }
+        }
+
+        return null;
+    }
 
     private function hash(string $raw): string
     {
@@ -688,7 +858,11 @@ final class Portal
 
     private function event(string $identityUuid, string $type, string $detail, string $ipHash): void
     {
-        $this->db()->run('INSERT INTO portal_events (uuid, identity_uuid, type, detail, ip_hash, created_at) VALUES (:uuid, :i, :type, :detail, :ip, :now)', ['uuid' => Uuid::v4(), 'i' => $identityUuid, 'type' => $type, 'detail' => $detail, 'ip' => $ipHash, 'now' => Clock::nowIso()]);
+        $this->store()->update('portal_identities', $identityUuid, static function (array $row) use ($type, $detail, $ipHash): array {
+            $row['events'][] = ['uuid' => Uuid::v4(), 'type' => $type, 'detail' => $detail, 'ip_hash' => $ipHash, 'created_at' => Clock::nowIso()];
+
+            return $row;
+        });
     }
 
     private function nullable(mixed $value): ?string
