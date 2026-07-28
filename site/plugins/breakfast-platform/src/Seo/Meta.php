@@ -66,9 +66,8 @@ final class Meta
         }
 
         // An explicit `robots: index|noindex` content value wins over the
-        // unlisted heuristic below. The portfolio /work + case-study routes are
-        // virtual (factory) pages — technically unlisted — but are meant to be
-        // indexed, so they pass `robots: index` to opt in.
+        // unlisted heuristic below, so a page can opt in/out of indexing
+        // regardless of its listed status.
         $explicit = strtolower(trim((string) $this->page->content()->get('robots')->value()));
         if ($explicit === 'index' || $explicit === 'noindex') {
             return $explicit === 'noindex' ? 'noindex, follow' : 'index, follow';

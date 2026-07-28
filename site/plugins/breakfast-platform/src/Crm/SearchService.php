@@ -89,21 +89,6 @@ final class SearchService
             $out[] = $this->row('event', (string) $r['uuid'], (string) $r['title'], (string) $r['starts_at'], '/calendar');
         }
 
-        // Portfolio records. Public + internal titles, client, service, industry
-        // and summary are searchable; private notes, approval notes, file paths
-        // and unpublished testimonial text are NOT indexed here.
-        foreach ($this->db->all(
-            "SELECT uuid, internal_name, display_title, client_display_name, status, published_at FROM portfolio_records
-             WHERE internal_name LIKE :q ESCAPE '\\' OR display_title LIKE :q ESCAPE '\\' OR client_display_name LIKE :q ESCAPE '\\'
-                OR summary LIKE :q ESCAPE '\\' OR project_type LIKE :q ESCAPE '\\' OR industry LIKE :q ESCAPE '\\'
-             ORDER BY updated_at DESC LIMIT :l",
-            ['q' => $like, 'l' => $perType]
-        ) as $r) {
-            $title = trim((string) ($r['display_title'] ?: $r['internal_name'] ?: 'Portfolio record'));
-            $sub   = trim((string) ($r['client_display_name'] . ' · ' . $r['status']), ' ·');
-            $out[] = $this->row('portfolio', (string) $r['uuid'], $title, $sub, '/portfolio/' . $r['uuid']);
-        }
-
         return $out;
     }
 

@@ -565,47 +565,6 @@ switch ($command) {
         out(sprintf('automation:run — as of %s: %d rule(s) evaluated, %d action(s) fired.', $asOf, (int) $res['rules'], (int) $res['fired']));
         break;
 
-    case 'portfolio:publish-due':
-        // Publish every scheduled portfolio record whose publish time has passed.
-        // Idempotent: a record leaves the `scheduled` state as soon as it
-        // publishes, so re-running never republishes it. --as-of=ISO8601
-        // evaluates as if run at that instant (defaults to now).
-        $asOfFlag = $flags['as-of'] ?? null;
-        $asOf     = is_string($asOfFlag) && $asOfFlag !== '' ? $asOfFlag : date('c');
-        $res      = $platform->portfolio()->publishDue($asOf, 'cli:portfolio');
-        $failed   = count($res['failed']);
-        out(sprintf('portfolio:publish-due — as of %s: %d published, %d failed.', $asOf, count($res['published']), $failed));
-        foreach ($res['failed'] as $uuid => $why) {
-            out(sprintf('  ! %s — %s', $uuid, $why));
-        }
-        break;
-
-    case 'portfolio:import':
-        // One-time, safe import of the existing Kirby "project" case-study content
-        // into portfolio records. Everything lands as a DRAFT and is never
-        // published automatically; concept/demo pieces are flagged for review and
-        // nothing is deleted. Idempotent per slug — a record (or retired redirect)
-        // already using a slug is reported as a duplicate and skipped. Use
-        // --dry-run to preview without writing anything.
-        $dryRun = flag($flags, 'dry-run');
-        $report = $platform->portfolioImporter()->import('cli:portfolio-import', $dryRun);
-        foreach ($report as $bucket => $slugs) {
-            out(sprintf('%-14s %d', $bucket, count($slugs)));
-            foreach ($slugs as $slug) {
-                out('  ' . $slug);
-            }
-        }
-        out($dryRun ? 'Dry run (pass without --dry-run to import). OK' : 'Imported as drafts. OK');
-        break;
-
-    case 'portfolio:seed-localmarkers':
-        // Create the LocalMarkers portfolio entry through the real Portfolio
-        // service (the same methods the admin API calls). Idempotent — skips if
-        // the slug already exists — so it is safe to run in production, which is
-        // where this real entry needs to live (the portfolio DB is not in git).
-        require $base . '/site/plugins/breakfast-platform/seed/localmarkers.php';
-        break;
-
     case 'invoices:backfill-pdfs':
         // Generate the immutable PDF for every issued invoice that doesn't have
         // one yet (issued before the PDF pipeline existed, or a prior failure).

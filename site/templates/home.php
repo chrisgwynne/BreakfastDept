@@ -63,9 +63,9 @@
   </div>
 </section>
 
-<?php /* ======================= Selected work (portfolio) ======================= */ ?>
-<?php $homeWork = breakfast()->portfolio()->homepageSelection(); ?>
-<?php if ($homeWork !== []): ?>
+<?php /* ==================== Selected work (flat-file portfolio) ==================== */ ?>
+<?php $homeWork = ($wp = page('work')) ? $wp->children()->listed()->sortBy('featured', 'desc', 'date', 'desc')->limit(3) : null; ?>
+<?php if ($homeWork && $homeWork->isNotEmpty()): ?>
 <section class="section" aria-labelledby="work-h">
   <div class="container">
     <div class="section__head section__head--row reveal">
@@ -76,8 +76,8 @@
       <a class="link-cta" href="<?= esc(url('work')) ?>">See all work <span aria-hidden="true">→</span></a>
     </div>
     <div class="homework">
-      <?php foreach ($homeWork as $it) {
-          snippet('partials/portfolio-card', ['pf' => $it]);
+      <?php foreach ($homeWork as $project) {
+          snippet('partials/project-card', ['project' => $project]);
       } ?>
     </div>
   </div>

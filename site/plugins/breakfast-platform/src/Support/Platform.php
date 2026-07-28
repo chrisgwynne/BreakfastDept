@@ -218,30 +218,8 @@ final class Platform
         return $this->service(\Breakfast\Platform\Projects\ProjectTemplates::class, fn () => new \Breakfast\Platform\Projects\ProjectTemplates($this->db()));
     }
 
-    public function portfolio(): \Breakfast\Platform\Portfolio\Portfolio
-    {
-        return $this->service(\Breakfast\Platform\Portfolio\Portfolio::class, fn () => new \Breakfast\Platform\Portfolio\Portfolio($this->db()));
-    }
-
-    public function portfolioMedia(): \Breakfast\Platform\Portfolio\PortfolioMediaPipeline
-    {
-        // The pipeline appends "/portfolio/..." and returns "/media/portfolio/..."
-        // URLs, so its public root must be public/media (Kirby's served media
-        // dir, which is also git-ignored) — NOT public/ itself, or the generated
-        // variant files land beside the URL they claim and 404.
-        return $this->service(
-            \Breakfast\Platform\Portfolio\PortfolioMediaPipeline::class,
-            fn () => new \Breakfast\Platform\Portfolio\PortfolioMediaPipeline($this->storageDir(), $this->publicDir() . '/media')
-        );
-    }
-
-    public function portfolioImporter(): \Breakfast\Platform\Portfolio\PortfolioImporter
-    {
-        return $this->service(
-            \Breakfast\Platform\Portfolio\PortfolioImporter::class,
-            fn () => new \Breakfast\Platform\Portfolio\PortfolioImporter($this->portfolio(), $this->baseDir . '/content')
-        );
-    }
+    // The portfolio is flat-file Kirby content (content/1_work/*), not a database
+    // module — see site/templates/work.php + project.php.
 
     public function vault(): \Breakfast\Platform\Vault\Vault
     {

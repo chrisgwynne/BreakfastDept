@@ -55,13 +55,17 @@
       <?php endforeach ?>
     <?php endif ?>
 
-    <?php /* Published portfolio work linked to this service (auto, with overrides). */ ?>
-    <?php $serviceWork = breakfast()->portfolio()->publicForService((string) $page->slug()); ?>
-    <?php if ($serviceWork !== []): ?>
+    <?php /* Flat-file portfolio work tagged with this service (project 'services' field). */ ?>
+    <?php
+      $serviceWork = ($wp = page('work'))
+          ? $wp->children()->listed()->filterBy('services', $page->uuid()->toString(), ',')->sortBy('featured', 'desc', 'date', 'desc')->limit(3)
+          : null;
+    ?>
+    <?php if ($serviceWork && $serviceWork->isNotEmpty()): ?>
       <div class="section__head" style="margin-top:var(--s-16)"><h2 class="section__title" style="font-size:1.8rem"><?= esc(t('breakfast.service.work', 'Work using this service')) ?></h2></div>
       <div class="grid grid--3">
-        <?php foreach ($serviceWork as $it) {
-            snippet('partials/portfolio-card', ['pf' => $it]);
+        <?php foreach ($serviceWork as $project) {
+            snippet('partials/project-card', ['project' => $project]);
         } ?>
       </div>
     <?php endif ?>
