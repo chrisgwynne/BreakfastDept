@@ -87,4 +87,22 @@ final class FileStoreTest extends TestCase
         $this->assertSame('different', $this->store->find('contacts', 'x')['name']);
         $this->assertArrayNotHasKey('name', $this->store->find('leads', 'x'));
     }
+
+    public function testBumpAllocatesMonotonicValues(): void
+    {
+        $this->assertSame(1, $this->store->bump('counters', 'enquiry-2026'));
+        $this->assertSame(2, $this->store->bump('counters', 'enquiry-2026'));
+        $this->assertSame(3, $this->store->bump('counters', 'enquiry-2026'));
+        // A different counter is independent.
+        $this->assertSame(1, $this->store->bump('counters', 'invoice-2026'));
+    }
+
+    public function testPutIfAbsentIsIdempotent(): void
+    {
+        $this->assertTrue($this->store->putIfAbsent('events', 'fp1', ['uuid' => 'e1', 'type' => 'delivered']));
+        // Second write with the same id is rejected (the UNIQUE-constraint equivalent).
+        $this->assertFalse($this->store->putIfAbsent('events', 'fp1', ['uuid' => 'e2', 'type' => 'opened']));
+        $this->assertSame('delivered', $this->store->find('events', 'fp1')['type']);
+        $this->assertSame(1, $this->store->count('events'));
+    }
 }

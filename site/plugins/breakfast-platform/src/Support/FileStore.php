@@ -117,6 +117,27 @@ final class FileStore
     }
 
     /**
+     * Write a record only if one with this id does not already exist. Returns
+     * false if it was already there (the filesystem equivalent of a UNIQUE
+     * constraint — used for idempotent event ingestion). Runs under the
+     * collection lock so two concurrent writers can't both create it.
+     *
+     * @param array<string,mixed> $record
+     */
+    public function putIfAbsent(string $collection, string $id, array $record): bool
+    {
+        return $this->withLock($collection, function () use ($collection, $id, $record): bool {
+            $file = $this->path($collection, $id);
+            if (is_file($file)) {
+                return false;
+            }
+            $this->atomicWrite($file, $record);
+
+            return true;
+        });
+    }
+
+    /**
      * Update a record in place under the collection lock (read → mutate → write),
      * so concurrent updates to the same record can't clobber each other.
      *

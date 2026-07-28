@@ -63,17 +63,25 @@ final class PrivacyService
             return false;
         }
 
-        return $p->db()->transaction(function (Database $db) use ($p, $uuid): bool {
-            $p->contacts()->anonymise($uuid);
-            // Scrub the recipient address on delivery history (keep the hash).
-            $db->run(
-                "UPDATE outbound_messages SET recipient_email = 'anonymised', subject = NULL, params_snapshot = NULL WHERE contact_uuid = :u",
-                ['u' => $uuid]
-            );
-            $p->activities()->record('contact', $uuid, 'anonymisation', 'Contact anonymised (PII scrubbed; audit + consent history retained)', 'system');
+        $p->contacts()->anonymise($uuid);
 
-            return true;
-        });
+        // Scrub the recipient address on flat-file delivery history (keep the hash).
+        $store = $p->fileStore();
+        foreach ($store->all('outbound_messages') as $message) {
+            if (($message['contact_uuid'] ?? null) === $uuid) {
+                $store->update('outbound_messages', (string) ($message['uuid'] ?? ''), static function (array $r): array {
+                    $r['recipient_email'] = 'anonymised';
+                    $r['subject']         = null;
+                    $r['params_snapshot'] = null;
+
+                    return $r;
+                });
+            }
+        }
+
+        $p->activities()->record('contact', $uuid, 'anonymisation', 'Contact anonymised (PII scrubbed; audit + consent history retained)', 'system');
+
+        return true;
     }
 
     /**

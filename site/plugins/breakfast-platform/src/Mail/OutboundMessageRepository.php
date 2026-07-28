@@ -6,15 +6,23 @@ namespace Breakfast\Platform\Mail;
 
 use Breakfast\Platform\Security\Hash;
 use Breakfast\Platform\Support\Clock;
-use Breakfast\Platform\Support\Database;
+use Breakfast\Platform\Support\FileStore;
 use Breakfast\Platform\Support\Uuid;
 
 /**
- * Persistence for outbound_messages and email_events.
+ * Flat-file persistence for outbound messages and their delivery events.
+ *
+ * outbound_messages and email_events are stored as JSON files via FileStore.
+ * Event ingestion stays idempotent by keying each event file on a hash of its
+ * dedupe fingerprint and writing only if absent — the file-store equivalent of
+ * the old UNIQUE(dedupe_fingerprint) constraint.
  */
 final class OutboundMessageRepository
 {
-    public function __construct(private readonly Database $db)
+    private const MESSAGES = 'outbound_messages';
+    private const EVENTS   = 'email_events';
+
+    public function __construct(private readonly FileStore $store)
     {
     }
 
@@ -23,41 +31,48 @@ final class OutboundMessageRepository
      */
     public function create(MailMessage $message, string $provider): string
     {
-        $now = Clock::nowIso();
+        $now       = Clock::nowIso();
         $recipient = $message->primaryRecipient();
 
-        $this->db->run(
-            'INSERT INTO outbound_messages (
-                uuid, job_uuid, provider, message_type, contact_uuid, company_uuid,
-                enquiry_uuid, opportunity_uuid, task_uuid, sender_email, recipient_email,
-                recipient_hash, subject, template_id, params_snapshot, tags, idempotency_key,
-                status, attempts, queued_at, created_at, updated_at
-             ) VALUES (
-                :uuid, NULL, :provider, :type, :contact, :company, :enquiry, :opportunity, :task,
-                :sender, :recipient, :rhash, :subject, :template, :params, :tags, :idem,
-                :status, 0, :now, :now, :now
-             )',
-            [
-                'uuid'       => $message->uuid,
-                'provider'   => $provider,
-                'type'       => $message->messageType,
-                'contact'    => $message->contactUuid,
-                'company'    => $message->companyUuid,
-                'enquiry'    => $message->enquiryUuid,
-                'opportunity' => $message->opportunityUuid,
-                'task'       => $message->taskUuid,
-                'sender'     => $message->sender->email,
-                'recipient'  => $recipient->email,
-                'rhash'      => Hash::correlator($recipient->email),
-                'subject'    => mb_substr($message->subject, 0, 300),
-                'template'   => $message->templateId,
-                'params'     => $this->redactParams($message->params),
-                'tags'       => json_encode(array_values($message->tags)) ?: null,
-                'idem'       => $message->idempotencyKey,
-                'status'     => 'queued',
-                'now'        => $now,
-            ]
-        );
+        $this->store->put(self::MESSAGES, [
+            'uuid'                => $message->uuid,
+            'job_uuid'            => null,
+            'provider'            => $provider,
+            'provider_message_id' => null,
+            'message_type'        => $message->messageType,
+            'contact_uuid'        => $message->contactUuid,
+            'company_uuid'        => $message->companyUuid,
+            'enquiry_uuid'        => $message->enquiryUuid,
+            'opportunity_uuid'    => $message->opportunityUuid,
+            'task_uuid'           => $message->taskUuid,
+            'sender_email'        => $message->sender->email,
+            'recipient_email'     => $recipient->email,
+            'recipient_hash'      => Hash::correlator($recipient->email),
+            'subject'             => mb_substr($message->subject, 0, 300),
+            'template_id'         => $message->templateId,
+            'params_snapshot'     => $this->redactParams($message->params),
+            'tags'                => array_values($message->tags),
+            'idempotency_key'     => $message->idempotencyKey,
+            'status'              => 'queued',
+            'attempts'            => 0,
+            'last_response_code'  => null,
+            'last_error'          => null,
+            'queued_at'           => $now,
+            'sent_at'             => null,
+            'delivered_at'        => null,
+            'first_opened_at'     => null,
+            'last_opened_at'      => null,
+            'first_clicked_at'    => null,
+            'last_clicked_at'     => null,
+            'soft_bounced_at'     => null,
+            'hard_bounced_at'     => null,
+            'blocked_at'          => null,
+            'spam_at'             => null,
+            'unsubscribed_at'     => null,
+            'failed_at'           => null,
+            'created_at'          => $now,
+            'updated_at'          => $now,
+        ]);
 
         return $message->uuid;
     }
@@ -65,63 +80,86 @@ final class OutboundMessageRepository
     /** @return array<string,mixed>|null */
     public function find(string $uuid): ?array
     {
-        return $this->db->one('SELECT * FROM outbound_messages WHERE uuid = :u', ['u' => $uuid]);
+        return $this->store->find(self::MESSAGES, $uuid);
     }
 
     /** @return array<string,mixed>|null */
     public function findByProviderMessageId(string $providerMessageId): ?array
     {
-        return $this->db->one(
-            'SELECT * FROM outbound_messages WHERE provider_message_id = :p ORDER BY created_at DESC LIMIT 1',
-            ['p' => $providerMessageId]
+        $matches = array_filter(
+            $this->store->all(self::MESSAGES),
+            fn (array $r): bool => (string) ($r['provider_message_id'] ?? '') === $providerMessageId
         );
+        usort($matches, static fn ($a, $b) => strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? '')));
+
+        return $matches[0] ?? null;
     }
 
     public function markProcessing(string $uuid): void
     {
-        $this->db->run(
-            "UPDATE outbound_messages SET status = 'processing', attempts = attempts + 1, updated_at = :now WHERE uuid = :u",
-            ['now' => Clock::nowIso(), 'u' => $uuid]
-        );
+        $now = Clock::nowIso();
+        $this->mutate($uuid, static function (array $r) use ($now): array {
+            $r['status']     = 'processing';
+            $r['attempts']   = (int) ($r['attempts'] ?? 0) + 1;
+            $r['updated_at'] = $now;
+
+            return $r;
+        });
     }
 
     public function markAccepted(string $uuid, ?string $providerMessageId, ?int $code): void
     {
         $now = Clock::nowIso();
-        $this->db->run(
-            "UPDATE outbound_messages SET status = 'accepted', provider_message_id = :pid,
-                    last_response_code = :code, sent_at = :now, last_error = NULL, updated_at = :now
-             WHERE uuid = :u",
-            ['pid' => $providerMessageId, 'code' => $code, 'now' => $now, 'u' => $uuid]
-        );
+        $this->mutate($uuid, static function (array $r) use ($providerMessageId, $code, $now): array {
+            $r['status']              = 'accepted';
+            $r['provider_message_id'] = $providerMessageId;
+            $r['last_response_code']  = $code;
+            $r['sent_at']             = $now;
+            $r['last_error']          = null;
+            $r['updated_at']          = $now;
+
+            return $r;
+        });
     }
 
     public function markTemporaryFailure(string $uuid, string $error, ?int $code): void
     {
-        $this->db->run(
-            "UPDATE outbound_messages SET status = 'temporary_failure', last_error = :err,
-                    last_response_code = :code, updated_at = :now WHERE uuid = :u",
-            ['err' => mb_substr($error, 0, 500), 'code' => $code, 'now' => Clock::nowIso(), 'u' => $uuid]
-        );
+        $now = Clock::nowIso();
+        $this->mutate($uuid, static function (array $r) use ($error, $code, $now): array {
+            $r['status']             = 'temporary_failure';
+            $r['last_error']         = mb_substr($error, 0, 500);
+            $r['last_response_code'] = $code;
+            $r['updated_at']         = $now;
+
+            return $r;
+        });
     }
 
     public function markPermanentFailure(string $uuid, string $error, ?int $code): void
     {
         $now = Clock::nowIso();
-        $this->db->run(
-            "UPDATE outbound_messages SET status = 'permanent_failure', last_error = :err,
-                    last_response_code = :code, failed_at = :now, updated_at = :now WHERE uuid = :u",
-            ['err' => mb_substr($error, 0, 500), 'code' => $code, 'now' => $now, 'u' => $uuid]
-        );
+        $this->mutate($uuid, static function (array $r) use ($error, $code, $now): array {
+            $r['status']             = 'permanent_failure';
+            $r['last_error']         = mb_substr($error, 0, 500);
+            $r['last_response_code'] = $code;
+            $r['failed_at']          = $now;
+            $r['updated_at']         = $now;
+
+            return $r;
+        });
     }
 
     public function markSuppressed(string $uuid): void
     {
         $now = Clock::nowIso();
-        $this->db->run(
-            "UPDATE outbound_messages SET status = 'suppressed', failed_at = :now, last_error = 'recipient_suppressed', updated_at = :now WHERE uuid = :u",
-            ['now' => $now, 'u' => $uuid]
-        );
+        $this->mutate($uuid, static function (array $r) use ($now): array {
+            $r['status']     = 'suppressed';
+            $r['failed_at']  = $now;
+            $r['last_error'] = 'recipient_suppressed';
+            $r['updated_at'] = $now;
+
+            return $r;
+        });
     }
 
     /**
@@ -131,69 +169,73 @@ final class OutboundMessageRepository
      */
     public function applyEventState(string $uuid, string $canonicalEvent, string $eventAt): void
     {
-        $row = $this->find($uuid);
-        if ($row === null) {
-            return;
-        }
+        $now = Clock::nowIso();
+        $this->mutate($uuid, static function (array $r) use ($canonicalEvent, $eventAt, $now): array {
+            $current = (string) ($r['status'] ?? '');
 
-        $current = (string) $row['status'];
-        $now     = Clock::nowIso();
+            // Terminal negative states never get downgraded by later positives.
+            $terminalNegative = ['hard_bounced', 'blocked', 'invalid_recipient', 'spam_complaint'];
+            if (in_array($current, $terminalNegative, true) && in_array($canonicalEvent, ['delivered', 'sent', 'opened', 'clicked'], true)) {
+                return $r;
+            }
 
-        // Terminal negative states never get downgraded by later positives.
-        $terminalNegative = ['hard_bounced', 'blocked', 'invalid_recipient', 'spam_complaint'];
-        if (in_array($current, $terminalNegative, true) && in_array($canonicalEvent, ['delivered', 'sent', 'opened', 'clicked'], true)) {
-            return;
-        }
-
-        $set  = ['updated_at = :now'];
-        $params = ['now' => $now, 'u' => $uuid, 'evt' => $eventAt];
-
-        switch ($canonicalEvent) {
-            case 'delivered':
-                if ($current !== 'delivered') {
-                    $set[] = "status = 'delivered'";
+            $keepEarliest = static function (array $r, string $field) use ($eventAt): array {
+                if (($r[$field] ?? null) === null) {
+                    $r[$field] = $eventAt;
                 }
-                $set[] = 'delivered_at = COALESCE(delivered_at, :evt)';
-                break;
-            case 'opened':
-                $set[] = 'first_opened_at = COALESCE(first_opened_at, :evt)';
-                $set[] = 'last_opened_at = :evt';
-                break;
-            case 'clicked':
-                $set[] = 'first_clicked_at = COALESCE(first_clicked_at, :evt)';
-                $set[] = 'last_clicked_at = :evt';
-                break;
-            case 'soft_bounce':
-                $set[] = 'soft_bounced_at = COALESCE(soft_bounced_at, :evt)';
-                if (in_array($current, ['queued', 'processing', 'accepted'], true)) {
-                    $set[] = "status = 'soft_bounced'";
-                }
-                break;
-            case 'hard_bounce':
-                $set[] = "status = 'hard_bounced'";
-                $set[] = 'hard_bounced_at = COALESCE(hard_bounced_at, :evt)';
-                $set[] = 'failed_at = COALESCE(failed_at, :evt)';
-                break;
-            case 'blocked':
-                $set[] = "status = 'blocked'";
-                $set[] = 'blocked_at = COALESCE(blocked_at, :evt)';
-                break;
-            case 'invalid_email':
-                $set[] = "status = 'invalid_recipient'";
-                $set[] = 'failed_at = COALESCE(failed_at, :evt)';
-                break;
-            case 'spam':
-                $set[] = "status = 'spam_complaint'";
-                $set[] = 'spam_at = COALESCE(spam_at, :evt)';
-                break;
-            case 'unsubscribed':
-                $set[] = 'unsubscribed_at = COALESCE(unsubscribed_at, :evt)';
-                break;
-            default:
-                return;
-        }
 
-        $this->db->run('UPDATE outbound_messages SET ' . implode(', ', $set) . ' WHERE uuid = :u', $params);
+                return $r;
+            };
+
+            switch ($canonicalEvent) {
+                case 'delivered':
+                    if ($current !== 'delivered') {
+                        $r['status'] = 'delivered';
+                    }
+                    $r = $keepEarliest($r, 'delivered_at');
+                    break;
+                case 'opened':
+                    $r = $keepEarliest($r, 'first_opened_at');
+                    $r['last_opened_at'] = $eventAt;
+                    break;
+                case 'clicked':
+                    $r = $keepEarliest($r, 'first_clicked_at');
+                    $r['last_clicked_at'] = $eventAt;
+                    break;
+                case 'soft_bounce':
+                    $r = $keepEarliest($r, 'soft_bounced_at');
+                    if (in_array($current, ['queued', 'processing', 'accepted'], true)) {
+                        $r['status'] = 'soft_bounced';
+                    }
+                    break;
+                case 'hard_bounce':
+                    $r['status'] = 'hard_bounced';
+                    $r = $keepEarliest($r, 'hard_bounced_at');
+                    $r = $keepEarliest($r, 'failed_at');
+                    break;
+                case 'blocked':
+                    $r['status'] = 'blocked';
+                    $r = $keepEarliest($r, 'blocked_at');
+                    break;
+                case 'invalid_email':
+                    $r['status'] = 'invalid_recipient';
+                    $r = $keepEarliest($r, 'failed_at');
+                    break;
+                case 'spam':
+                    $r['status'] = 'spam_complaint';
+                    $r = $keepEarliest($r, 'spam_at');
+                    break;
+                case 'unsubscribed':
+                    $r = $keepEarliest($r, 'unsubscribed_at');
+                    break;
+                default:
+                    return $r;
+            }
+
+            $r['updated_at'] = $now;
+
+            return $r;
+        });
     }
 
     /**
@@ -212,31 +254,22 @@ final class OutboundMessageRepository
         ?string $eventAt,
         array $metadata = []
     ): bool {
-        try {
-            $this->db->run(
-                'INSERT INTO email_events (
-                    uuid, outbound_uuid, provider, provider_event_id, provider_message_id,
-                    event_type, recipient_hash, metadata, event_at, received_at, dedupe_fingerprint
-                 ) VALUES (:uuid, :out, :prov, :peid, :pmid, :type, :rhash, :meta, :evt, :recv, :fp)',
-                [
-                    'uuid'  => Uuid::v4(),
-                    'out'   => $outboundUuid,
-                    'prov'  => $provider,
-                    'peid'  => $providerEventId,
-                    'pmid'  => $providerMessageId,
-                    'type'  => $canonicalEvent,
-                    'rhash' => Hash::correlator($recipient),
-                    'meta'  => json_encode($metadata, JSON_UNESCAPED_SLASHES) ?: '{}',
-                    'evt'   => $eventAt,
-                    'recv'  => Clock::nowIso(),
-                    'fp'    => $dedupeFingerprint,
-                ]
-            );
-        } catch (\PDOException) {
-            return false; // duplicate fingerprint
-        }
+        // The fingerprint is the uniqueness key; hash it to a filesystem-safe id.
+        $id = sha1($dedupeFingerprint);
 
-        return true;
+        return $this->store->putIfAbsent(self::EVENTS, $id, [
+            'uuid'                => Uuid::v4(),
+            'outbound_uuid'       => $outboundUuid,
+            'provider'            => $provider,
+            'provider_event_id'   => $providerEventId,
+            'provider_message_id' => $providerMessageId,
+            'event_type'          => $canonicalEvent,
+            'recipient_hash'      => Hash::correlator($recipient),
+            'metadata'            => $metadata,
+            'event_at'            => $eventAt,
+            'received_at'         => Clock::nowIso(),
+            'dedupe_fingerprint'  => $dedupeFingerprint,
+        ]);
     }
 
     /**
@@ -245,46 +278,67 @@ final class OutboundMessageRepository
      */
     public function search(array $filters = []): array
     {
-        $where  = ['1 = 1'];
-        $params = [];
+        $rows = $this->store->all(self::MESSAGES);
+
         if (!empty($filters['status'])) {
-            $where[]          = 'status = :status';
-            $params['status'] = $filters['status'];
+            $rows = array_filter($rows, fn (array $r): bool => ($r['status'] ?? null) === $filters['status']);
         }
         if (!empty($filters['type'])) {
-            $where[]        = 'message_type = :type';
-            $params['type'] = $filters['type'];
+            $rows = array_filter($rows, fn (array $r): bool => ($r['message_type'] ?? null) === $filters['type']);
         }
-        $params['l'] = (int) ($filters['limit'] ?? 100);
 
-        return $this->db->all(
-            'SELECT * FROM outbound_messages WHERE ' . implode(' AND ', $where) . ' ORDER BY created_at DESC LIMIT :l',
-            $params
-        );
+        $rows = array_values($rows);
+        usort($rows, static fn ($a, $b) => strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? '')));
+
+        return array_slice($rows, 0, (int) ($filters['limit'] ?? 100));
     }
 
     /** @return array<int,array<string,mixed>> */
     public function eventsFor(string $outboundUuid): array
     {
-        return $this->db->all(
-            'SELECT * FROM email_events WHERE outbound_uuid = :u ORDER BY received_at ASC',
-            ['u' => $outboundUuid]
-        );
+        $rows = array_values(array_filter(
+            $this->store->all(self::EVENTS),
+            fn (array $r): bool => (string) ($r['outbound_uuid'] ?? '') === $outboundUuid
+        ));
+        usort($rows, static fn ($a, $b) => strcmp((string) ($a['received_at'] ?? ''), (string) ($b['received_at'] ?? '')));
+
+        return $rows;
     }
 
     public function recentFailureCount(): int
     {
-        return (int) $this->db->scalar(
-            "SELECT COUNT(*) FROM outbound_messages WHERE status IN ('permanent_failure','hard_bounced','blocked','invalid_recipient','spam_complaint')"
-        );
+        $failed = ['permanent_failure', 'hard_bounced', 'blocked', 'invalid_recipient', 'spam_complaint'];
+
+        return count(array_filter(
+            $this->store->all(self::MESSAGES),
+            static fn (array $r): bool => in_array((string) ($r['status'] ?? ''), $failed, true)
+        ));
     }
 
     /** Prune email events older than the retention window (days). */
     public function pruneEvents(int $olderThanDays): int
     {
-        $cutoff = Clock::now()->modify('-' . $olderThanDays . ' days')->format('c');
+        $cutoff  = Clock::now()->modify('-' . $olderThanDays . ' days')->format('c');
+        $pruned  = 0;
 
-        return $this->db->run('DELETE FROM email_events WHERE received_at < :c', ['c' => $cutoff])->rowCount();
+        foreach ($this->store->all(self::EVENTS) as $event) {
+            if ((string) ($event['received_at'] ?? '') < $cutoff) {
+                $this->store->delete(self::EVENTS, sha1((string) ($event['dedupe_fingerprint'] ?? '')));
+                $pruned++;
+            }
+        }
+
+        return $pruned;
+    }
+
+    /**
+     * Apply a mutation to a stored message if it exists.
+     *
+     * @param callable(array<string,mixed>):array<string,mixed> $mutator
+     */
+    private function mutate(string $uuid, callable $mutator): void
+    {
+        $this->store->update(self::MESSAGES, $uuid, $mutator);
     }
 
     /** @param array<string,scalar> $params */

@@ -409,7 +409,7 @@ final class Platform
 
     public function outbound(): OutboundMessageRepository
     {
-        return $this->service(OutboundMessageRepository::class, fn () => new OutboundMessageRepository($this->db()));
+        return $this->service(OutboundMessageRepository::class, fn () => new OutboundMessageRepository($this->fileStore()));
     }
 
     public function suppressions(): SuppressionService

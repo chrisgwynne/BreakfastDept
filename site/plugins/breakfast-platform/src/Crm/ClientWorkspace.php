@@ -73,11 +73,15 @@ final class ClientWorkspace
              WHERE contact_uuid = :c OR (:co != \'\' AND company_uuid = :co) ORDER BY created_at DESC LIMIT 50',
             ['c' => $contactUuid, 'co' => $companyUuid]
         );
-        $emails = $db->all(
-            'SELECT uuid, subject, status, recipient_email AS to_email, created_at FROM outbound_messages
-             WHERE contact_uuid = :c OR (:co != \'\' AND company_uuid = :co) ORDER BY created_at DESC LIMIT 50',
-            ['c' => $contactUuid, 'co' => $companyUuid]
-        );
+        $emails = array_values(array_filter($store->all('outbound_messages'), $related));
+        usort($emails, static fn ($a, $b) => strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? '')));
+        $emails = array_slice(array_map(static fn (array $m): array => [
+            'uuid'       => $m['uuid'] ?? '',
+            'subject'    => $m['subject'] ?? '',
+            'status'     => $m['status'] ?? '',
+            'to_email'   => $m['recipient_email'] ?? '',
+            'created_at' => $m['created_at'] ?? '',
+        ], $emails), 0, 50);
         $events = $this->platform->calendar()->forEntity('contact_uuid', $contactUuid, 50);
         if ($companyUuid !== '') {
             foreach ($this->platform->calendar()->forEntity('company_uuid', $companyUuid, 50) as $e) {
