@@ -18,7 +18,8 @@ name: Deploy (FTP)
 #
 # The host must also have, ONE TIME (they persist across deploys and are never
 # touched by this workflow): a `.env` file in the web root, and the queue cron
-# (see docs/deployment.md). The database schema applies itself from that cron.
+# (see docs/deployment.md). There is no schema step — the flat-file store under
+# storage/data/ creates its collections on first write.
 
 on:
   push:
@@ -56,7 +57,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: "8.3"
-          extensions: pdo_sqlite, curl, mbstring, dom, gd, intl, fileinfo, zip
+          extensions: curl, mbstring, dom, gd, intl, fileinfo, zip
           tools: composer:v2
           coverage: none
 
@@ -111,8 +112,9 @@ jobs:
           local-dir: ./dist/
           server-dir: ${{ vars.FTP_SERVER_DIR || 'public_html/' }}
           # Never create, overwrite or DELETE the host's runtime state:
-          # secrets, the database, uploads, Panel accounts, sessions/cache/logs
-          # and Kirby's generated media all live under these and are left alone.
+          # secrets, the flat-file data tree, uploads, Panel accounts,
+          # sessions/cache/logs and Kirby's generated media all live under these
+          # and are left alone.
           exclude: |
             **/.git*
             **/.git*/**

@@ -11,8 +11,8 @@ use Breakfast\Platform\Support\Platform;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Base test case that boots the platform against a throwaway on-disk SQLite
- * database (WAL needs a file, not :memory:) and runs the migrations.
+ * Base test case that boots the platform against a throwaway on-disk flat-file
+ * store (a fresh temp directory per test; collections are created on first write).
  */
 abstract class PlatformTestCase extends TestCase
 {

@@ -19,7 +19,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: "8.3"
-          extensions: pdo_sqlite, mbstring, gd, dom, curl, zip, fileinfo
+          extensions: mbstring, gd, dom, curl, zip, fileinfo
           coverage: none
 
       - name: Validate composer.json / lock
@@ -40,13 +40,12 @@ jobs:
       - name: Unit + integration tests (PHPUnit) — blocking
         run: composer test
 
-      - name: Migrations from an empty database
+      - name: Flat-file store boots from empty
         run: |
-          rm -f storage/database/*.sqlite*
-          php bin/console migrate
-          php bin/console migrate:status
-          # Idempotent re-run (upgrade path) must be a no-op.
-          php bin/console migrate
+          rm -rf storage/data
+          # The store needs no schema step; the app creates collections on first
+          # write. app:check boots Kirby + the platform against the empty tree.
+          php bin/console app:check
 
       - name: Mail configuration check
         run: php bin/console mail:check
@@ -95,7 +94,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: "8.3"
-          extensions: pdo_sqlite, mbstring, gd, zip, fileinfo
+          extensions: mbstring, gd, zip, fileinfo
 
       - run: composer install --no-interaction --prefer-dist
 

@@ -16,7 +16,7 @@ integrations, SEO and security — is new.
 |---|---|
 | CMS / framework | Kirby 5.5.2 |
 | Language | PHP 8.3+ |
-| Data store | SQLite via PDO (behind repositories) |
+| Data store | Flat JSON files under `storage/data/` (behind repositories) |
 | Transactional email | Brevo API (typed client) / SMTP / Fake, via `MAIL_PROVIDER` |
 | Unit / integration tests | PHPUnit 11 |
 | Static analysis | PHPStan 2 |
@@ -40,22 +40,22 @@ site/                           blueprints, templates, snippets, config
   config/config.production.php  production hardening overrides
   plugins/breakfast-platform/   the operational platform (PSR-4, namespaced)
 content/                        editorial content (Kirby content files)
-storage/                        sessions, cache, logs, sqlite, uploads, queue (gitignored)
+storage/                        sessions, cache, logs, data (JSON records), uploads, queue (gitignored)
 vendor/                         Composer dependencies, incl. Kirby core
-bin/console                     CLI: migrate, queue worker, hermes keys, seed
+bin/console                     CLI: queue worker, hermes keys, seed
 tests/                          PHPUnit (unit + integration)
 playwright/                     browser tests
 docs/                           the documentation set
 ```
 
 The `breakfast-platform` plugin is the spine of the operational side. Its
-modules are: **Support** (DB, migrations, config, clock, logger), **Crm**,
+modules are: **Support** (the flat-file store, config, clock, logger), **Crm**,
 **Forms**, **Queue**, **Mail**, **Hermes**, **Security**, **Seo** and
 **Analytics**. See [docs/architecture.md](docs/architecture.md).
 
 ## Quick start (local development)
 
-Requires PHP 8.3+ (with the `pdo_sqlite`, `mbstring`, `gd`, `dom` and `curl`
+Requires PHP 8.3+ (with the `mbstring`, `gd`, `dom` and `curl`
 extensions), Composer, and — for the browser tests — Node.js. The steps below
 are exact and copy-pasteable.
 
@@ -77,14 +77,14 @@ cp .env.example .env
 # 5. Create the required runtime directories.
 #    They already exist as .gitkeep placeholders under storage/; storage/ and
 #    everything under it must be WRITABLE by the PHP process:
-mkdir -p storage/{cache,logs,sessions,database,uploads,queue,accounts}
+mkdir -p storage/{cache,logs,sessions,data,uploads,queue,accounts}
 
 # 6. Set permissions.
 #    In development the mkdir above is enough. For a production-style layout use:
 bash deploy/permissions.sh.example      # storage writable, code read-only, .env 0640
 
-# 7. Create the SQLite schema
-php bin/console migrate
+# 7. No schema step. Data is flat JSON files under storage/data/, created
+#    automatically on first write — there is nothing to migrate.
 
 # 8. Create the first Breakfast Admin administrator.
 #    Visit http://localhost:8000/breakfast-admin and follow the installer.
@@ -151,8 +151,6 @@ composer stan     # PHPStan static analysis
 composer cs-check # PHP-CS-Fixer (dry-run + diff); composer fix to apply
 npm run lint      # ESLint
 
-php bin/console migrate          # apply pending migrations
-php bin/console migrate:status   # show applied / pending migrations
 php bin/console queue:run        # process the queue once (cron-friendly)
 php bin/console queue:work       # long-running supervised worker
 php bin/console app:check        # boot + route + config smoke check

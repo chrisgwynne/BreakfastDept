@@ -160,10 +160,10 @@ switch ($command) {
 
         try {
             $platform->queue()->pendingCount();
-            out('Queue database:  accessible');
+            out('Queue store:     accessible');
         } catch (Throwable) {
             $ok = false;
-            out('Queue database:  NOT ACCESSIBLE');
+            out('Queue store:     NOT ACCESSIBLE');
         }
         if (flag($flags, 'connect')) {
             if ($provider === 'brevo' && ($brevo['apiKey'] ?? '') !== '') {
