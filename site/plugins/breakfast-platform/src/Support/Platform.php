@@ -35,7 +35,6 @@ final class Platform
 {
     private static ?self $instance = null;
 
-    private ?Database $db = null;
     private ?Logger $logger = null;
 
     /** @var array<string,object> lazily built services */
@@ -85,20 +84,10 @@ final class Platform
         return $this->config('storageDir') ?? $this->baseDir . '/storage';
     }
 
-    public function dbPath(): string
-    {
-        return $this->config('dbPath') ?? $this->storageDir() . '/database/crm.sqlite';
-    }
-
     /** Web-served document root (public/), where generated public media variants live. */
     public function publicDir(): string
     {
         return $this->config('publicDir') ?? $this->baseDir . '/public';
-    }
-
-    public function migrationsDir(): string
-    {
-        return __DIR__ . '/../../migrations';
     }
 
     public function uploadsDir(): string
@@ -106,15 +95,9 @@ final class Platform
         return $this->config('uploadsDir') ?? $this->storageDir() . '/uploads';
     }
 
-    public function db(): Database
-    {
-        return $this->db ??= Database::instance($this->dbPath());
-    }
-
     /**
-     * The flat-file record store — the storage engine the admin is being moved
-     * onto, replacing the database repositories one collection at a time.
-     * Records live under storage/data/<collection>/<uuid>.json.
+     * The flat-file record store — the platform's only storage engine. Every
+     * record lives under storage/data/<collection>/<uuid>.json.
      */
     public function fileStore(): FileStore
     {
@@ -126,11 +109,6 @@ final class Platform
     public function logger(): Logger
     {
         return $this->logger ??= new Logger($this->storageDir() . '/logs');
-    }
-
-    public function migrator(): Migrator
-    {
-        return new Migrator($this->db(), $this->migrationsDir());
     }
 
     /**
@@ -664,7 +642,7 @@ final class Platform
     {
         $secret = (string) ($this->config('webhookSecret') ?? '');
 
-        return $secret !== '' ? 'preview:' . $secret : 'preview:' . hash('sha256', $this->dbPath());
+        return $secret !== '' ? 'preview:' . $secret : 'preview:' . hash('sha256', $this->storageDir());
     }
 
     /** @internal test seam */

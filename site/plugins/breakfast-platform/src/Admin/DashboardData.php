@@ -82,8 +82,8 @@ final class DashboardData
     }
 
     /**
-     * Client-previews summary (counts by status). Gracefully returns zeros when
-     * the previews tables do not exist yet (migration 0004 not applied).
+     * Client-previews summary (counts by status). Returns zeros when no previews
+     * exist yet (empty flat-file store).
      *
      * @return array<string,int>
      */

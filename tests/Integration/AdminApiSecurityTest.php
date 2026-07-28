@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Breakfast\Tests\Integration;
 
 use Breakfast\Platform\Admin\AdminApi;
-use Breakfast\Platform\Support\Database;
 use Breakfast\Platform\Support\Platform;
 use Kirby\Cms\App;
 use Kirby\Http\Request;
@@ -38,7 +37,6 @@ final class AdminApiSecurityTest extends TestCase
     {
         parent::setUp();
         $this->tmp = sys_get_temp_dir() . '/bf-apisec-' . bin2hex(random_bytes(6));
-        @mkdir($this->tmp . '/database', 0777, true);
     }
 
     protected function tearDown(): void
@@ -53,7 +51,6 @@ final class AdminApiSecurityTest extends TestCase
         } catch (\Throwable) {
             // already gone
         }
-        Database::reset();
         Platform::reset();
         App::destroy();
         $this->rrmdir($this->tmp);
@@ -75,7 +72,6 @@ final class AdminApiSecurityTest extends TestCase
         }
 
         $base = dirname(__DIR__, 2);
-        Database::reset();
         Platform::reset();
         $this->kirby = new App([
             'roots' => [
@@ -93,13 +89,11 @@ final class AdminApiSecurityTest extends TestCase
                 'breakfast' => [
                     'production' => false,
                     'storageDir' => $this->tmp,
-                    'dbPath'     => $this->tmp . '/database/crm.sqlite',
                     'previews'   => ['storageDir' => $this->tmp . '/client-previews', 'limits' => []],
                     'mail'       => ['provider' => 'fake'],
                 ],
             ],
         ]);
-        breakfast()->migrator()->migrate();
         $this->kirby->impersonate('kirby');
         // Pin the session CSRF token to the seeded header so csrf() validates.
         $this->kirby->session()->set('kirby.csrf', self::CSRF);

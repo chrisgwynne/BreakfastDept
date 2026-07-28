@@ -6,7 +6,6 @@ namespace Breakfast\Tests\Integration;
 
 use Breakfast\Platform\Admin\AdminApi;
 use Breakfast\Platform\Admin\HermesAdmin;
-use Breakfast\Platform\Support\Database;
 use Breakfast\Platform\Support\Platform;
 use Kirby\Cms\App;
 use PHPUnit\Framework\TestCase;
@@ -28,9 +27,7 @@ final class HermesAdminTest extends TestCase
         parent::setUp();
         $base = dirname(__DIR__, 2);
         $this->tmp = sys_get_temp_dir() . '/bf-hermesadmin-' . bin2hex(random_bytes(6));
-        @mkdir($this->tmp . '/database', 0777, true);
 
-        Database::reset();
         Platform::reset();
 
         // A configured Hermes credential in the environment.
@@ -53,19 +50,16 @@ final class HermesAdminTest extends TestCase
                 'breakfast' => [
                     'production' => false,
                     'storageDir' => $this->tmp,
-                    'dbPath'     => $this->tmp . '/database/crm.sqlite',
                     'hermes'     => ['enabled' => true, 'replayWindow' => 300],
                     'mail'       => ['provider' => 'fake'],
                 ],
             ],
         ]);
-        breakfast()->migrator()->migrate();
     }
 
     protected function tearDown(): void
     {
         unset($_SERVER['HERMES_KEY_studio']);
-        Database::reset();
         Platform::reset();
         $this->rrmdir($this->tmp);
         App::destroy();
@@ -160,7 +154,7 @@ final class HermesAdminTest extends TestCase
         // Rebuild the platform with hermes disabled.
         Platform::reset();
         $base = dirname(__DIR__, 2);
-        Platform::boot($base, ['storageDir' => $this->tmp, 'dbPath' => $this->tmp . '/database/crm.sqlite', 'hermes' => ['enabled' => false]]);
+        Platform::boot($base, ['storageDir' => $this->tmp, 'hermes' => ['enabled' => false]]);
         $this->assertSame('disabled', (new HermesAdmin(Platform::instance()))->health()['status']);
     }
 

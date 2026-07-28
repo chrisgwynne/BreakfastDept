@@ -41,11 +41,9 @@ final class AdminDashboardTest extends PlatformTestCase
         }
     }
 
-    public function testPreviewsSummaryDegradesWhenTableMissing(): void
+    public function testPreviewsSummaryIsAllZeroWhenNoneExist(): void
     {
-        // Simulate a database predating migration 0004: the summary must be
-        // all-zero, never a fatal.
-        $this->platform->db()->run('DROP TABLE client_previews');
+        // With an empty flat-file store the summary must be all-zero, never a fatal.
         $summary = (new DashboardData($this->platform))->previewsSummary();
 
         $this->assertSame(0, $summary['total']);

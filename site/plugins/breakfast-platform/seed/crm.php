@@ -14,9 +14,6 @@ use Breakfast\Platform\Support\Clock;
 
 $crm = $platform->crm();
 
-// Ensure schema exists.
-$platform->migrator()->migrate();
-
 $company = $crm->companies()->findOrCreate('Rivers Joinery', ['industry' => 'Joinery', 'website' => 'riversjoinery.co.uk']);
 
 $contact = $crm->contacts()->upsertByEmail([

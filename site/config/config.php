@@ -126,7 +126,6 @@ return [
         'version'     => Env::get('APP_VERSION', 'dev'),
         'adminSlug'   => $adminSlug,
         'storageDir'  => $base . '/storage',
-        'dbPath'      => $base . '/' . ltrim(Env::get('CRM_DB_PATH', 'storage/database/crm.sqlite'), '/'),
         'uploadsDir'  => $base . '/storage/uploads',
         'webhookSecret' => Env::get('WEBHOOK_SIGNING_SECRET', ''),
         'hermes' => [

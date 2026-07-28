@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Breakfast\Tests\Integration;
 
-use Breakfast\Platform\Support\Database;
 use Breakfast\Platform\Support\Platform;
 use Breakfast\Platform\Website\WebsiteException;
 use Breakfast\Platform\Website\WebsiteSections;
@@ -29,7 +28,6 @@ final class WebsiteSectionsTest extends TestCase
         parent::setUp();
         $base = dirname(__DIR__, 2);
         $this->tmp = sys_get_temp_dir() . '/bf-sections-' . bin2hex(random_bytes(6));
-        @mkdir($this->tmp . '/database', 0777, true);
         @mkdir($this->tmp . '/content/sectiontest', 0777, true);
         // A legal page with two starter blocks.
         $blocks = json_encode([
@@ -38,7 +36,6 @@ final class WebsiteSectionsTest extends TestCase
         ]);
         file_put_contents($this->tmp . '/content/sectiontest/legal.txt', "Title: Section Test\n\n----\n\nBody:\n\n{$blocks}\n");
 
-        Database::reset();
         Platform::reset();
 
         $this->kirby = new App([
@@ -57,19 +54,16 @@ final class WebsiteSectionsTest extends TestCase
                 'breakfast' => [
                     'production' => false,
                     'storageDir' => $this->tmp,
-                    'dbPath'     => $this->tmp . '/database/crm.sqlite',
                     'mail'       => ['provider' => 'fake'],
                 ],
             ],
         ]);
-        breakfast()->migrator()->migrate();
         $this->kirby->impersonate('kirby');
         $this->svc = new WebsiteSections($this->kirby, breakfast());
     }
 
     protected function tearDown(): void
     {
-        Database::reset();
         Platform::reset();
         $this->rrmdir($this->tmp);
         App::destroy();

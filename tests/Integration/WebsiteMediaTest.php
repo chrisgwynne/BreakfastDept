@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Breakfast\Tests\Integration;
 
-use Breakfast\Platform\Support\Database;
 use Breakfast\Platform\Support\Platform;
 use Breakfast\Platform\Website\WebsiteException;
 use Breakfast\Platform\Website\WebsiteMedia;
@@ -31,12 +30,10 @@ final class WebsiteMediaTest extends TestCase
         parent::setUp();
         $base = dirname(__DIR__, 2);
         $this->tmp = sys_get_temp_dir() . '/bf-media-' . bin2hex(random_bytes(6));
-        @mkdir($this->tmp . '/database', 0777, true);
         // A throwaway content root with a single editable page.
         @mkdir($this->tmp . '/content/mediatest', 0777, true);
         file_put_contents($this->tmp . '/content/mediatest/default.txt', "Title: Media Test\n----\nText: Hello\n");
 
-        Database::reset();
         Platform::reset();
 
         $this->kirby = new App([
@@ -55,12 +52,10 @@ final class WebsiteMediaTest extends TestCase
                 'breakfast' => [
                     'production' => false,
                     'storageDir' => $this->tmp,
-                    'dbPath'     => $this->tmp . '/database/crm.sqlite',
                     'mail'       => ['provider' => 'fake'],
                 ],
             ],
         ]);
-        breakfast()->migrator()->migrate();
         // Kirby's file create/replace/delete run permission checks against the
         // current user; the admin routes are already RBAC-gated, so grant the
         // almighty user here to exercise the storage behaviour.
@@ -70,7 +65,6 @@ final class WebsiteMediaTest extends TestCase
 
     protected function tearDown(): void
     {
-        Database::reset();
         Platform::reset();
         $this->rrmdir($this->tmp);
         App::destroy();

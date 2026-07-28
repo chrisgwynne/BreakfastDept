@@ -25,8 +25,6 @@ final class Worker
      */
     public function runOnce(int $max = 25): int
     {
-        $this->applyPendingMigrations();
-
         $queue     = $this->platform->queue();
         $processed = 0;
 
@@ -70,29 +68,6 @@ final class Worker
             if ($iterations > 0 && ++$count >= $iterations) {
                 break;
             }
-        }
-    }
-
-    /**
-     * Apply any pending schema migrations before processing jobs.
-     *
-     * The queue only ever runs from the CLI (`queue:run` cron / `queue:work`),
-     * NEVER during a public web request, so this is a safe place to keep the
-     * schema current: a freshly deployed release migrates itself on the next
-     * cron tick with no manual step, while honouring the rule that migrations
-     * never run mid-request. Idempotent — only not-yet-applied migrations run —
-     * and best-effort, so a migration problem is logged but never stops existing
-     * jobs from draining (it is retried on the next tick).
-     */
-    private function applyPendingMigrations(): void
-    {
-        try {
-            $applied = $this->platform->migrator()->migrate();
-            if ($applied !== []) {
-                $this->platform->logger()->info('queue', 'Applied pending migrations', ['ids' => $applied]);
-            }
-        } catch (Throwable $e) {
-            $this->platform->logger()->error('queue', 'Migration on queue run failed', ['error' => $e->getMessage()]);
         }
     }
 

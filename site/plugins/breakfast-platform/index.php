@@ -29,67 +29,9 @@ function breakfast(): Platform
         $kirby  = kirby();
         $config = $kirby->option('breakfast', []);
         Platform::boot($kirby->root('base'), is_array($config) ? $config : []);
-        breakfast_ensure_schema(Platform::instance());
     }
 
     return Platform::instance();
-}
-
-/**
- * Self-heal the database schema on boot.
- *
- * The CRM/queue/integration tables live in a SQLite database under storage/ that
- * the deploy never touches (so it can't wipe live data). On a fully-provisioned
- * host the queue cron applies pending migrations; but on an FTP-only host with no
- * cron, the schema would otherwise never be created — logins would work (Kirby
- * accounts are separate) while every data query failed. This makes the platform
- * apply its own migrations when it runs, so it "just works" after a plain sync.
- *
- * Safeguards: only runs on a fresh boot (its caller is inside the once-per-
- * process `Platform::booted()` guard); does nothing once the schema is up to date
- * (the cheap `hasPending()` common path); serialises the actual migration behind
- * an exclusive file lock so concurrent requests can't race on DDL; and isolates
- * every failure so a migration problem can never take down a page.
- */
-function breakfast_ensure_schema(Platform $platform): void
-{
-    try {
-        if ($platform->migrator()->hasPending() === false) {
-            return; // fully migrated — the common path, no lock, no work
-        }
-
-        $lockPath = $platform->storageDir() . '/database/.migrate.lock';
-        @mkdir(dirname($lockPath), 0770, true);
-        $handle = @fopen($lockPath, 'c');
-
-        if ($handle === false) {
-            // Could not open a lock file — the migration is transactional and
-            // idempotent, so attempt it anyway rather than leave the schema absent.
-            $platform->migrator()->migrate();
-
-            return;
-        }
-
-        try {
-            if (flock($handle, LOCK_EX)) {
-                // Re-check under the lock: another worker may have just migrated.
-                if ($platform->migrator()->hasPending()) {
-                    $platform->migrator()->migrate();
-                }
-                flock($handle, LOCK_UN);
-            }
-        } finally {
-            fclose($handle);
-        }
-    } catch (\Throwable $e) {
-        // A schema problem must never break a request. Log and carry on; data
-        // endpoints will still surface their own error until it is resolved.
-        try {
-            $platform->logger()->error('schema', 'Boot-time migration self-heal failed: ' . $e->getMessage());
-        } catch (\Throwable) {
-            // Logging itself must never throw into the request.
-        }
-    }
 }
 
 /**
@@ -1357,7 +1299,7 @@ Kirby::plugin('breakfast/platform', [
                 }
 
                 $platform = breakfast();
-                $row = $platform->db()->one('SELECT * FROM uploads WHERE uuid = :u', ['u' => $uuid]);
+                $row = $platform->fileStore()->find('uploads', $uuid);
                 if ($row === null) {
                     return \Kirby\Http\Response::json(['error' => 'not_found'], 404);
                 }

@@ -6,7 +6,6 @@ namespace Breakfast\Tests\Integration;
 
 use Breakfast\Platform\Portal\PortalException;
 use Breakfast\Platform\Support\Clock;
-use Breakfast\Platform\Support\Database;
 use Breakfast\Platform\Support\Platform;
 use Breakfast\Platform\Support\Uuid;
 use Kirby\Cms\App;
@@ -31,14 +30,11 @@ final class PortalTest extends TestCase
         parent::setUp();
         $base = dirname(__DIR__, 2);
         $this->tmp = sys_get_temp_dir() . '/bf-portal-' . bin2hex(random_bytes(6));
-        @mkdir($this->tmp . '/database', 0777, true);
-        Database::reset();
         Platform::reset();
         $this->kirby = new App([
             'roots' => ['index' => $base . '/public', 'base' => $base, 'site' => $base . '/site', 'content' => $base . '/content', 'storage' => $this->tmp, 'sessions' => $this->tmp . '/sessions', 'accounts' => $this->tmp . '/accounts'],
-            'options' => ['debug' => false, 'whoops' => false, 'breakfast' => ['production' => false, 'storageDir' => $this->tmp, 'dbPath' => $this->tmp . '/database/crm.sqlite', 'mail' => ['provider' => 'fake']]],
+            'options' => ['debug' => false, 'whoops' => false, 'breakfast' => ['production' => false, 'storageDir' => $this->tmp, 'mail' => ['provider' => 'fake']]],
         ]);
-        breakfast()->migrator()->migrate();
 
         $p = breakfast();
         $contact = (string) $p->contacts()->create(['display_name' => 'Sian', 'email' => 'sian@roberts.example'])['uuid'];
@@ -49,7 +45,6 @@ final class PortalTest extends TestCase
 
     protected function tearDown(): void
     {
-        Database::reset();
         Platform::reset();
         $this->rrmdir($this->tmp);
         App::destroy();
@@ -165,9 +160,14 @@ final class PortalTest extends TestCase
         $token = (string) $p->portal()->requestLogin('sian@roberts.example')['token'];
         $session = (string) $p->portal()->consumeMagicLink($token)['session_token'];
 
-        $dump = (string) file_get_contents($this->tmp . '/database/crm.sqlite');
-        $this->assertStringNotContainsString($token, $dump, 'raw magic-link token never in the database');
-        $this->assertStringNotContainsString($session, $dump, 'raw session token never in the database');
+        // Only sha256 hashes are ever persisted — a full dump of every stored
+        // record must not contain either raw token.
+        $dump = '';
+        foreach (glob($this->tmp . '/data/*/*.json') ?: [] as $f) {
+            $dump .= (string) file_get_contents($f);
+        }
+        $this->assertStringNotContainsString($token, $dump, 'raw magic-link token never stored');
+        $this->assertStringNotContainsString($session, $dump, 'raw session token never stored');
     }
 
     public function testPortalProjectShowsOnlyClientVisibleContentAndEnforcesAccess(): void

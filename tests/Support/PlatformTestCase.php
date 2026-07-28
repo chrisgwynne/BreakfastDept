@@ -7,7 +7,6 @@ namespace Breakfast\Tests\Support;
 use Breakfast\Platform\Mail\FakeMailProvider;
 use Breakfast\Platform\Mail\MailProviderFactory;
 use Breakfast\Platform\Support\Clock;
-use Breakfast\Platform\Support\Database;
 use Breakfast\Platform\Support\Platform;
 use PHPUnit\Framework\TestCase;
 
@@ -26,11 +25,9 @@ abstract class PlatformTestCase extends TestCase
         parent::setUp();
 
         $this->tmpDir = sys_get_temp_dir() . '/bf-test-' . bin2hex(random_bytes(6));
-        @mkdir($this->tmpDir . '/database', 0777, true);
         @mkdir($this->tmpDir . '/logs', 0777, true);
         @mkdir($this->tmpDir . '/uploads', 0777, true);
 
-        Database::reset();
         Platform::reset();
         Clock::unfreeze();
 
@@ -41,7 +38,6 @@ abstract class PlatformTestCase extends TestCase
         $this->platform = Platform::boot($this->tmpDir, [
             'storageDir'    => $this->tmpDir,
             'production'    => false,
-            'dbPath'        => $this->tmpDir . '/database/crm.sqlite',
             'uploadsDir'    => $this->tmpDir . '/uploads',
             'webhookSecret' => 'test-webhook-secret',
             'mail'          => [
@@ -55,12 +51,10 @@ abstract class PlatformTestCase extends TestCase
             'analytics'     => ['provider' => 'none'],
         ]);
 
-        $this->platform->migrator()->migrate();
     }
 
     protected function tearDown(): void
     {
-        Database::reset();
         Platform::reset();
         Clock::unfreeze();
         MailProviderFactory::override(null);

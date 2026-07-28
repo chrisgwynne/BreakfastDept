@@ -6,7 +6,6 @@ namespace Breakfast\Tests\Integration;
 
 use Breakfast\Platform\Mail\HttpClient;
 use Breakfast\Platform\Mail\HttpResponse;
-use Breakfast\Platform\Support\Database;
 use Breakfast\Platform\Support\Platform;
 use Kirby\Cms\App;
 use PHPUnit\Framework\TestCase;
@@ -35,9 +34,7 @@ final class Phase1JourneyTest extends TestCase
         parent::setUp();
         $base = dirname(__DIR__, 2);
         $this->tmp = sys_get_temp_dir() . '/bf-journey-' . bin2hex(random_bytes(6));
-        @mkdir($this->tmp . '/database', 0777, true);
 
-        Database::reset();
         Platform::reset();
 
         $this->kirby = new App([
@@ -50,15 +47,13 @@ final class Phase1JourneyTest extends TestCase
                 'sessions' => $this->tmp . '/sessions',
                 'accounts' => $this->tmp . '/accounts',
             ],
-            'options' => ['debug' => false, 'whoops' => false, 'breakfast' => ['production' => false, 'storageDir' => $this->tmp, 'dbPath' => $this->tmp . '/database/crm.sqlite', 'mail' => ['provider' => 'fake']]],
+            'options' => ['debug' => false, 'whoops' => false, 'breakfast' => ['production' => false, 'storageDir' => $this->tmp, 'mail' => ['provider' => 'fake']]],
         ]);
-        breakfast()->migrator()->migrate();
     }
 
     protected function tearDown(): void
     {
         HttpClient::useTransport(null);
-        Database::reset();
         Platform::reset();
         $this->rrmdir($this->tmp);
         App::destroy();

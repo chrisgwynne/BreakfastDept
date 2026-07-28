@@ -29,19 +29,13 @@ $check('Composer autoloader', class_exists(\Kirby\Cms\App::class));
 $check('Kirby boots', $kirby instanceof \Kirby\Cms\App, 'v' . \Kirby\Cms\App::version());
 $check('breakfast-platform plugin loaded', $kirby->plugin('breakfast/platform') !== null);
 
-// SQLite + migrations.
-try {
-    $platform->db()->pdo();
-    $check('SQLite opens', true);
-} catch (Throwable $e) {
-    $check('SQLite opens', false);
-}
-$applied  = $platform->migrator()->appliedIds();
-$expected = array_keys($platform->migrator()->status());
-$check('Migrations applied', $applied === $expected, count($applied) . '/' . count($expected));
+// Flat-file store. Records live under storage/data/<collection>/<uuid>.json.
+$dataDir = $platform->storageDir() . '/data';
+$storeOk = is_dir($dataDir) || @mkdir($dataDir, 0775, true);
+$check('Flat-file store writable', $storeOk && is_writable($dataDir));
 
 // Writable storage.
-foreach (['cache', 'logs', 'sessions', 'database', 'uploads', 'queue'] as $dir) {
+foreach (['cache', 'logs', 'sessions', 'data', 'uploads', 'queue'] as $dir) {
     $path = $platform->storageDir() . '/' . $dir;
     $check('Writable storage/' . $dir, is_dir($path) && is_writable($path));
 }

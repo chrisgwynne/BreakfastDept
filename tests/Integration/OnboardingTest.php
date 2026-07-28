@@ -6,7 +6,6 @@ namespace Breakfast\Tests\Integration;
 
 use Breakfast\Platform\Onboarding\OnboardingConditions;
 use Breakfast\Platform\Onboarding\OnboardingException;
-use Breakfast\Platform\Support\Database;
 use Breakfast\Platform\Support\Platform;
 use Kirby\Cms\App;
 use PHPUnit\Framework\TestCase;
@@ -32,14 +31,11 @@ final class OnboardingTest extends TestCase
         parent::setUp();
         $base = dirname(__DIR__, 2);
         $this->tmp = sys_get_temp_dir() . '/bf-onboarding-' . bin2hex(random_bytes(6));
-        @mkdir($this->tmp . '/database', 0777, true);
-        Database::reset();
         Platform::reset();
         $this->kirby = new App([
             'roots' => ['index' => $base . '/public', 'base' => $base, 'site' => $base . '/site', 'content' => $base . '/content', 'storage' => $this->tmp, 'sessions' => $this->tmp . '/sessions', 'accounts' => $this->tmp . '/accounts'],
-            'options' => ['debug' => false, 'whoops' => false, 'breakfast' => ['production' => false, 'storageDir' => $this->tmp, 'dbPath' => $this->tmp . '/database/crm.sqlite', 'mail' => ['provider' => 'fake']]],
+            'options' => ['debug' => false, 'whoops' => false, 'breakfast' => ['production' => false, 'storageDir' => $this->tmp, 'mail' => ['provider' => 'fake']]],
         ]);
-        breakfast()->migrator()->migrate();
 
         $p = breakfast();
         $this->company = (string) $p->companies()->create(['name' => 'Roberts Cafe'])['uuid'];
@@ -54,7 +50,6 @@ final class OnboardingTest extends TestCase
 
     protected function tearDown(): void
     {
-        Database::reset();
         Platform::reset();
         $this->rrmdir($this->tmp);
         App::destroy();

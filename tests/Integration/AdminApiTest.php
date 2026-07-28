@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Breakfast\Tests\Integration;
 
 use Breakfast\Platform\Admin\AdminApi;
-use Breakfast\Platform\Support\Database;
 use Breakfast\Platform\Support\Platform;
 use Kirby\Cms\App;
 use Kirby\Http\Response;
@@ -29,9 +28,7 @@ final class AdminApiTest extends TestCase
         parent::setUp();
         $base = dirname(__DIR__, 2);
         $this->tmp = sys_get_temp_dir() . '/bf-admin-' . bin2hex(random_bytes(6));
-        @mkdir($this->tmp . '/database', 0777, true);
 
-        Database::reset();
         Platform::reset();
 
         $this->kirby = new App([
@@ -50,18 +47,15 @@ final class AdminApiTest extends TestCase
                 'breakfast' => [
                     'production' => false,
                     'storageDir' => $this->tmp,
-                    'dbPath'     => $this->tmp . '/database/crm.sqlite',
                     'previews'   => ['storageDir' => $this->tmp . '/client-previews', 'limits' => []],
                     'mail'       => ['provider' => 'fake'],
                 ],
             ],
         ]);
-        breakfast()->migrator()->migrate();
     }
 
     protected function tearDown(): void
     {
-        Database::reset();
         Platform::reset();
         $this->rrmdir($this->tmp);
         App::destroy();

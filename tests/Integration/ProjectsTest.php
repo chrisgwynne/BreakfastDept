@@ -6,7 +6,6 @@ namespace Breakfast\Tests\Integration;
 
 use Breakfast\Platform\Projects\ProjectException;
 use Breakfast\Platform\Projects\Projects;
-use Breakfast\Platform\Support\Database;
 use Breakfast\Platform\Support\Platform;
 use Kirby\Cms\App;
 use PHPUnit\Framework\TestCase;
@@ -28,9 +27,7 @@ final class ProjectsTest extends TestCase
         parent::setUp();
         $base = dirname(__DIR__, 2);
         $this->tmp = sys_get_temp_dir() . '/bf-projects-' . bin2hex(random_bytes(6));
-        @mkdir($this->tmp . '/database', 0777, true);
 
-        Database::reset();
         Platform::reset();
 
         $this->kirby = new App([
@@ -43,15 +40,13 @@ final class ProjectsTest extends TestCase
                 'sessions' => $this->tmp . '/sessions',
                 'accounts' => $this->tmp . '/accounts',
             ],
-            'options' => ['debug' => false, 'whoops' => false, 'breakfast' => ['production' => false, 'storageDir' => $this->tmp, 'dbPath' => $this->tmp . '/database/crm.sqlite', 'mail' => ['provider' => 'fake']]],
+            'options' => ['debug' => false, 'whoops' => false, 'breakfast' => ['production' => false, 'storageDir' => $this->tmp, 'mail' => ['provider' => 'fake']]],
         ]);
-        breakfast()->migrator()->migrate();
         $this->svc = breakfast()->projects();
     }
 
     protected function tearDown(): void
     {
-        Database::reset();
         Platform::reset();
         $this->rrmdir($this->tmp);
         App::destroy();

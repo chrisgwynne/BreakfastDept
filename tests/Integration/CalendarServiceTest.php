@@ -6,7 +6,6 @@ namespace Breakfast\Tests\Integration;
 
 use Breakfast\Platform\Calendar\CalendarException;
 use Breakfast\Platform\Calendar\CalendarService;
-use Breakfast\Platform\Support\Database;
 use Breakfast\Platform\Support\Platform;
 use Kirby\Cms\App;
 use PHPUnit\Framework\TestCase;
@@ -29,9 +28,7 @@ final class CalendarServiceTest extends TestCase
         parent::setUp();
         $base = dirname(__DIR__, 2);
         $this->tmp = sys_get_temp_dir() . '/bf-cal-' . bin2hex(random_bytes(6));
-        @mkdir($this->tmp . '/database', 0777, true);
 
-        Database::reset();
         Platform::reset();
 
         $this->kirby = new App([
@@ -50,18 +47,15 @@ final class CalendarServiceTest extends TestCase
                 'breakfast' => [
                     'production' => false,
                     'storageDir' => $this->tmp,
-                    'dbPath'     => $this->tmp . '/database/crm.sqlite',
                     'mail'       => ['provider' => 'fake'],
                 ],
             ],
         ]);
-        breakfast()->migrator()->migrate();
         $this->cal = breakfast()->calendar();
     }
 
     protected function tearDown(): void
     {
-        Database::reset();
         Platform::reset();
         $this->rrmdir($this->tmp);
         App::destroy();
