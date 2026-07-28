@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Breakfast\Platform\Operations;
 
 use Breakfast\Platform\Support\Clock;
-use Breakfast\Platform\Support\Database;
 use Breakfast\Platform\Support\Platform;
 
 /**
@@ -22,11 +21,6 @@ final class Reporting
 {
     public function __construct(private readonly Platform $platform)
     {
-    }
-
-    private function db(): Database
-    {
-        return $this->platform->db();
     }
 
     /**
@@ -79,15 +73,25 @@ final class Reporting
     public function utilisation(int $days = 30): array
     {
         $since = date('Y-m-d', strtotime('-' . max(1, $days) . ' day', (int) strtotime(Clock::nowIso())));
-        $rows = $this->db()->all(
-            "SELECT author,
-                    SUM(CASE WHEN billable = 1 THEN duration_seconds ELSE 0 END) AS billable_seconds,
-                    SUM(CASE WHEN billable = 0 THEN duration_seconds ELSE 0 END) AS nonbillable_seconds
-             FROM time_entries
-             WHERE running = 0 AND COALESCE(started_at, created_at) >= :since
-             GROUP BY author ORDER BY billable_seconds DESC",
-            ['since' => $since]
-        );
+        // Utilisation per author from flat-file time entries.
+        $byAuthor = [];
+        foreach ($this->platform->fileStore()->all('time_entries') as $e) {
+            if ((int) ($e['running'] ?? 0) === 1) {
+                continue;
+            }
+            if ((string) ($e['started_at'] ?? $e['created_at'] ?? '') < $since) {
+                continue;
+            }
+            $author = (string) ($e['author'] ?? '');
+            $byAuthor[$author] ??= ['author' => $author, 'billable_seconds' => 0, 'nonbillable_seconds' => 0];
+            if ((int) ($e['billable'] ?? 0) === 1) {
+                $byAuthor[$author]['billable_seconds'] += (int) ($e['duration_seconds'] ?? 0);
+            } else {
+                $byAuthor[$author]['nonbillable_seconds'] += (int) ($e['duration_seconds'] ?? 0);
+            }
+        }
+        $rows = array_values($byAuthor);
+        usort($rows, static fn ($a, $b) => $b['billable_seconds'] <=> $a['billable_seconds']);
 
         return array_map(static function (array $r): array {
             $billable = (int) $r['billable_seconds'];

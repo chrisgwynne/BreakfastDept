@@ -84,7 +84,8 @@ final class RetainersTest extends TestCase
         $this->assertSame(68000, (int) $inv['total']);
 
         // The covered time entry is now locked (billed) and cannot be re-billed.
-        $billed = (int) breakfast()->db()->scalar('SELECT COUNT(*) FROM time_entries WHERE project_uuid = :p AND billed = 1', ['p' => $this->project]);
+        $projectUuid = $this->project;
+        $billed = count(array_filter(breakfast()->fileStore()->all('time_entries'), static fn (array $e): bool => (string) ($e['project_uuid'] ?? '') === $projectUuid && (int) ($e['billed'] ?? 0) === 1));
         $this->assertSame(1, $billed);
     }
 

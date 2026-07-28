@@ -236,13 +236,13 @@ final class Retainers
         $included = (int) $r['included_seconds'];
         $overageRate = (int) $r['overage_rate_pence'];
 
-        // Billable, not-yet-billed time logged in the window.
-        $entries = $this->db()->all(
-            "SELECT uuid, duration_seconds FROM time_entries
-             WHERE project_uuid = :p AND billable = 1 AND billed = 0 AND running = 0
-               AND started_at >= :start AND started_at < :end",
-            ['p' => $projectUuid, 'start' => $periodStart, 'end' => $periodEnd]
-        );
+        // Billable, not-yet-billed time logged in the window (flat-file).
+        $entries = array_values(array_filter($this->platform->fileStore()->all('time_entries'), static fn (array $e): bool => (string) ($e['project_uuid'] ?? '') === $projectUuid
+            && (int) ($e['billable'] ?? 0) === 1
+            && (int) ($e['billed'] ?? 0) === 0
+            && (int) ($e['running'] ?? 0) === 0
+            && (string) ($e['started_at'] ?? '') >= $periodStart
+            && (string) ($e['started_at'] ?? '') < $periodEnd));
         $used = 0;
         $entryUuids = [];
         foreach ($entries as $e) {
