@@ -471,8 +471,7 @@ final class Portal
      */
     public function assertFileDownloadable(string $identityUuid, string $fileUuid): void
     {
-        // Client files are still database-backed.
-        $file = $this->db()->one('SELECT project_uuid, client_visible, archived FROM client_files WHERE uuid = :u', ['u' => $fileUuid]);
+        $file = $this->store()->find('client_files', $fileUuid);
         if ($file === null || (int) ($file['client_visible'] ?? 0) !== 1 || (int) ($file['archived'] ?? 0) === 1) {
             throw new PortalException(404, 'File not found.');
         }

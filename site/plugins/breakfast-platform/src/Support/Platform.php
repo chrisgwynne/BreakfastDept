@@ -245,7 +245,7 @@ final class Platform
     public function files(): \Breakfast\Platform\Files\FileLibrary
     {
         return $this->service(\Breakfast\Platform\Files\FileLibrary::class, fn () => new \Breakfast\Platform\Files\FileLibrary(
-            $this->db(),
+            $this->fileStore(),
             $this->storageDir() . '/client-files'
         ));
     }
