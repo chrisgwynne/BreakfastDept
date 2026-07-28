@@ -26,8 +26,10 @@ $closed = in_array($status, ['declined', 'void', 'expired', 'withdrawn', 'supers
 $completed = ($c['completed_at'] ?? '') !== '';
 $sections = is_array($c['sections_list'] ?? null) ? $c['sections_list'] : [];
 $base = rtrim((string) kirby()->site()->url(), '/') . '/contract/' . $e($token);
-// The frozen, merge-resolved clauses live in the snapshot; fall back to live.
-$snapshot = json_decode((string) ($c['snapshot'] ?? ''), true);
+// The frozen, merge-resolved clauses live in the snapshot (a flat-file array;
+// a legacy JSON string is still decoded); fall back to live sections.
+$snapshot = is_array($c['snapshot'] ?? null) ? $c['snapshot'] : json_decode((string) ($c['snapshot'] ?? ''), true);
+$snapshot = is_array($snapshot) ? $snapshot : [];
 $renderSections = is_array($snapshot['sections'] ?? null) ? $snapshot['sections'] : array_map(static fn ($s) => ['heading' => $s['heading'] ?? '', 'body' => $s['body'] ?? ''], $sections);
 ?><!DOCTYPE html>
 <html lang="en">
