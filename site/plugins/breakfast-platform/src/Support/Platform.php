@@ -111,6 +111,18 @@ final class Platform
         return $this->db ??= Database::instance($this->dbPath());
     }
 
+    /**
+     * The flat-file record store — the storage engine the admin is being moved
+     * onto, replacing the database repositories one collection at a time.
+     * Records live under storage/data/<collection>/<uuid>.json.
+     */
+    public function fileStore(): FileStore
+    {
+        return $this->service(FileStore::class, fn () => new FileStore(
+            $this->config('dataDir') ?? $this->storageDir() . '/data'
+        ));
+    }
+
     public function logger(): Logger
     {
         return $this->logger ??= new Logger($this->storageDir() . '/logs');
