@@ -248,14 +248,13 @@ final class Automation
     /** @return list<array{target_ref:string,project_uuid:string,label:string}> */
     private function unappliedChanges(string $cutoff): array
     {
-        $rows = $this->db()->all(
-            "SELECT uuid, number, project_uuid FROM change_requests
-             WHERE status = 'approved' AND applied = 0 AND decided_at IS NOT NULL AND decided_at < :cutoff",
-            ['cutoff' => $cutoff]
-        );
+        $rows = array_values(array_filter($this->store()->all('change_requests'), static fn (array $r): bool => (string) ($r['status'] ?? '') === 'approved'
+            && (int) ($r['applied'] ?? 0) === 0
+            && (string) ($r['decided_at'] ?? '') !== ''
+            && (string) $r['decided_at'] < $cutoff));
 
         return array_map(static fn (array $r): array => [
-            'target_ref' => 'change_request:' . (string) $r['uuid'], 'project_uuid' => (string) $r['project_uuid'],
+            'target_ref' => 'change_request:' . (string) $r['uuid'], 'project_uuid' => (string) ($r['project_uuid'] ?? ''),
             'label' => (string) ($r['number'] ?? 'Change') . ' approved but not applied',
         ], $rows);
     }

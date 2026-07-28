@@ -39,7 +39,7 @@ final class Inbox
         $messages = (int) $this->db()->scalar("SELECT COUNT(*) FROM portal_messages WHERE sender = 'client' AND read_by_staff = 0");
         $feedback = (int) $this->db()->scalar("SELECT COUNT(*) FROM portal_feedback WHERE status = 'open'");
         $onboarding = (int) $this->db()->scalar("SELECT COUNT(*) FROM onboarding_instances WHERE status IN ('submitted','under_review')");
-        $changeRequests = (int) $this->db()->scalar("SELECT COUNT(*) FROM change_requests WHERE status = 'approved' AND applied = 0");
+        $changeRequests = count($this->unappliedChanges());
         $retainers = count($this->dueRetainers());
 
         return [
@@ -74,10 +74,9 @@ final class Inbox
             "SELECT uuid, project_uuid, status, submitted_at
              FROM onboarding_instances WHERE status IN ('submitted','under_review') ORDER BY submitted_at DESC LIMIT 50"
         );
-        $changeRequests = $this->db()->all(
-            "SELECT uuid, project_uuid, number, title, total, decided_at
-             FROM change_requests WHERE status = 'approved' AND applied = 0 ORDER BY decided_at DESC LIMIT 50"
-        );
+        $changeRequests = $this->unappliedChanges();
+        usort($changeRequests, static fn ($a, $b) => strcmp((string) ($b['decided_at'] ?? ''), (string) ($a['decided_at'] ?? '')));
+        $changeRequests = array_slice($changeRequests, 0, 50);
 
         return [
             'messages' => array_map(fn (array $m): array => [
@@ -108,6 +107,19 @@ final class Inbox
     private function projectName(string $projectUuid): string
     {
         return (string) ($this->platform->projects()->raw($projectUuid)['name'] ?? '');
+    }
+
+    /**
+     * Approved change requests that have not yet been applied (flat-file).
+     *
+     * @return list<array<string,mixed>>
+     */
+    private function unappliedChanges(): array
+    {
+        return array_values(array_filter(
+            $this->platform->fileStore()->all('change_requests'),
+            static fn (array $r): bool => (string) ($r['status'] ?? '') === 'approved' && (int) ($r['applied'] ?? 0) === 0
+        ));
     }
 
     /**

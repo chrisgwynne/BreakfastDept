@@ -138,7 +138,7 @@ final class ChangeRequestsTest extends TestCase
         $this->assertSame('%PDF', substr($doc['bytes'], 0, 4));
 
         // A version row was frozen.
-        $versions = breakfast()->db()->all('SELECT * FROM change_request_versions WHERE change_request_uuid = :u', ['u' => (string) $sent['uuid']]);
+        $versions = breakfast()->fileStore()->find('change_requests', (string) $sent['uuid'])['versions'] ?? [];
         $this->assertCount(1, $versions);
     }
 
@@ -213,8 +213,8 @@ final class ChangeRequestsTest extends TestCase
         $this->assertSame($approvedTotal, (int) $inv['total']);
 
         // The generated task links back deterministically.
-        $link = breakfast()->db()->one('SELECT source_ref FROM change_request_task_links WHERE change_request_uuid = :u', ['u' => (string) $cr['uuid']]);
-        $this->assertStringContainsString('change_request:' . (string) $cr['uuid'] . ':0', (string) $link['source_ref']);
+        $links = breakfast()->fileStore()->find('change_requests', (string) $cr['uuid'])['task_links'] ?? [];
+        $this->assertStringContainsString('change_request:' . (string) $cr['uuid'] . ':0', (string) ($links[0]['source_ref'] ?? ''));
     }
 
     public function testApplyIsIdempotent(): void
