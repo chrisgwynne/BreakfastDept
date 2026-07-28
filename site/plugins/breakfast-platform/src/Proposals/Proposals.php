@@ -5,11 +5,12 @@ declare(strict_types=1);
 namespace Breakfast\Platform\Proposals;
 
 use Breakfast\Platform\Support\Clock;
-use Breakfast\Platform\Support\Database;
+use Breakfast\Platform\Support\FileStore;
 use Breakfast\Platform\Support\Uuid;
 
 /**
- * Proposals & quotes — the commercial entry point of the client lifecycle.
+ * Proposals & quotes — the commercial entry point of the client lifecycle,
+ * stored as flat files.
  *
  * Money is integer pence, quantities thousandths, tax/discount basis points, so
  * totals are exact (never floating point) and a proposal converts cleanly into
@@ -30,7 +31,14 @@ final class Proposals
     /** States a client can act on through the public link. */
     private const LIVE = ['sent', 'viewed'];
 
-    public function __construct(private readonly Database $db)
+    /** @var list<string> */
+    private const NARRATIVE = [
+        'introduction', 'client_problem', 'recommended_solution', 'scope', 'deliverables',
+        'exclusions', 'assumptions', 'timeline', 'payment_schedule', 'terms', 'internal_notes',
+        'client_name', 'client_email',
+    ];
+
+    public function __construct(private readonly FileStore $store)
     {
     }
 
@@ -44,34 +52,39 @@ final class Proposals
      */
     public function list(array $filters = []): array
     {
-        $where  = ['1 = 1'];
-        $params = [];
+        $rows = $this->store->all('proposals');
         if (!empty($filters['status'])) {
-            $where[] = 'status = :status';
-            $params['status'] = (string) $filters['status'];
+            $rows = array_filter($rows, static fn (array $r): bool => (string) ($r['status'] ?? '') === (string) $filters['status']);
         }
         if (!empty($filters['opportunity_uuid'])) {
-            $where[] = 'opportunity_uuid = :opp';
-            $params['opp'] = (string) $filters['opportunity_uuid'];
+            $rows = array_filter($rows, static fn (array $r): bool => (string) ($r['opportunity_uuid'] ?? '') === (string) $filters['opportunity_uuid']);
         }
-        $params['l'] = (int) ($filters['limit'] ?? 100);
+        $rows = array_values($rows);
+        usort($rows, static fn ($a, $b) => strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? '')));
 
-        return $this->db->all(
-            'SELECT * FROM proposals WHERE ' . implode(' AND ', $where) . ' ORDER BY created_at DESC LIMIT :l',
-            $params
-        );
+        return array_slice($rows, 0, (int) ($filters['limit'] ?? 100));
     }
 
     /** @return array<string,mixed>|null */
     public function find(string $uuid): ?array
     {
-        $p = $this->db->one('SELECT * FROM proposals WHERE uuid = :u', ['u' => $uuid]);
+        $p = $this->store->find('proposals', $uuid);
         if ($p === null) {
             return null;
         }
-        $p['items']       = $this->db->all('SELECT * FROM proposal_items WHERE proposal_uuid = :u ORDER BY position ASC', ['u' => $uuid]);
-        $p['events']      = $this->db->all('SELECT * FROM proposal_events WHERE proposal_uuid = :u ORDER BY created_at DESC', ['u' => $uuid]);
-        $p['acceptances'] = $this->db->all('SELECT * FROM proposal_acceptances WHERE proposal_uuid = :u ORDER BY created_at DESC', ['u' => $uuid]);
+
+        $items = array_values(array_filter($this->store->all('proposal_items'), static fn (array $r): bool => (string) ($r['proposal_uuid'] ?? '') === $uuid));
+        usort($items, static fn ($a, $b) => (int) ($a['position'] ?? 0) <=> (int) ($b['position'] ?? 0));
+
+        $events = array_values(array_filter($this->store->all('proposal_events'), static fn (array $r): bool => (string) ($r['proposal_uuid'] ?? '') === $uuid));
+        usort($events, static fn ($a, $b) => strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? '')));
+
+        $acceptances = array_values(array_filter($this->store->all('proposal_acceptances'), static fn (array $r): bool => (string) ($r['proposal_uuid'] ?? '') === $uuid));
+        usort($acceptances, static fn ($a, $b) => strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? '')));
+
+        $p['items']       = $items;
+        $p['events']      = $events;
+        $p['acceptances'] = $acceptances;
 
         return $p;
     }
@@ -83,9 +96,13 @@ final class Proposals
         if ($token === '') {
             return null;
         }
-        $row = $this->db->one('SELECT uuid FROM proposals WHERE public_token = :t', ['t' => $token]);
+        foreach ($this->store->all('proposals') as $row) {
+            if ((string) ($row['public_token'] ?? '') === $token) {
+                return $this->find((string) $row['uuid']);
+            }
+        }
 
-        return $row !== null ? $this->find((string) $row['uuid']) : null;
+        return null;
     }
 
     // ==================================================================
@@ -101,31 +118,55 @@ final class Proposals
         $uuid = Uuid::v4();
         $now  = Clock::nowIso();
 
-        $this->db->run(
-            'INSERT INTO proposals
-                (uuid, status, title, contact_uuid, company_uuid, opportunity_uuid, project_uuid,
-                 currency, owner, expiry_date, created_by, created_at, updated_at)
-             VALUES
-                (:uuid, \'draft\', :title, :contact, :company, :opp, :project,
-                 :currency, :owner, :expiry, :actor, :now, :now)',
-            [
-                'uuid'    => $uuid,
-                'title'   => trim((string) ($data['title'] ?? 'New proposal')),
-                'contact' => $this->nullable($data['contact_uuid'] ?? null),
-                'company' => $this->nullable($data['company_uuid'] ?? null),
-                'opp'     => $this->nullable($data['opportunity_uuid'] ?? null),
-                'project' => $this->nullable($data['project_uuid'] ?? null),
-                'currency' => (string) ($data['currency'] ?? 'GBP'),
-                'owner'   => trim((string) ($data['owner'] ?? $actor)),
-                'expiry'  => $this->nullable($data['expiry_date'] ?? null),
-                'actor'   => $actor,
-                'now'     => $now,
-            ]
-        );
+        $record = [
+            'uuid'             => $uuid,
+            'number'           => null,
+            'status'           => 'draft',
+            'title'            => trim((string) ($data['title'] ?? 'New proposal')),
+            'contact_uuid'     => $this->nullable($data['contact_uuid'] ?? null),
+            'company_uuid'     => $this->nullable($data['company_uuid'] ?? null),
+            'opportunity_uuid' => $this->nullable($data['opportunity_uuid'] ?? null),
+            'project_uuid'     => $this->nullable($data['project_uuid'] ?? null),
+            'currency'         => (string) ($data['currency'] ?? 'GBP'),
+            'owner'            => trim((string) ($data['owner'] ?? $actor)),
+            'expiry_date'      => $this->nullable($data['expiry_date'] ?? null),
+            'public_token'     => null,
+            'client_name'      => '',
+            'client_email'     => '',
+            'seller_name'      => '',
+            'vat_registered'   => 0,
+            'snapshot'         => null,
+            'document_status'  => 'none',
+            'document_key'     => '',
+            'document_hash'    => '',
+            'document_bytes'   => 0,
+            'deposit_amount'   => 0,
+            'subtotal'         => 0,
+            'tax_total'        => 0,
+            'total'            => 0,
+            'recurring_total'  => 0,
+            'supersedes_uuid'  => null,
+            'sent_at'          => null,
+            'viewed_at'        => null,
+            'accepted_at'      => null,
+            'rejected_at'      => null,
+            'created_by'       => $actor,
+            'created_at'       => $now,
+            'updated_at'       => $now,
+        ];
+        foreach (self::NARRATIVE as $f) {
+            $record[$f] = '';
+        }
+        $this->store->put('proposals', $record);
 
         $this->applyNarrative($uuid, $data);
         if (array_key_exists('deposit_amount', $data)) {
-            $this->db->run('UPDATE proposals SET deposit_amount = :d WHERE uuid = :u', ['d' => max(0, (int) round(((float) $data['deposit_amount']) * 100)), 'u' => $uuid]);
+            $deposit = max(0, (int) round(((float) $data['deposit_amount']) * 100));
+            $this->store->update('proposals', $uuid, static function (array $row) use ($deposit): array {
+                $row['deposit_amount'] = $deposit;
+
+                return $row;
+            });
         }
         if (isset($data['items']) && is_array($data['items'])) {
             $this->replaceItems($uuid, $data['items']);
@@ -142,7 +183,7 @@ final class Proposals
      */
     public function update(string $uuid, array $data, string $actor): array
     {
-        $p = $this->db->one('SELECT status FROM proposals WHERE uuid = :u', ['u' => $uuid]);
+        $p = $this->store->find('proposals', $uuid);
         if ($p === null) {
             throw new ProposalException(404, 'Proposal not found.');
         }
@@ -150,28 +191,20 @@ final class Proposals
             throw new ProposalException(409, 'A sent proposal can’t be edited — supersede it with a new version instead.');
         }
 
-        $simple = [
-            'title' => 'title', 'currency' => 'currency', 'owner' => 'owner',
-            'contact_uuid' => 'contact_uuid', 'company_uuid' => 'company_uuid',
-            'opportunity_uuid' => 'opportunity_uuid', 'project_uuid' => 'project_uuid',
-            'expiry_date' => 'expiry_date',
-        ];
-        $sets = [];
-        $params = ['u' => $uuid, 'now' => Clock::nowIso()];
-        foreach ($simple as $in => $col) {
-            if (array_key_exists($in, $data)) {
-                $sets[] = "$col = :$col";
-                $params[$col] = in_array($col, ['contact_uuid', 'company_uuid', 'opportunity_uuid', 'project_uuid', 'expiry_date'], true)
-                    ? $this->nullable($data[$in]) : (string) $data[$in];
+        $this->store->update('proposals', $uuid, function (array $row) use ($data): array {
+            $nullable = ['contact_uuid', 'company_uuid', 'opportunity_uuid', 'project_uuid', 'expiry_date'];
+            foreach (['title', 'currency', 'owner', 'contact_uuid', 'company_uuid', 'opportunity_uuid', 'project_uuid', 'expiry_date'] as $col) {
+                if (array_key_exists($col, $data)) {
+                    $row[$col] = in_array($col, $nullable, true) ? $this->nullable($data[$col]) : (string) $data[$col];
+                }
             }
-        }
-        if (array_key_exists('deposit_amount', $data)) {
-            $sets[] = 'deposit_amount = :dep';
-            $params['dep'] = max(0, (int) round(((float) $data['deposit_amount']) * 100));
-        }
-        if ($sets !== []) {
-            $this->db->run('UPDATE proposals SET ' . implode(', ', $sets) . ', updated_at = :now WHERE uuid = :u', $params);
-        }
+            if (array_key_exists('deposit_amount', $data)) {
+                $row['deposit_amount'] = max(0, (int) round(((float) $data['deposit_amount']) * 100));
+            }
+            $row['updated_at'] = Clock::nowIso();
+
+            return $row;
+        });
 
         $this->applyNarrative($uuid, $data);
         if (isset($data['items']) && is_array($data['items'])) {
@@ -206,61 +239,63 @@ final class Proposals
      */
     public function send(string $uuid, string $actor, array $settings): array
     {
-        return $this->db->transaction(function (Database $db) use ($uuid, $actor, $settings): array {
-            $p = $db->one('SELECT * FROM proposals WHERE uuid = :u', ['u' => $uuid]);
-            if ($p === null) {
-                throw new ProposalException(404, 'Proposal not found.');
-            }
-            if (!in_array((string) $p['status'], ['draft', 'ready'], true)) {
-                throw new ProposalException(409, 'This proposal has already been sent.');
-            }
-            if ((int) $db->scalar('SELECT COUNT(*) FROM proposal_items WHERE proposal_uuid = :u', ['u' => $uuid]) === 0) {
-                throw new ProposalException(422, 'Add at least one item before sending.');
-            }
+        $p = $this->store->find('proposals', $uuid);
+        if ($p === null) {
+            throw new ProposalException(404, 'Proposal not found.');
+        }
+        if (!in_array((string) $p['status'], ['draft', 'ready'], true)) {
+            throw new ProposalException(409, 'This proposal has already been sent.');
+        }
+        $itemCount = count(array_filter($this->store->all('proposal_items'), static fn (array $r): bool => (string) ($r['proposal_uuid'] ?? '') === $uuid));
+        if ($itemCount === 0) {
+            throw new ProposalException(422, 'Add at least one item before sending.');
+        }
 
-            $number = $p['number'] ?: $this->allocateNumber($db, (string) ($settings['proposal_prefix'] ?? 'PRO'), (int) date('Y'));
-            $token  = (string) ($p['public_token'] ?: bin2hex(random_bytes(20)));
+        $number = ($p['number'] ?? null) ?: $this->allocateNumber((string) ($settings['proposal_prefix'] ?? 'PRO'), (int) date('Y'));
+        $token  = (string) (($p['public_token'] ?? null) ?: bin2hex(random_bytes(20)));
+        $now    = Clock::nowIso();
 
-            $db->run(
-                "UPDATE proposals SET
-                    number = :num, status = 'sent', public_token = :tok,
-                    client_name = :cname, client_email = :cemail,
-                    seller_name = :sname, vat_registered = :vreg,
-                    document_status = 'pending', sent_at = COALESCE(sent_at, :now), updated_at = :now
-                 WHERE uuid = :u",
-                [
-                    'num'    => $number,
-                    'tok'    => $token,
-                    'cname'  => (string) ($p['client_name'] ?: ''),
-                    'cemail' => (string) ($p['client_email'] ?: ''),
-                    'sname'  => (string) ($settings['company_legal_name'] ?? 'Breakfast'),
-                    'vreg'   => (int) ($settings['vat_registered'] ?? 0),
-                    'now'    => Clock::nowIso(),
-                    'u'      => $uuid,
-                ]
-            );
+        $this->store->update('proposals', $uuid, static function (array $row) use ($number, $token, $settings, $now): array {
+            $row['number']          = $number;
+            $row['status']          = 'sent';
+            $row['public_token']    = $token;
+            $row['client_name']     = (string) (($row['client_name'] ?? '') ?: '');
+            $row['client_email']    = (string) (($row['client_email'] ?? '') ?: '');
+            $row['seller_name']     = (string) ($settings['company_legal_name'] ?? 'Breakfast');
+            $row['vat_registered']  = (int) ($settings['vat_registered'] ?? 0);
+            $row['document_status'] = 'pending';
+            $row['sent_at']         = $row['sent_at'] ?? $now;
+            $row['updated_at']      = $now;
 
-            $detail   = $this->find($uuid) ?? [];
-            $snapshot = ProposalSnapshot::build($detail, $settings);
-            $db->run(
-                'UPDATE proposals SET snapshot = :snap, updated_at = :now WHERE uuid = :u',
-                ['snap' => json_encode($snapshot, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '', 'now' => Clock::nowIso(), 'u' => $uuid]
-            );
-            $this->event($uuid, 'sent', 'Sent as ' . $number, $actor);
-
-            return $this->find($uuid) ?? [];
+            return $row;
         });
+
+        $detail   = $this->find($uuid) ?? [];
+        $snapshot = ProposalSnapshot::build($detail, $settings);
+        $this->store->update('proposals', $uuid, static function (array $row) use ($snapshot): array {
+            $row['snapshot']   = $snapshot;
+            $row['updated_at'] = Clock::nowIso();
+
+            return $row;
+        });
+        $this->event($uuid, 'sent', 'Sent as ' . $number, $actor);
+
+        return $this->find($uuid) ?? [];
     }
 
     /** A client opened the proposal link — a view, never acceptance. */
     public function markViewed(string $uuid): void
     {
         $now = Clock::nowIso();
-        $this->db->run(
-            "UPDATE proposals SET status = CASE WHEN status = 'sent' THEN 'viewed' ELSE status END,
-                viewed_at = COALESCE(viewed_at, :now), updated_at = :now WHERE uuid = :u",
-            ['now' => $now, 'u' => $uuid]
-        );
+        $this->store->update('proposals', $uuid, static function (array $row) use ($now): array {
+            if ((string) ($row['status'] ?? '') === 'sent') {
+                $row['status'] = 'viewed';
+            }
+            $row['viewed_at']  = $row['viewed_at'] ?? $now;
+            $row['updated_at'] = $now;
+
+            return $row;
+        });
         $this->event($uuid, 'viewed', 'Opened by the client', 'client');
     }
 
@@ -274,12 +309,17 @@ final class Proposals
     public function selectOptions(string $uuid, array $selectedItemUuids, string $actor): array
     {
         $this->assertStatus($uuid, self::LIVE, 'Options can only be chosen on a live proposal.');
-        $this->db->run('UPDATE proposal_items SET is_selected = 0 WHERE proposal_uuid = :u AND kind = \'optional\'', ['u' => $uuid]);
-        foreach ($selectedItemUuids as $itemUuid) {
-            $this->db->run(
-                'UPDATE proposal_items SET is_selected = 1 WHERE proposal_uuid = :u AND uuid = :i AND kind = \'optional\'',
-                ['u' => $uuid, 'i' => (string) $itemUuid]
-            );
+        $selected = array_map('strval', $selectedItemUuids);
+        foreach ($this->store->all('proposal_items') as $item) {
+            if ((string) ($item['proposal_uuid'] ?? '') !== $uuid || (string) ($item['kind'] ?? '') !== 'optional') {
+                continue;
+            }
+            $isSelected = in_array((string) ($item['uuid'] ?? ''), $selected, true) ? 1 : 0;
+            $this->store->update('proposal_items', (string) $item['uuid'], static function (array $row) use ($isSelected): array {
+                $row['is_selected'] = $isSelected;
+
+                return $row;
+            });
         }
         $this->recompute($uuid);
         $this->event($uuid, 'options_selected', count($selectedItemUuids) . ' optional item(s) selected', $actor);
@@ -297,63 +337,72 @@ final class Proposals
      */
     public function accept(string $uuid, array $evidence): array
     {
-        return $this->db->transaction(function (Database $db) use ($uuid, $evidence): array {
-            $p = $db->one('SELECT * FROM proposals WHERE uuid = :u', ['u' => $uuid]);
-            if ($p === null) {
-                throw new ProposalException(404, 'Proposal not found.');
-            }
-            if ((string) $p['status'] === 'accepted') {
-                throw new ProposalException(409, 'This proposal has already been accepted.');
-            }
-            if (!in_array((string) $p['status'], self::LIVE, true)) {
-                throw new ProposalException(409, 'This proposal is not open for acceptance.');
-            }
-            if ($p['expiry_date'] !== null && $p['expiry_date'] !== '' && (string) $p['expiry_date'] < date('Y-m-d')) {
-                throw new ProposalException(410, 'This proposal has expired.');
-            }
-            $name = trim((string) ($evidence['name'] ?? ''));
-            if ($name === '') {
-                throw new ProposalException(422, 'Please enter your name to accept.');
-            }
+        $p = $this->store->find('proposals', $uuid);
+        if ($p === null) {
+            throw new ProposalException(404, 'Proposal not found.');
+        }
+        if ((string) $p['status'] === 'accepted') {
+            throw new ProposalException(409, 'This proposal has already been accepted.');
+        }
+        if (!in_array((string) $p['status'], self::LIVE, true)) {
+            throw new ProposalException(409, 'This proposal is not open for acceptance.');
+        }
+        if (($p['expiry_date'] ?? null) !== null && (string) $p['expiry_date'] !== '' && (string) $p['expiry_date'] < date('Y-m-d')) {
+            throw new ProposalException(410, 'This proposal has expired.');
+        }
+        $name = trim((string) ($evidence['name'] ?? ''));
+        if ($name === '') {
+            throw new ProposalException(422, 'Please enter your name to accept.');
+        }
 
-            $snapshot = (string) $p['snapshot'];
-            $hash     = hash('sha256', $snapshot);
-            $selected = $db->all("SELECT uuid FROM proposal_items WHERE proposal_uuid = :u AND kind = 'optional' AND is_selected = 1", ['u' => $uuid]);
-            $total    = (int) $db->scalar('SELECT total FROM proposals WHERE uuid = :u', ['u' => $uuid]);
+        $snapshot = $p['snapshot'] ?? null;
+        $snapJson = is_array($snapshot) ? (json_encode($snapshot, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '') : (string) $snapshot;
+        $hash     = hash('sha256', $snapJson);
+        $selected = array_values(array_filter($this->store->all('proposal_items'), static fn (array $r): bool => (string) ($r['proposal_uuid'] ?? '') === $uuid
+            && (string) ($r['kind'] ?? '') === 'optional'
+            && (int) ($r['is_selected'] ?? 0) === 1));
+        $total    = (int) ($p['total'] ?? 0);
 
-            $db->run(
-                'INSERT INTO proposal_acceptances
-                    (uuid, proposal_uuid, snapshot_version, accepted_name, accepted_email, ip_hash, user_agent,
-                     selected_options, total_accepted, wording, document_hash, created_at)
-                 VALUES (:uuid, :p, :sv, :name, :email, :ip, :ua, :opts, :total, :wording, :hash, :now)',
-                [
-                    'uuid'  => Uuid::v4(), 'p' => $uuid, 'sv' => ProposalSnapshot::VERSION,
-                    'name'  => $name,
-                    'email' => trim((string) ($evidence['email'] ?? '')),
-                    'ip'    => (string) ($evidence['ip_hash'] ?? ''),
-                    'ua'    => mb_substr((string) ($evidence['user_agent'] ?? ''), 0, 200),
-                    'opts'  => json_encode(array_map(static fn ($r): string => (string) $r['uuid'], $selected)) ?: '[]',
-                    'total' => $total,
-                    'wording' => mb_substr((string) ($evidence['wording'] ?? 'I accept this proposal.'), 0, 500),
-                    'hash'  => $hash, 'now' => Clock::nowIso(),
-                ]
-            );
+        $this->store->put('proposal_acceptances', [
+            'uuid'             => Uuid::v4(),
+            'proposal_uuid'    => $uuid,
+            'snapshot_version' => ProposalSnapshot::VERSION,
+            'accepted_name'    => $name,
+            'accepted_email'   => trim((string) ($evidence['email'] ?? '')),
+            'ip_hash'          => (string) ($evidence['ip_hash'] ?? ''),
+            'user_agent'       => mb_substr((string) ($evidence['user_agent'] ?? ''), 0, 200),
+            'selected_options' => array_map(static fn (array $r): string => (string) $r['uuid'], $selected),
+            'total_accepted'   => $total,
+            'wording'          => mb_substr((string) ($evidence['wording'] ?? 'I accept this proposal.'), 0, 500),
+            'document_hash'    => $hash,
+            'created_at'       => Clock::nowIso(),
+        ]);
 
-            $db->run(
-                "UPDATE proposals SET status = 'accepted', accepted_at = :now, updated_at = :now WHERE uuid = :u",
-                ['now' => Clock::nowIso(), 'u' => $uuid]
-            );
-            $this->event($uuid, 'accepted', 'Accepted by ' . $name . ' (£' . number_format($total / 100, 2) . ')', 'client');
+        $now = Clock::nowIso();
+        $this->store->update('proposals', $uuid, static function (array $row) use ($now): array {
+            $row['status']      = 'accepted';
+            $row['accepted_at'] = $now;
+            $row['updated_at']  = $now;
 
-            return $this->find($uuid) ?? [];
+            return $row;
         });
+        $this->event($uuid, 'accepted', 'Accepted by ' . $name . ' (£' . number_format($total / 100, 2) . ')', 'client');
+
+        return $this->find($uuid) ?? [];
     }
 
     /** @return array<string,mixed> */
     public function reject(string $uuid, string $reason, string $actorType = 'client'): array
     {
         $this->assertStatus($uuid, self::LIVE, 'Only a live proposal can be rejected.');
-        $this->db->run("UPDATE proposals SET status = 'rejected', rejected_at = :now, updated_at = :now WHERE uuid = :u", ['now' => Clock::nowIso(), 'u' => $uuid]);
+        $now = Clock::nowIso();
+        $this->store->update('proposals', $uuid, static function (array $row) use ($now): array {
+            $row['status']      = 'rejected';
+            $row['rejected_at'] = $now;
+            $row['updated_at']  = $now;
+
+            return $row;
+        });
         $this->event($uuid, 'rejected', trim($reason) !== '' ? 'Rejected: ' . trim($reason) : 'Rejected', $actorType);
 
         return $this->find($uuid) ?? [];
@@ -363,7 +412,12 @@ final class Proposals
     public function withdraw(string $uuid, string $actor): array
     {
         $this->assertStatus($uuid, ['sent', 'viewed', 'ready'], 'Only an open proposal can be withdrawn.');
-        $this->db->run("UPDATE proposals SET status = 'withdrawn', updated_at = :now WHERE uuid = :u", ['now' => Clock::nowIso(), 'u' => $uuid]);
+        $this->store->update('proposals', $uuid, static function (array $row): array {
+            $row['status']     = 'withdrawn';
+            $row['updated_at'] = Clock::nowIso();
+
+            return $row;
+        });
         $this->event($uuid, 'withdrawn', 'Withdrawn by ' . $actor, $actor);
 
         return $this->find($uuid) ?? [];
@@ -400,14 +454,24 @@ final class Proposals
             'payment_schedule' => $p['payment_schedule'], 'terms' => $p['terms'],
             'client_name' => $p['client_name'], 'client_email' => $p['client_email'],
         ], $actor);
-        $this->db->run('UPDATE proposals SET supersedes_uuid = :old WHERE uuid = :new', ['old' => $uuid, 'new' => $copy['uuid']]);
+        $copyUuid = (string) $copy['uuid'];
+        $this->store->update('proposals', $copyUuid, static function (array $row) use ($uuid): array {
+            $row['supersedes_uuid'] = $uuid;
+
+            return $row;
+        });
 
         if (in_array((string) $p['status'], ['sent', 'viewed', 'ready'], true)) {
-            $this->db->run("UPDATE proposals SET status = 'superseded', updated_at = :now WHERE uuid = :u", ['now' => Clock::nowIso(), 'u' => $uuid]);
-            $this->event($uuid, 'superseded', 'Superseded by ' . ((string) $copy['number'] ?: 'a new version'), $actor);
+            $this->store->update('proposals', $uuid, static function (array $row): array {
+                $row['status']     = 'superseded';
+                $row['updated_at'] = Clock::nowIso();
+
+                return $row;
+            });
+            $this->event($uuid, 'superseded', 'Superseded by ' . ((string) ($copy['number'] ?? '') ?: 'a new version'), $actor);
         }
 
-        return $this->find((string) $copy['uuid']) ?? [];
+        return $this->find($copyUuid) ?? [];
     }
 
     // ==================================================================
@@ -417,18 +481,34 @@ final class Proposals
     /** @return array<string,mixed>|null */
     public function snapshot(string $uuid): ?array
     {
-        $raw = (string) $this->db->scalar('SELECT snapshot FROM proposals WHERE uuid = :u', ['u' => $uuid]);
-        if ($raw === '') {
-            return null;
-        }
-        $decoded = json_decode($raw, true);
+        $p = $this->store->find('proposals', $uuid);
+        $snap = $p['snapshot'] ?? null;
 
-        return is_array($decoded) ? $decoded : null;
+        return is_array($snap) && $snap !== [] ? $snap : null;
     }
 
     public function setDocumentStatus(string $uuid, string $status): void
     {
-        $this->db->run('UPDATE proposals SET document_status = :s, updated_at = :n WHERE uuid = :u', ['s' => $status, 'n' => Clock::nowIso(), 'u' => $uuid]);
+        $this->store->update('proposals', $uuid, static function (array $row) use ($status): array {
+            $row['document_status'] = $status;
+            $row['updated_at']      = Clock::nowIso();
+
+            return $row;
+        });
+    }
+
+    /** Record a generated PDF's storage key, hash and size, marking it generated. */
+    public function setDocument(string $uuid, string $key, string $hash, int $bytes): void
+    {
+        $this->store->update('proposals', $uuid, static function (array $row) use ($key, $hash, $bytes): array {
+            $row['document_key']    = $key;
+            $row['document_hash']   = $hash;
+            $row['document_bytes']  = $bytes;
+            $row['document_status'] = 'generated';
+            $row['updated_at']      = Clock::nowIso();
+
+            return $row;
+        });
     }
 
     public function logEvent(string $uuid, string $type, string $detail, string $actor): void
@@ -439,11 +519,18 @@ final class Proposals
     /** @return list<array<string,mixed>> */
     public function needingPdfBackfill(): array
     {
-        return $this->db->all(
-            "SELECT uuid, number, document_status FROM proposals
-             WHERE snapshot <> '' AND COALESCE(document_status, 'none') <> 'generated'
-             ORDER BY sent_at ASC, number ASC"
-        );
+        $rows = array_values(array_filter($this->store->all('proposals'), static function (array $r): bool {
+            $snap = $r['snapshot'] ?? null;
+
+            return is_array($snap) && $snap !== [] && (string) ($r['document_status'] ?? 'none') !== 'generated';
+        }));
+        usort($rows, static fn ($a, $b) => [(string) ($a['sent_at'] ?? ''), (string) ($a['number'] ?? '')] <=> [(string) ($b['sent_at'] ?? ''), (string) ($b['number'] ?? '')]);
+
+        return array_map(static fn (array $r): array => [
+            'uuid'            => $r['uuid'] ?? '',
+            'number'          => $r['number'] ?? '',
+            'document_status' => $r['document_status'] ?? 'none',
+        ], $rows);
     }
 
     // ==================================================================
@@ -453,22 +540,20 @@ final class Proposals
     /** @param array<string,mixed> $data */
     private function applyNarrative(string $uuid, array $data): void
     {
-        $fields = [
-            'introduction', 'client_problem', 'recommended_solution', 'scope', 'deliverables',
-            'exclusions', 'assumptions', 'timeline', 'payment_schedule', 'terms', 'internal_notes',
-            'client_name', 'client_email',
-        ];
-        $sets = [];
-        $params = ['u' => $uuid, 'now' => Clock::nowIso()];
-        foreach ($fields as $f) {
-            if (array_key_exists($f, $data)) {
-                $sets[] = "$f = :$f";
-                $params[$f] = (string) $data[$f];
+        $this->store->update('proposals', $uuid, static function (array $row) use ($data): array {
+            $changed = false;
+            foreach (self::NARRATIVE as $f) {
+                if (array_key_exists($f, $data)) {
+                    $row[$f] = (string) $data[$f];
+                    $changed = true;
+                }
             }
-        }
-        if ($sets !== []) {
-            $this->db->run('UPDATE proposals SET ' . implode(', ', $sets) . ', updated_at = :now WHERE uuid = :u', $params);
-        }
+            if ($changed) {
+                $row['updated_at'] = Clock::nowIso();
+            }
+
+            return $row;
+        });
     }
 
     /**
@@ -476,7 +561,11 @@ final class Proposals
      */
     private function replaceItems(string $uuid, array $items): void
     {
-        $this->db->run('DELETE FROM proposal_items WHERE proposal_uuid = :u', ['u' => $uuid]);
+        foreach ($this->store->all('proposal_items') as $existing) {
+            if ((string) ($existing['proposal_uuid'] ?? '') === $uuid) {
+                $this->store->delete('proposal_items', (string) ($existing['uuid'] ?? ''));
+            }
+        }
         $pos = 0;
         foreach ($items as $item) {
             if (!is_array($item)) {
@@ -500,17 +589,22 @@ final class Proposals
             $subtotal = (int) round($gross * (10000 - $discount) / 10000);
             $tax      = (int) round($subtotal * $taxRate / 10000);
 
-            $this->db->run(
-                'INSERT INTO proposal_items
-                    (uuid, proposal_uuid, position, kind, description, quantity, unit_price, tax_rate, discount,
-                     recurrence, is_selected, line_subtotal, line_tax, line_total)
-                 VALUES (:uuid, :p, :pos, :kind, :desc, :qty, :unit, :rate, :disc, :rec, :sel, :sub, :tax, :total)',
-                [
-                    'uuid' => Uuid::v4(), 'p' => $uuid, 'pos' => $pos++, 'kind' => $kind,
-                    'desc' => $description, 'qty' => $qty, 'unit' => $unit, 'rate' => $taxRate, 'disc' => $discount,
-                    'rec' => $recurrence, 'sel' => $selected, 'sub' => $subtotal, 'tax' => $tax, 'total' => $subtotal + $tax,
-                ]
-            );
+            $this->store->put('proposal_items', [
+                'uuid'          => Uuid::v4(),
+                'proposal_uuid' => $uuid,
+                'position'      => $pos++,
+                'kind'          => $kind,
+                'description'   => $description,
+                'quantity'      => $qty,
+                'unit_price'    => $unit,
+                'tax_rate'      => $taxRate,
+                'discount'      => $discount,
+                'recurrence'    => $recurrence,
+                'is_selected'   => $selected,
+                'line_subtotal' => $subtotal,
+                'line_tax'      => $tax,
+                'line_total'    => $subtotal + $tax,
+            ]);
         }
     }
 
@@ -520,32 +614,36 @@ final class Proposals
      */
     private function recompute(string $uuid): void
     {
-        $oneOff = $this->db->one(
-            "SELECT COALESCE(SUM(line_subtotal),0) AS sub, COALESCE(SUM(line_tax),0) AS tax
-             FROM proposal_items
-             WHERE proposal_uuid = :u AND (kind = 'fixed' OR (kind = 'optional' AND is_selected = 1))",
-            ['u' => $uuid]
-        ) ?? ['sub' => 0, 'tax' => 0];
-        $recurring = (int) $this->db->scalar(
-            "SELECT COALESCE(SUM(line_total),0) FROM proposal_items WHERE proposal_uuid = :u AND kind = 'recurring'",
-            ['u' => $uuid]
-        );
-        $sub = (int) $oneOff['sub'];
-        $tax = (int) $oneOff['tax'];
-        $this->db->run(
-            'UPDATE proposals SET subtotal = :sub, tax_total = :tax, total = :total, recurring_total = :rec, updated_at = :now WHERE uuid = :u',
-            ['sub' => $sub, 'tax' => $tax, 'total' => $sub + $tax, 'rec' => $recurring, 'now' => Clock::nowIso(), 'u' => $uuid]
-        );
+        $sub = 0;
+        $tax = 0;
+        $recurring = 0;
+        foreach ($this->store->all('proposal_items') as $item) {
+            if ((string) ($item['proposal_uuid'] ?? '') !== $uuid) {
+                continue;
+            }
+            $kind = (string) ($item['kind'] ?? '');
+            if ($kind === 'fixed' || ($kind === 'optional' && (int) ($item['is_selected'] ?? 0) === 1)) {
+                $sub += (int) ($item['line_subtotal'] ?? 0);
+                $tax += (int) ($item['line_tax'] ?? 0);
+            }
+            if ($kind === 'recurring') {
+                $recurring += (int) ($item['line_total'] ?? 0);
+            }
+        }
+        $this->store->update('proposals', $uuid, static function (array $row) use ($sub, $tax, $recurring): array {
+            $row['subtotal']        = $sub;
+            $row['tax_total']       = $tax;
+            $row['total']           = $sub + $tax;
+            $row['recurring_total'] = $recurring;
+            $row['updated_at']      = Clock::nowIso();
+
+            return $row;
+        });
     }
 
-    private function allocateNumber(Database $db, string $prefix, int $year): string
+    private function allocateNumber(string $prefix, int $year): string
     {
-        $db->run(
-            'INSERT INTO proposal_sequences (prefix, year, next_seq) VALUES (:p, :y, 2)
-             ON CONFLICT(prefix, year) DO UPDATE SET next_seq = next_seq + 1',
-            ['p' => $prefix, 'y' => $year]
-        );
-        $seq = (int) $db->scalar('SELECT next_seq - 1 FROM proposal_sequences WHERE prefix = :p AND year = :y', ['p' => $prefix, 'y' => $year]);
+        $seq = $this->store->bump('proposal_sequences', $prefix . '-' . $year);
 
         return sprintf('%s-%d-%04d', $prefix, $year, $seq);
     }
@@ -553,11 +651,11 @@ final class Proposals
     /** @param list<string> $allowed */
     private function assertStatus(string $uuid, array $allowed, string $message): void
     {
-        $status = (string) $this->db->scalar('SELECT status FROM proposals WHERE uuid = :u', ['u' => $uuid]);
-        if ($status === '') {
+        $p = $this->store->find('proposals', $uuid);
+        if ($p === null) {
             throw new ProposalException(404, 'Proposal not found.');
         }
-        if (!in_array($status, $allowed, true)) {
+        if (!in_array((string) ($p['status'] ?? ''), $allowed, true)) {
             throw new ProposalException(409, $message);
         }
     }
@@ -566,16 +664,25 @@ final class Proposals
     private function transition(string $uuid, array $from, string $to, string $eventType, string $detail, string $actor): void
     {
         $this->assertStatus($uuid, $from, 'This proposal can’t change to ' . $to . ' from its current state.');
-        $this->db->run('UPDATE proposals SET status = :s, updated_at = :now WHERE uuid = :u', ['s' => $to, 'now' => Clock::nowIso(), 'u' => $uuid]);
+        $this->store->update('proposals', $uuid, static function (array $row) use ($to): array {
+            $row['status']     = $to;
+            $row['updated_at'] = Clock::nowIso();
+
+            return $row;
+        });
         $this->event($uuid, $eventType, $detail, $actor);
     }
 
     private function event(string $uuid, string $type, string $detail, string $actor): void
     {
-        $this->db->run(
-            'INSERT INTO proposal_events (uuid, proposal_uuid, type, detail, actor, created_at) VALUES (:uuid, :p, :t, :d, :a, :now)',
-            ['uuid' => Uuid::v4(), 'p' => $uuid, 't' => $type, 'd' => $detail, 'a' => $actor, 'now' => Clock::nowIso()]
-        );
+        $this->store->put('proposal_events', [
+            'uuid'          => Uuid::v4(),
+            'proposal_uuid' => $uuid,
+            'type'          => $type,
+            'detail'        => $detail,
+            'actor'         => $actor,
+            'created_at'    => Clock::nowIso(),
+        ]);
     }
 
     private function nullable(mixed $value): ?string

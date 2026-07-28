@@ -421,12 +421,18 @@ final class Portal
         if ($contact === '') {
             return ['proposals' => [], 'contracts' => [], 'invoices' => []];
         }
-        $proposals = $this->db()->all(
-            "SELECT number, title, status, total, public_token FROM proposals
-             WHERE contact_uuid = :c AND public_token <> '' AND status IN ('sent','viewed','accepted','declined')
-             ORDER BY created_at DESC LIMIT 50",
-            ['c' => $contact]
-        );
+        $proposalStatuses = ['sent', 'viewed', 'accepted', 'declined'];
+        $proposals = array_values(array_filter($this->platform->fileStore()->all('proposals'), static fn (array $r): bool => (string) ($r['contact_uuid'] ?? '') === $contact
+            && (string) ($r['public_token'] ?? '') !== ''
+            && in_array((string) ($r['status'] ?? ''), $proposalStatuses, true)));
+        usort($proposals, static fn ($a, $b) => strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? '')));
+        $proposals = array_slice(array_map(static fn (array $r): array => [
+            'number'       => $r['number'] ?? '',
+            'title'        => $r['title'] ?? '',
+            'status'       => $r['status'] ?? '',
+            'total'        => (int) ($r['total'] ?? 0),
+            'public_token' => $r['public_token'] ?? '',
+        ], $proposals), 0, 50);
         $contracts = $this->db()->all(
             "SELECT number, title, status, contract_value, public_token FROM contracts
              WHERE contact_uuid = :c AND public_token <> '' AND status IN ('sent','viewed','signed','completed','declined')

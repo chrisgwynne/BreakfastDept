@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Breakfast\Platform\Proposals;
 
-use Breakfast\Platform\Support\Database;
-
 /**
  * Generates, stores and serves the real PDF for a proposal.
  *
@@ -21,7 +19,6 @@ final class ProposalDocumentService
     public function __construct(
         private readonly Proposals $proposals,
         private readonly ProposalPdfRenderer $renderer,
-        private readonly Database $db,
         private readonly string $baseDir,
     ) {
     }
@@ -50,10 +47,7 @@ final class ProposalDocumentService
             throw $e instanceof ProposalException ? $e : new ProposalException(500, 'The proposal PDF could not be generated.');
         }
 
-        $this->db->run(
-            'UPDATE proposals SET document_key = :k, document_hash = :h, document_bytes = :b, document_status = \'generated\' WHERE uuid = :u',
-            ['k' => $key, 'h' => hash('sha256', $bytes), 'b' => strlen($bytes), 'u' => $uuid]
-        );
+        $this->proposals->setDocument($uuid, $key, hash('sha256', $bytes), strlen($bytes));
         $this->proposals->logEvent($uuid, 'document_generated', 'PDF generated', $actor);
 
         return $this->proposals->find($uuid) ?? [];

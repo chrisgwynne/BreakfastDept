@@ -198,7 +198,7 @@ final class Platform
 
     public function proposals(): \Breakfast\Platform\Proposals\Proposals
     {
-        return $this->service(\Breakfast\Platform\Proposals\Proposals::class, fn () => new \Breakfast\Platform\Proposals\Proposals($this->db()));
+        return $this->service(\Breakfast\Platform\Proposals\Proposals::class, fn () => new \Breakfast\Platform\Proposals\Proposals($this->fileStore()));
     }
 
     public function contracts(): \Breakfast\Platform\Contracts\Contracts
@@ -334,7 +334,6 @@ final class Platform
         return $this->service(\Breakfast\Platform\Proposals\ProposalDocumentService::class, fn () => new \Breakfast\Platform\Proposals\ProposalDocumentService(
             $this->proposals(),
             new \Breakfast\Platform\Proposals\ProposalPdfRenderer(),
-            $this->db(),
             $this->storageDir() . '/proposals'
         ));
     }
