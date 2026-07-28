@@ -4,7 +4,7 @@
     <?php snippet('partials/breadcrumbs') ?>
     <div class="section__head">
       <span class="kicker"><?= esc(t('breakfast.journal', 'Journal')) ?></span>
-      <h1 class="section__title"><?= esc($page->title()) ?></h1>
+      <h1 class="section__title"><?= esc($page->heading()->or($page->title())) ?></h1>
       <?php if ($page->intro()->isNotEmpty()): ?><p class="section__lead"><?= esc($page->intro()) ?></p><?php endif ?>
     </div>
 

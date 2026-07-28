@@ -58,6 +58,9 @@ Nav:
 Footer_nav:
 
 -
+  label: Work
+  link: /work
+-
   label: Services
   link: /services
 -
@@ -110,11 +113,21 @@ Meta_description: Independent web designer in North Wales. I design and build fr
 
 ----
 
+Default_social_image:
+
+- og-default.png
+
+----
+
 Analytics_provider: none
 
 ----
 
-Cookie_message: We use privacy-respecting analytics that don't track you across the web. Is that OK?
+Analytics_site:
+
+----
+
+Cookie_message: I use privacy-respecting analytics that don't track you across the web. Is that OK?
 
 ----
 
@@ -130,7 +143,7 @@ Maintenance_enabled: false
 
 ----
 
-Owner_name:
+Owner_name: Chris Gwynne
 
 ----
 

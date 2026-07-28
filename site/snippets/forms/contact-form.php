@@ -36,7 +36,7 @@ $old    = $old ?? [];
 
   <div class="field">
     <label class="field__label" for="field-name"><?= esc($page->form_name_label()->or('Your name')) ?> <span class="field__req" aria-hidden="true">*</span></label>
-    <input class="input" id="field-name" name="name" type="text" required maxlength="120"
+    <input class="input" id="field-name" name="name" type="text" required maxlength="120" autocomplete="name"
            placeholder="<?= esc($page->form_name_placeholder()) ?>"
            value="<?= esc($old['name'] ?? '') ?>"
            <?= isset($errors['name']) ? 'aria-invalid="true" aria-describedby="err-name"' : '' ?>>
@@ -54,12 +54,12 @@ $old    = $old ?? [];
 
   <div class="field">
     <label class="field__label" for="field-company"><?= esc($page->form_company_label()->or('Company')) ?></label>
-    <input class="input" id="field-company" name="company" type="text" maxlength="160"
+    <input class="input" id="field-company" name="company" type="text" maxlength="160" autocomplete="organization"
            placeholder="<?= esc($page->form_company_placeholder()) ?>" value="<?= esc($old['company'] ?? '') ?>">
   </div>
 
   <div class="field">
-    <label class="field__label" for="field-message"><?= esc($page->form_message_label()->or('How can we help?')) ?> <span class="field__req" aria-hidden="true">*</span></label>
+    <label class="field__label" for="field-message"><?= esc($page->form_message_label()->or('How can I help?')) ?> <span class="field__req" aria-hidden="true">*</span></label>
     <textarea class="textarea" id="field-message" name="message" required minlength="10" maxlength="5000"
               placeholder="<?= esc($page->form_message_placeholder()) ?>"
               <?= $page->form_message_help()->isNotEmpty() ? 'aria-describedby="help-message"' : '' ?>
@@ -69,9 +69,12 @@ $old    = $old ?? [];
   </div>
 
   <?php if ($page->form_consent_text()->isNotEmpty()): ?>
+  <?php /* Deliberately optional: replying to an enquiry relies on legitimate
+          interest, not consent. This box records an optional marketing/follow-up
+          opt-in only, so it is never `required`. */ ?>
   <div class="checkbox">
     <input type="checkbox" id="field-consent" name="consent" value="1">
-    <label for="field-consent"><?= esc($page->form_consent_text()) ?></label>
+    <label for="field-consent"><?= esc($page->form_consent_text()) ?> <span class="field__optional">(optional)</span></label>
   </div>
   <?php endif ?>
 

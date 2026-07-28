@@ -225,9 +225,13 @@ final class Platform
 
     public function portfolioMedia(): \Breakfast\Platform\Portfolio\PortfolioMediaPipeline
     {
+        // The pipeline appends "/portfolio/..." and returns "/media/portfolio/..."
+        // URLs, so its public root must be public/media (Kirby's served media
+        // dir, which is also git-ignored) — NOT public/ itself, or the generated
+        // variant files land beside the URL they claim and 404.
         return $this->service(
             \Breakfast\Platform\Portfolio\PortfolioMediaPipeline::class,
-            fn () => new \Breakfast\Platform\Portfolio\PortfolioMediaPipeline($this->storageDir(), $this->publicDir())
+            fn () => new \Breakfast\Platform\Portfolio\PortfolioMediaPipeline($this->storageDir(), $this->publicDir() . '/media')
         );
     }
 

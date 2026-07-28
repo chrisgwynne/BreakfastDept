@@ -69,12 +69,9 @@
     });
   });
 
-  // Email / phone link events
+  // Email link events (there is no phone number on the site by design).
   document.querySelectorAll('a[href^="mailto:"]').forEach(function (a) {
     a.addEventListener("click", function () { track("email_link", {}); });
-  });
-  document.querySelectorAll('a[href^="tel:"]').forEach(function (a) {
-    a.addEventListener("click", function () { track("phone_link", {}); });
   });
 
   /* ---------- Work / journal filtering (progressive) ---------- */

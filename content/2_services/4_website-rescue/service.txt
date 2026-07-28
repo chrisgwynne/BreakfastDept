@@ -2,6 +2,18 @@ Title: Website rescue
 
 ----
 
+Seo_title: Website Rescue and Redesign in North Wales
+
+----
+
+Heading: Website rescue and redesign
+
+----
+
+Meta_description: Got a website that's slow, broken on phones, or that you've lost control of? I find what's actually wrong and fix it — without a needless rebuild.
+
+----
+
 Short_name: Website rescue
 
 ----

@@ -6,7 +6,7 @@
       <div>
         <div class="section__head" style="margin-bottom:var(--s-6)">
           <span class="kicker"><?= esc(t('breakfast.contact.kicker', 'Get in touch')) ?></span>
-          <h1 class="section__title"><?= esc($page->title()) ?></h1>
+          <h1 class="section__title"><?= esc($page->heading()->or($page->title())) ?></h1>
         </div>
         <?php if ($page->intro()->isNotEmpty()): ?><div class="prose"><?= $page->intro()->toBlocks() ?></div><?php endif ?>
 

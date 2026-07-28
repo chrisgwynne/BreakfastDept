@@ -59,15 +59,15 @@ $social    = $site->social()->toStructure();
       </div>
 
       <div class="footer__base">
-        <p><?= $site->footer_copy()->or('© ' . date('Y') . ' ' . esc($site->title())) ?></p>
-        <p>&copy; <?= date('Y') ?> <?= esc($site->legal_name()->or($site->title())) ?></p>
+        <?php /* One copyright line only. Prefer the editable footer_copy; fall back to year + brand. */ ?>
+        <p><?= $site->footer_copy()->or('© ' . date('Y') . ' ' . esc($site->title()) . '. Independent web design in Wales.') ?></p>
       </div>
     </div>
   </footer>
 
   <?php if ($analytics->enabled() && $analytics->requiresConsent()): ?>
   <div class="cookie-banner" data-cookie-banner role="dialog" aria-live="polite" aria-label="Cookie choices">
-    <p><?= esc($site->cookie_message()->or('We use privacy-respecting analytics. Accept cookies?')) ?></p>
+    <p><?= esc($site->cookie_message()->or('I use privacy-respecting analytics. Accept cookies?')) ?></p>
     <div class="cookie-banner__actions">
       <button class="btn" data-consent="decline"><?= esc(t('breakfast.cookies.decline', 'Decline')) ?></button>
       <button class="btn btn--primary" data-consent="accept"><?= esc(t('breakfast.cookies.accept', 'Accept')) ?></button>

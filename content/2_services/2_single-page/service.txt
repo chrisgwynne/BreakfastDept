@@ -2,6 +2,18 @@ Title: A single landing page
 
 ----
 
+Seo_title: One-Page Website Design in North Wales
+
+----
+
+Heading: One-page website design
+
+----
+
+Meta_description: One well-made landing page that does a single job — launch a product, run a campaign, or get a credible home online without a full site.
+
+----
+
 Short_name: Single page
 
 ----

@@ -4,7 +4,7 @@ Title: Contact
 
 Intro:
 
-[{"id":"ct1","type":"text","content":{"text":"<p>Have a quick question, or want to talk something through before committing to anything? This is the place. Every message is read personally, and you'll get an honest reply — including if Breakfast isn't the right fit.</p>"}}]
+[{"id":"ct1","type":"text","content":{"text":"<p>Have a quick question, or want to talk something through before committing to anything? This is the place. Every message is read personally, and you'll get an honest reply — including if I'm not the right fit.</p>"}}]
 
 ----
 
@@ -32,11 +32,11 @@ Form_company_placeholder: The name above your door
 
 ----
 
-Form_message_label: How can we help?
+Form_message_label: How can I help?
 
 ----
 
-Form_message_placeholder: Tell us a bit about your business and what's on your mind.
+Form_message_placeholder: Tell me a bit about your business and what's on your mind.
 
 ----
 
@@ -44,7 +44,7 @@ Form_message_help: A few lines is plenty to get started. No need to write an ess
 
 ----
 
-Form_consent_text: I'm happy for Breakfast to store what I've sent so they can reply. We'll only use it to answer your enquiry — nothing else.
+Form_consent_text: I'm happy for Chris to keep what I've sent so he can reply. It'll only ever be used to answer this enquiry — nothing else.
 
 ----
 
@@ -52,11 +52,11 @@ Form_submit_label: Send message
 
 ----
 
-Form_success_message: Thanks — that's landed with us. We'll come back to you shortly, usually within a couple of working days.
+Form_success_message: Thanks — that's landed with me. I'll come back to you shortly, usually within a couple of working days.
 
 ----
 
-Form_error_message: Hmm, that didn't send. Please try again, or email us directly at hello@breakfastdept.com.
+Form_error_message: Hmm, that didn't send. Please try again, or email me directly at hello@breakfastdept.com.
 
 ----
 
