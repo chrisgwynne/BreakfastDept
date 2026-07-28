@@ -73,7 +73,9 @@ final class RetainersTest extends TestCase
         $result = $this->svc->runRetainer($id, '2026-02-05', 'staff@breakfast');
         $this->assertSame([1, 1], $result);
 
-        $period = breakfast()->db()->one('SELECT * FROM retainer_periods WHERE retainer_uuid = :r', ['r' => $id]);
+        $rid = $id;
+        $periods = array_values(array_filter(breakfast()->fileStore()->all('retainer_periods'), static fn (array $p): bool => (string) ($p['retainer_uuid'] ?? '') === $rid));
+        $period = $periods[0] ?? [];
         $this->assertSame(25200, (int) $period['used_seconds']);      // 7h
         $this->assertSame(50000, (int) $period['fee_pence']);         // £500 fee
         $this->assertSame(18000, (int) $period['overage_pence']);     // 2h × £90 = £180.00
@@ -97,7 +99,7 @@ final class RetainersTest extends TestCase
         // Running again for the same window creates no new period/invoice.
         $again = $this->svc->runRetainer($id, '2026-02-05', 'staff@breakfast');
         $this->assertSame([0, 0], $again);
-        $this->assertSame(1, (int) breakfast()->db()->scalar('SELECT COUNT(*) FROM retainer_periods WHERE retainer_uuid = :r', ['r' => $id]));
+        $this->assertSame(1, count(array_filter(breakfast()->fileStore()->all('retainer_periods'), static fn (array $p): bool => (string) ($p['retainer_uuid'] ?? '') === $id)));
     }
 
     public function testCatchesUpMultiplePeriods(): void
@@ -107,7 +109,7 @@ final class RetainersTest extends TestCase
         // As of mid-April, Jan, Feb and Mar have all elapsed → three periods.
         $result = $this->svc->runRetainer($id, '2026-04-15', 'staff@breakfast');
         $this->assertSame([3, 3], $result);
-        $this->assertSame(3, (int) breakfast()->db()->scalar('SELECT COUNT(*) FROM retainer_periods WHERE retainer_uuid = :r', ['r' => $id]));
+        $this->assertSame(3, count(array_filter(breakfast()->fileStore()->all('retainer_periods'), static fn (array $p): bool => (string) ($p['retainer_uuid'] ?? '') === $id)));
     }
 
     public function testPausedRetainerDoesNotBill(): void

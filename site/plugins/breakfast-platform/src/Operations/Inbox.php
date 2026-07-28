@@ -119,7 +119,8 @@ final class Inbox
     {
         $today = substr(Clock::nowIso(), 0, 10);
         $due = [];
-        foreach ($this->db()->all("SELECT uuid, project_uuid, title, cadence, next_period_start FROM retainers WHERE status = 'active'") as $r) {
+        $active = array_filter($this->platform->fileStore()->all('retainers'), static fn (array $r): bool => (string) ($r['status'] ?? '') === 'active');
+        foreach ($active as $r) {
             $months = (string) $r['cadence'] === 'quarterly' ? 3 : 1;
             $ts = strtotime((string) $r['next_period_start']);
             if ($ts === false) {
