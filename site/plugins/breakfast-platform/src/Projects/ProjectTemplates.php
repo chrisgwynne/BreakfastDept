@@ -6,22 +6,26 @@ namespace Breakfast\Platform\Projects;
 
 use Breakfast\Platform\Support\BusinessDays;
 use Breakfast\Platform\Support\Clock;
-use Breakfast\Platform\Support\Database;
+use Breakfast\Platform\Support\FileStore;
 use Breakfast\Platform\Support\Uuid;
 
 /**
- * Versioned project templates. Built-ins are seeded once into the database as
- * published version 1; custom templates and new versions live in the same
- * tables. Applying a template to a project copies the frozen version's
+ * Versioned project templates, stored as flat files. Built-ins are seeded once
+ * as published version 1; custom templates and new versions live in the same
+ * collection. Applying a template to a project copies the frozen version's
  * milestone/task rows into project-owned records with resolved business-day
  * dates and dependency links, and records the template + version on the project.
  * A later template edit is a new version and never mutates existing projects.
+ *
+ * Each template is one JSON record; its versions — and each version's milestones
+ * and tasks — live embedded in that record as native arrays.
  */
 final class ProjectTemplates
 {
+    private const COLLECTION = 'project_templates';
+
     public function __construct(
-        private readonly Database $db,
-        private readonly \Breakfast\Platform\Support\FileStore $store,
+        private readonly FileStore $store,
     ) {
     }
 
@@ -81,20 +85,26 @@ final class ProjectTemplates
     public function seedBuiltins(): void
     {
         foreach (self::builtins() as $slug => $def) {
-            if ($this->db->one('SELECT uuid FROM project_templates WHERE slug = :s', ['s' => $slug]) !== null) {
+            $uuid = sha1('project-builtin:' . $slug);
+            if ($this->store->exists(self::COLLECTION, $uuid)) {
                 continue;
             }
-            $this->db->transaction(function (Database $db) use ($slug, $def): void {
-                $tUuid = Uuid::v4();
-                $now = Clock::nowIso();
-                $db->run(
-                    'INSERT INTO project_templates (uuid, slug, name, description, category, project_type, current_version, builtin, created_at, updated_at)
-                     VALUES (:uuid, :slug, :name, :desc, :cat, :type, 1, 1, :now, :now)',
-                    ['uuid' => $tUuid, 'slug' => $slug, 'name' => (string) $def['name'], 'desc' => (string) $def['description'], 'cat' => (string) $def['category'], 'type' => (string) $def['project_type'], 'now' => $now]
-                );
-                $vUuid = $this->insertVersion($db, $tUuid, 1, 'published', 'Built-in', $now);
-                $this->writeRows($db, $vUuid, $def);
-            });
+            $now = Clock::nowIso();
+            $version = $this->buildVersion(1, 'published', 'Built-in', $now, $def);
+            $this->store->putIfAbsent(self::COLLECTION, $uuid, [
+                'uuid'            => $uuid,
+                'slug'            => $slug,
+                'name'            => (string) $def['name'],
+                'description'     => (string) $def['description'],
+                'category'        => (string) $def['category'],
+                'project_type'    => (string) $def['project_type'],
+                'current_version' => 1,
+                'builtin'         => 1,
+                'archived'        => 0,
+                'versions'        => [$version],
+                'created_at'      => $now,
+                'updated_at'      => $now,
+            ]);
         }
     }
 
@@ -106,18 +116,22 @@ final class ProjectTemplates
     public function list(): array
     {
         $this->seedBuiltins();
+        $rows = array_values(array_filter($this->store->all(self::COLLECTION), static fn (array $t): bool => (int) ($t['archived'] ?? 0) === 0));
+        usort($rows, static fn ($a, $b) => strcasecmp((string) ($a['name'] ?? ''), (string) ($b['name'] ?? '')));
 
-        return $this->db->all('SELECT * FROM project_templates WHERE archived = 0 ORDER BY name ASC');
+        return $rows;
     }
 
     /** @return array<string,mixed>|null */
     public function find(string $uuid): ?array
     {
-        $t = $this->db->one('SELECT * FROM project_templates WHERE uuid = :u', ['u' => $uuid]);
+        $t = $this->store->find(self::COLLECTION, $uuid);
         if ($t === null) {
             return null;
         }
-        $t['versions'] = $this->db->all('SELECT * FROM project_template_versions WHERE template_uuid = :u ORDER BY version DESC', ['u' => $uuid]);
+        $versions = is_array($t['versions'] ?? null) ? array_values($t['versions']) : [];
+        usort($versions, static fn ($a, $b) => (int) ($b['version'] ?? 0) <=> (int) ($a['version'] ?? 0));
+        $t['versions'] = $versions;
 
         return $t;
     }
@@ -125,8 +139,8 @@ final class ProjectTemplates
     /** @return array<string,mixed>|null the published version's rows */
     public function publishedVersion(string $templateUuid): ?array
     {
-        $t = $this->db->one('SELECT current_version FROM project_templates WHERE uuid = :u', ['u' => $templateUuid]);
-        if ($t === null || (int) $t['current_version'] === 0) {
+        $t = $this->store->find(self::COLLECTION, $templateUuid);
+        if ($t === null || (int) ($t['current_version'] ?? 0) === 0) {
             return null;
         }
 
@@ -136,14 +150,17 @@ final class ProjectTemplates
     /** @return array<string,mixed>|null */
     public function versionRows(string $templateUuid, int $version): ?array
     {
-        $v = $this->db->one('SELECT * FROM project_template_versions WHERE template_uuid = :t AND version = :v', ['t' => $templateUuid, 'v' => $version]);
-        if ($v === null) {
+        $t = $this->store->find(self::COLLECTION, $templateUuid);
+        if ($t === null) {
             return null;
         }
-        $v['milestones'] = $this->db->all('SELECT * FROM project_template_milestones WHERE version_uuid = :v ORDER BY sort_order ASC', ['v' => (string) $v['uuid']]);
-        $v['tasks']      = $this->db->all('SELECT * FROM project_template_tasks WHERE version_uuid = :v ORDER BY sort_order ASC', ['v' => (string) $v['uuid']]);
+        foreach (is_array($t['versions'] ?? null) ? $t['versions'] : [] as $v) {
+            if ((int) ($v['version'] ?? 0) === $version) {
+                return $v;
+            }
+        }
 
-        return $v;
+        return null;
     }
 
     // ==================================================================
@@ -162,19 +179,26 @@ final class ProjectTemplates
         }
         $slug = trim((string) ($data['slug'] ?? '')) ?: preg_replace('/[^a-z0-9]+/', '_', strtolower($name));
         $slug = trim((string) $slug, '_');
-        if ($this->db->one('SELECT uuid FROM project_templates WHERE slug = :s', ['s' => $slug]) !== null) {
-            $slug .= '_' . substr(bin2hex(random_bytes(3)), 0, 4);
+        if ($slug === '' || $this->slugTaken((string) $slug)) {
+            $slug = ($slug ?: 'template') . '_' . substr(bin2hex(random_bytes(3)), 0, 4);
         }
         $uuid = Uuid::v4();
         $now = Clock::nowIso();
-        $this->db->run(
-            'INSERT INTO project_templates (uuid, slug, name, description, category, project_type, current_version, builtin, created_at, updated_at)
-             VALUES (:uuid, :slug, :name, :desc, :cat, :type, 0, 0, :now, :now)',
-            ['uuid' => $uuid, 'slug' => (string) $slug, 'name' => $name, 'desc' => (string) ($data['description'] ?? ''), 'cat' => (string) ($data['category'] ?? ''), 'type' => (string) ($data['project_type'] ?? ''), 'now' => $now]
-        );
-        // Seed a first draft version (empty or from provided milestones/tasks).
-        $vUuid = $this->insertVersion($this->db, $uuid, 1, 'draft', (string) ($data['notes'] ?? ''), $now);
-        $this->writeRows($this->db, $vUuid, ['milestones' => $data['milestones'] ?? [], 'tasks' => $data['tasks'] ?? []]);
+        $version = $this->buildVersion(1, 'draft', (string) ($data['notes'] ?? ''), $now, ['milestones' => $data['milestones'] ?? [], 'tasks' => $data['tasks'] ?? []]);
+        $this->store->put(self::COLLECTION, [
+            'uuid'            => $uuid,
+            'slug'            => (string) $slug,
+            'name'            => $name,
+            'description'     => (string) ($data['description'] ?? ''),
+            'category'        => (string) ($data['category'] ?? ''),
+            'project_type'    => (string) ($data['project_type'] ?? ''),
+            'current_version' => 0,
+            'builtin'         => 0,
+            'archived'        => 0,
+            'versions'        => [$version],
+            'created_at'      => $now,
+            'updated_at'      => $now,
+        ]);
 
         return $this->find($uuid) ?? [];
     }
@@ -187,41 +211,56 @@ final class ProjectTemplates
      */
     public function newDraftVersion(string $templateUuid, string $actor): array
     {
-        $t = $this->db->one('SELECT * FROM project_templates WHERE uuid = :u', ['u' => $templateUuid]);
+        $t = $this->store->find(self::COLLECTION, $templateUuid);
         if ($t === null) {
             throw new ProjectException(404, 'Template not found.');
         }
-        $latest = (int) $this->db->scalar('SELECT COALESCE(MAX(version),0) FROM project_template_versions WHERE template_uuid = :t', ['t' => $templateUuid]);
+        $latest = 0;
+        foreach (is_array($t['versions'] ?? null) ? $t['versions'] : [] as $v) {
+            $latest = max($latest, (int) ($v['version'] ?? 0));
+        }
         $next = $latest + 1;
         $now = Clock::nowIso();
+        $prev = $latest > 0 ? $this->versionRows($templateUuid, $latest) : null;
+        $def = $prev !== null ? [
+            'milestones' => array_map([$this, 'rowToDef'], $prev['milestones'] ?? []),
+            'tasks'      => array_map([$this, 'rowToDefTask'], $prev['tasks'] ?? []),
+        ] : [];
+        $version = $this->buildVersion($next, 'draft', '', $now, $def);
+        $this->store->update(self::COLLECTION, $templateUuid, static function (array $row) use ($version, $now): array {
+            $row['versions'][] = $version;
+            $row['updated_at'] = $now;
 
-        return $this->db->transaction(function (Database $db) use ($templateUuid, $latest, $next, $now): array {
-            $vUuid = $this->insertVersion($db, $templateUuid, $next, 'draft', '', $now);
-            if ($latest > 0) {
-                $prev = $this->versionRows($templateUuid, $latest);
-                $this->writeRows($db, $vUuid, [
-                    'milestones' => array_map([$this, 'rowToDef'], $prev['milestones'] ?? []),
-                    'tasks'      => array_map([$this, 'rowToDefTask'], $prev['tasks'] ?? []),
-                ]);
-            }
-
-            return $this->find($templateUuid) ?? [];
+            return $row;
         });
+
+        return $this->find($templateUuid) ?? [];
     }
 
     /** @return array<string,mixed> */
     public function publish(string $templateUuid, int $version, string $actor): array
     {
-        $v = $this->db->one('SELECT uuid, status FROM project_template_versions WHERE template_uuid = :t AND version = :v', ['t' => $templateUuid, 'v' => $version]);
+        $v = $this->versionRows($templateUuid, $version);
         if ($v === null) {
             throw new ProjectException(404, 'Template version not found.');
         }
         if ((string) $v['status'] === 'published') {
             throw new ProjectException(409, 'That version is already published.');
         }
-        $this->db->transaction(function (Database $db) use ($templateUuid, $version, $v): void {
-            $db->run("UPDATE project_template_versions SET status = 'published', published_at = :now WHERE uuid = :u", ['now' => Clock::nowIso(), 'u' => (string) $v['uuid']]);
-            $db->run('UPDATE project_templates SET current_version = :v, updated_at = :now WHERE uuid = :u', ['v' => $version, 'now' => Clock::nowIso(), 'u' => $templateUuid]);
+        $now = Clock::nowIso();
+        $this->store->update(self::COLLECTION, $templateUuid, static function (array $row) use ($version, $now): array {
+            $versions = is_array($row['versions'] ?? null) ? $row['versions'] : [];
+            foreach ($versions as $i => $ver) {
+                if ((int) ($ver['version'] ?? 0) === $version) {
+                    $versions[$i]['status']       = 'published';
+                    $versions[$i]['published_at'] = $now;
+                }
+            }
+            $row['versions']        = $versions;
+            $row['current_version'] = $version;
+            $row['updated_at']      = $now;
+
+            return $row;
         });
 
         return $this->find($templateUuid) ?? [];
@@ -256,56 +295,54 @@ final class ProjectTemplates
             return $base === '' ? null : BusinessDays::add($base, $offset);
         };
 
-        return $this->db->transaction(function (Database $db) use ($projectUuid, $templateUuid, $version, $resolve, $actor): array {
-            $msMap = [];   // tkey => new milestone uuid
-            foreach ($version['milestones'] as $m) {
-                $created = $this->platformMilestones()->create($projectUuid, [
-                    'title' => (string) $m['title'], 'description' => (string) $m['description'],
-                    'due_date' => $resolve((string) $m['due_anchor'], (int) $m['due_offset']),
-                    'client_visible' => (int) $m['client_visible'] === 1,
-                ], $actor);
-                $msMap[(string) $m['tkey']] = (string) $created['uuid'];
-            }
-            // Milestone dependencies.
-            foreach ($version['milestones'] as $m) {
-                foreach (array_filter(explode(',', (string) $m['blocked_by'])) as $depKey) {
-                    if (isset($msMap[$depKey], $msMap[(string) $m['tkey']])) {
-                        $this->platformMilestones()->addDependency($msMap[(string) $m['tkey']], $msMap[$depKey], $actor);
-                    }
+        $msMap = [];   // tkey => new milestone uuid
+        foreach ($version['milestones'] as $m) {
+            $created = $this->platformMilestones()->create($projectUuid, [
+                'title' => (string) $m['title'], 'description' => (string) $m['description'],
+                'due_date' => $resolve((string) $m['due_anchor'], (int) $m['due_offset']),
+                'client_visible' => (int) $m['client_visible'] === 1,
+            ], $actor);
+            $msMap[(string) $m['tkey']] = (string) $created['uuid'];
+        }
+        // Milestone dependencies.
+        foreach ($version['milestones'] as $m) {
+            foreach (array_filter(explode(',', (string) $m['blocked_by'])) as $depKey) {
+                if (isset($msMap[$depKey], $msMap[(string) $m['tkey']])) {
+                    $this->platformMilestones()->addDependency($msMap[(string) $m['tkey']], $msMap[$depKey], $actor);
                 }
             }
-            $taskMap = [];
-            foreach ($version['tasks'] as $t) {
-                $created = $this->platformTasks()->create($projectUuid, [
-                    'title' => (string) $t['title'], 'description' => (string) $t['description'],
-                    'milestone_uuid' => $msMap[(string) $t['milestone_key']] ?? null,
-                    'due_date' => $resolve((string) $t['due_anchor'], (int) $t['due_offset']),
-                    'estimate_seconds' => (int) $t['estimate_seconds'],
-                    'client_visible' => (int) $t['client_visible'] === 1,
-                    'source' => 'template',
-                ], $actor);
-                $taskMap[(string) $t['tkey']] = (string) $created['uuid'];
-            }
-            // Task dependencies (task:<key> or milestone:<key>).
-            foreach ($version['tasks'] as $t) {
-                foreach (array_filter(explode(',', (string) $t['blocked_by'])) as $dep) {
-                    [$kind, $key] = array_pad(explode(':', $dep, 2), 2, '');
-                    $blockerUuid = $kind === 'milestone' ? ($msMap[$key] ?? null) : ($taskMap[$key] ?? null);
-                    if ($blockerUuid !== null && isset($taskMap[(string) $t['tkey']])) {
-                        $this->platformTasks()->addDependency($taskMap[(string) $t['tkey']], $kind . ':' . $blockerUuid, $actor);
-                    }
+        }
+        $taskMap = [];
+        foreach ($version['tasks'] as $t) {
+            $created = $this->platformTasks()->create($projectUuid, [
+                'title' => (string) $t['title'], 'description' => (string) $t['description'],
+                'milestone_uuid' => $msMap[(string) $t['milestone_key']] ?? null,
+                'due_date' => $resolve((string) $t['due_anchor'], (int) $t['due_offset']),
+                'estimate_seconds' => (int) $t['estimate_seconds'],
+                'client_visible' => (int) $t['client_visible'] === 1,
+                'source' => 'template',
+            ], $actor);
+            $taskMap[(string) $t['tkey']] = (string) $created['uuid'];
+        }
+        // Task dependencies (task:<key> or milestone:<key>).
+        foreach ($version['tasks'] as $t) {
+            foreach (array_filter(explode(',', (string) $t['blocked_by'])) as $dep) {
+                [$kind, $key] = array_pad(explode(':', $dep, 2), 2, '');
+                $blockerUuid = $kind === 'milestone' ? ($msMap[$key] ?? null) : ($taskMap[$key] ?? null);
+                if ($blockerUuid !== null && isset($taskMap[(string) $t['tkey']])) {
+                    $this->platformTasks()->addDependency($taskMap[(string) $t['tkey']], $kind . ':' . $blockerUuid, $actor);
                 }
             }
-            $this->store->update('projects', $projectUuid, static function (array $row) use ($templateUuid, $version): array {
-                $row['template_uuid']    = $templateUuid;
-                $row['template_version'] = (int) $version['version'];
-                $row['updated_at']       = Clock::nowIso();
+        }
+        $this->store->update('projects', $projectUuid, static function (array $row) use ($templateUuid, $version): array {
+            $row['template_uuid']    = $templateUuid;
+            $row['template_version'] = (int) $version['version'];
+            $row['updated_at']       = Clock::nowIso();
 
-                return $row;
-            });
-
-            return ['milestones' => count($msMap), 'tasks' => count($taskMap), 'version' => (int) $version['version']];
+            return $row;
         });
+
+        return ['milestones' => count($msMap), 'tasks' => count($taskMap), 'version' => (int) $version['version']];
     }
 
     // ==================================================================
@@ -314,63 +351,72 @@ final class ProjectTemplates
 
     private function platformMilestones(): Milestones
     {
-        return new Milestones($this->db, $this->store);
+        return new Milestones($this->store);
     }
 
     private function platformTasks(): ProjectTasks
     {
-        return new ProjectTasks($this->db, $this->store);
+        return new ProjectTasks($this->store);
     }
 
-    private function insertVersion(Database $db, string $templateUuid, int $version, string $status, string $notes, string $now): string
+    private function slugTaken(string $slug): bool
     {
-        $uuid = Uuid::v4();
-        $db->run(
-            'INSERT INTO project_template_versions (uuid, template_uuid, version, status, notes, published_at, created_at)
-             VALUES (:uuid, :t, :v, :status, :notes, :pub, :now)',
-            ['uuid' => $uuid, 't' => $templateUuid, 'v' => $version, 'status' => $status, 'notes' => $notes, 'pub' => $status === 'published' ? $now : null, 'now' => $now]
-        );
+        foreach ($this->store->all(self::COLLECTION) as $t) {
+            if ((string) ($t['slug'] ?? '') === $slug) {
+                return true;
+            }
+        }
 
-        return $uuid;
+        return false;
     }
 
-    /** @param array<string,mixed> $def */
-    private function writeRows(Database $db, string $versionUuid, array $def): void
+    /**
+     * Build a frozen version record (its milestones/tasks embedded).
+     *
+     * @param array<string,mixed> $def
+     * @return array<string,mixed>
+     */
+    private function buildVersion(int $version, string $status, string $notes, string $now, array $def): array
     {
-        $now = Clock::nowIso();
+        $milestones = [];
         $order = 0;
         foreach (is_array($def['milestones'] ?? null) ? $def['milestones'] : [] as $m) {
             if (!is_array($m)) {
                 continue;
             }
-            $db->run(
-                'INSERT INTO project_template_milestones (uuid, version_uuid, tkey, title, description, due_anchor, due_offset, client_visible, sort_order, blocked_by, is_approval, created_at)
-                 VALUES (:uuid, :v, :tkey, :title, :desc, :anchor, :offset, :cv, :order, :blocked, :appr, :now)',
-                [
-                    'uuid' => Uuid::v4(), 'v' => $versionUuid, 'tkey' => (string) ($m['key'] ?? ('ms' . $order)), 'title' => (string) ($m['title'] ?? ''),
-                    'desc' => (string) ($m['description'] ?? ''), 'anchor' => in_array((string) ($m['anchor'] ?? 'project_start'), ['project_start', 'project_target'], true) ? (string) ($m['anchor'] ?? 'project_start') : 'project_start',
-                    'offset' => (int) ($m['offset'] ?? 0), 'cv' => array_key_exists('client_visible', $m) ? (!empty($m['client_visible']) ? 1 : 0) : 1,
-                    'order' => $order++, 'blocked' => implode(',', is_array($m['blocked_by'] ?? null) ? $m['blocked_by'] : []), 'appr' => !empty($m['is_approval']) ? 1 : 0, 'now' => $now,
-                ]
-            );
+            $milestones[] = [
+                'uuid' => Uuid::v4(), 'tkey' => (string) ($m['key'] ?? ('ms' . $order)), 'title' => (string) ($m['title'] ?? ''),
+                'description' => (string) ($m['description'] ?? ''),
+                'due_anchor' => in_array((string) ($m['anchor'] ?? 'project_start'), ['project_start', 'project_target'], true) ? (string) ($m['anchor'] ?? 'project_start') : 'project_start',
+                'due_offset' => (int) ($m['offset'] ?? 0), 'client_visible' => array_key_exists('client_visible', $m) ? (!empty($m['client_visible']) ? 1 : 0) : 1,
+                'sort_order' => $order++, 'blocked_by' => implode(',', is_array($m['blocked_by'] ?? null) ? $m['blocked_by'] : []), 'is_approval' => !empty($m['is_approval']) ? 1 : 0,
+            ];
         }
+        $tasks = [];
         $order = 0;
         foreach (is_array($def['tasks'] ?? null) ? $def['tasks'] : [] as $t) {
             if (!is_array($t)) {
                 continue;
             }
-            $db->run(
-                'INSERT INTO project_template_tasks (uuid, version_uuid, tkey, milestone_key, title, description, due_anchor, due_offset, estimate_seconds, client_visible, sort_order, blocked_by, created_at)
-                 VALUES (:uuid, :v, :tkey, :mkey, :title, :desc, :anchor, :offset, :est, :cv, :order, :blocked, :now)',
-                [
-                    'uuid' => Uuid::v4(), 'v' => $versionUuid, 'tkey' => (string) ($t['key'] ?? ('task' . $order)), 'mkey' => (string) ($t['milestone'] ?? ''),
-                    'title' => (string) ($t['title'] ?? ''), 'desc' => (string) ($t['description'] ?? ''),
-                    'anchor' => in_array((string) ($t['anchor'] ?? 'project_start'), ['project_start', 'project_target'], true) ? (string) ($t['anchor'] ?? 'project_start') : 'project_start',
-                    'offset' => (int) ($t['offset'] ?? 0), 'est' => (int) ($t['estimate_seconds'] ?? 0),
-                    'cv' => !empty($t['client_visible']) ? 1 : 0, 'order' => $order++, 'blocked' => implode(',', is_array($t['blocked_by'] ?? null) ? $t['blocked_by'] : []), 'now' => $now,
-                ]
-            );
+            $tasks[] = [
+                'uuid' => Uuid::v4(), 'tkey' => (string) ($t['key'] ?? ('task' . $order)), 'milestone_key' => (string) ($t['milestone'] ?? ''),
+                'title' => (string) ($t['title'] ?? ''), 'description' => (string) ($t['description'] ?? ''),
+                'due_anchor' => in_array((string) ($t['anchor'] ?? 'project_start'), ['project_start', 'project_target'], true) ? (string) ($t['anchor'] ?? 'project_start') : 'project_start',
+                'due_offset' => (int) ($t['offset'] ?? 0), 'estimate_seconds' => (int) ($t['estimate_seconds'] ?? 0),
+                'client_visible' => !empty($t['client_visible']) ? 1 : 0, 'sort_order' => $order++, 'blocked_by' => implode(',', is_array($t['blocked_by'] ?? null) ? $t['blocked_by'] : []),
+            ];
         }
+
+        return [
+            'uuid'         => Uuid::v4(),
+            'version'      => $version,
+            'status'       => $status,
+            'notes'        => $notes,
+            'published_at' => $status === 'published' ? $now : null,
+            'created_at'   => $now,
+            'milestones'   => $milestones,
+            'tasks'        => $tasks,
+        ];
     }
 
     /**

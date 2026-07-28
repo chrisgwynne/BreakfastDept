@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Breakfast\Platform\Portal;
 
 use Breakfast\Platform\Support\Clock;
-use Breakfast\Platform\Support\Database;
 use Breakfast\Platform\Support\FileStore;
 use Breakfast\Platform\Support\Platform;
 use Breakfast\Platform\Support\Uuid;
@@ -35,11 +34,6 @@ final class Portal
     public function __construct(
         private readonly Platform $platform,
     ) {
-    }
-
-    private function db(): Database
-    {
-        return $this->platform->db();
     }
 
     private function store(): FileStore
@@ -433,15 +427,13 @@ final class Portal
         if ($project === null || (string) $project['status'] === 'archived') {
             throw new PortalException(404, 'Project not found.');
         }
-        // Milestones + delivery tasks are still database-backed.
-        $milestones = $this->db()->all(
-            "SELECT uuid, title, status, due_date FROM milestones WHERE project_uuid = :p AND client_visible = 1 AND status <> 'cancelled' ORDER BY sort_order ASC",
-            ['p' => $projectUuid]
-        );
-        $tasks = $this->db()->all(
-            "SELECT uuid, title, status, milestone_uuid FROM project_tasks WHERE project_uuid = :p AND client_visible = 1 AND status <> 'cancelled' ORDER BY sort_order ASC",
-            ['p' => $projectUuid]
-        );
+        // Client-visible, non-cancelled milestones + delivery tasks (flat-file).
+        $milestones = array_map(static fn (array $m): array => [
+            'uuid' => (string) $m['uuid'], 'title' => (string) $m['title'], 'status' => (string) $m['status'], 'due_date' => $m['due_date'] ?? null,
+        ], array_values(array_filter($this->platform->milestones()->forProject($projectUuid), static fn (array $m): bool => (int) ($m['client_visible'] ?? 0) === 1 && (string) ($m['status'] ?? '') !== 'cancelled')));
+        $tasks = array_map(static fn (array $t): array => [
+            'uuid' => (string) $t['uuid'], 'title' => (string) $t['title'], 'status' => (string) $t['status'], 'milestone_uuid' => $t['milestone_uuid'] ?? null,
+        ], array_values(array_filter($this->platform->projectTasks()->forProject($projectUuid), static fn (array $t): bool => (int) ($t['client_visible'] ?? 0) === 1 && (string) ($t['status'] ?? '') !== 'cancelled')));
         $files = array_values(array_filter(
             $this->platform->files()->list(['project_uuid' => $projectUuid]),
             static fn (array $f): bool => (int) ($f['client_visible'] ?? 0) === 1

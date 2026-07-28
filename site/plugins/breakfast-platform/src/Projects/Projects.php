@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Breakfast\Platform\Projects;
 
 use Breakfast\Platform\Support\Clock;
-use Breakfast\Platform\Support\Database;
 use Breakfast\Platform\Support\FileStore;
 use Breakfast\Platform\Support\Uuid;
 
@@ -54,7 +53,6 @@ final class Projects
     ];
 
     public function __construct(
-        private readonly Database $db,
         private readonly FileStore $store,
     ) {
     }
@@ -563,23 +561,33 @@ final class Projects
         $r['paid_value']     = $paid;
         $r['tags']           = is_array($r['tags'] ?? null) ? array_values(array_map(static fn ($t): string => (string) $t, $r['tags'])) : [];
 
-        // Real progress, derived from delivery tasks/milestones (still database-
-        // backed) — never a typed vanity percentage.
-        $tasks = $this->db->one(
-            "SELECT COUNT(*) AS total, COALESCE(SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END),0) AS done
-             FROM project_tasks WHERE project_uuid = :u AND archived = 0 AND status <> 'cancelled'",
-            ['u' => $uuid]
-        ) ?? ['total' => 0, 'done' => 0];
-        $ms = $this->db->one(
-            "SELECT COUNT(*) AS total, COALESCE(SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END),0) AS done
-             FROM milestones WHERE project_uuid = :u AND status <> 'cancelled'",
-            ['u' => $uuid]
-        ) ?? ['total' => 0, 'done' => 0];
-        $r['tasks_total']       = (int) $tasks['total'];
-        $r['tasks_completed']   = (int) $tasks['done'];
-        $r['milestones_total']  = (int) $ms['total'];
-        $r['milestones_done']   = (int) $ms['done'];
-        $r['progress_percent']  = (int) $tasks['total'] > 0 ? (int) round((int) $tasks['done'] / (int) $tasks['total'] * 100) : 0;
+        // Real progress, derived from delivery tasks/milestones (flat-file) —
+        // never a typed vanity percentage.
+        $tasksTotal = 0;
+        $tasksDone  = 0;
+        foreach ($this->store->all('project_tasks') as $t) {
+            if ((string) ($t['project_uuid'] ?? '') === $uuid && (int) ($t['archived'] ?? 0) === 0 && (string) ($t['status'] ?? '') !== 'cancelled') {
+                $tasksTotal++;
+                if ((string) ($t['status'] ?? '') === 'completed') {
+                    $tasksDone++;
+                }
+            }
+        }
+        $msTotal = 0;
+        $msDone  = 0;
+        foreach ($this->store->all('milestones') as $m) {
+            if ((string) ($m['project_uuid'] ?? '') === $uuid && (string) ($m['status'] ?? '') !== 'cancelled') {
+                $msTotal++;
+                if ((string) ($m['status'] ?? '') === 'completed') {
+                    $msDone++;
+                }
+            }
+        }
+        $r['tasks_total']       = $tasksTotal;
+        $r['tasks_completed']   = $tasksDone;
+        $r['milestones_total']  = $msTotal;
+        $r['milestones_done']   = $msDone;
+        $r['progress_percent']  = $tasksTotal > 0 ? (int) round($tasksDone / $tasksTotal * 100) : 0;
         // Live awaiting-client seconds include the currently-open window.
         $open = 0;
         if (!empty($r['awaiting_since'])) {

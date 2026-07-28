@@ -217,7 +217,7 @@ final class Platform
 
     public function projects(): \Breakfast\Platform\Projects\Projects
     {
-        return $this->service(\Breakfast\Platform\Projects\Projects::class, fn () => new \Breakfast\Platform\Projects\Projects($this->db(), $this->fileStore()));
+        return $this->service(\Breakfast\Platform\Projects\Projects::class, fn () => new \Breakfast\Platform\Projects\Projects($this->fileStore()));
     }
 
     public function projectConversion(): \Breakfast\Platform\Projects\ProjectConversion
@@ -227,7 +227,7 @@ final class Platform
 
     public function projectTemplates(): \Breakfast\Platform\Projects\ProjectTemplates
     {
-        return $this->service(\Breakfast\Platform\Projects\ProjectTemplates::class, fn () => new \Breakfast\Platform\Projects\ProjectTemplates($this->db(), $this->fileStore()));
+        return $this->service(\Breakfast\Platform\Projects\ProjectTemplates::class, fn () => new \Breakfast\Platform\Projects\ProjectTemplates($this->fileStore()));
     }
 
     // The portfolio is flat-file Kirby content (content/1_work/*), not a database
@@ -262,12 +262,12 @@ final class Platform
 
     public function milestones(): \Breakfast\Platform\Projects\Milestones
     {
-        return $this->service(\Breakfast\Platform\Projects\Milestones::class, fn () => new \Breakfast\Platform\Projects\Milestones($this->db(), $this->fileStore()));
+        return $this->service(\Breakfast\Platform\Projects\Milestones::class, fn () => new \Breakfast\Platform\Projects\Milestones($this->fileStore()));
     }
 
     public function projectTasks(): \Breakfast\Platform\Projects\ProjectTasks
     {
-        return $this->service(\Breakfast\Platform\Projects\ProjectTasks::class, fn () => new \Breakfast\Platform\Projects\ProjectTasks($this->db(), $this->fileStore()));
+        return $this->service(\Breakfast\Platform\Projects\ProjectTasks::class, fn () => new \Breakfast\Platform\Projects\ProjectTasks($this->fileStore()));
     }
 
     public function changeRequests(): \Breakfast\Platform\ChangeRequests\ChangeRequests
