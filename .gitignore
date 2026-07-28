@@ -26,6 +26,8 @@
 /storage/uploads/*
 /storage/queue/*
 /storage/client-previews/*
+# Secure portfolio originals (regenerated from committed seed assets / uploads).
+/storage/portfolio/*
 # Kirby writes sessions/accounts under site/ when those roots aren't relocated.
 /site/sessions/*
 /site/accounts/*
