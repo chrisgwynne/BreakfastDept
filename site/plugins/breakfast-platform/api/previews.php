@@ -88,22 +88,17 @@ return [
             $days    = (int) ($p->previewConfig()['defaultExpiryDays'] ?? 30);
             $expires = $days > 0 ? \Breakfast\Platform\Support\Clock::now()->modify('+' . $days . ' days')->format('c') : null;
 
-            try {
-                $preview = $p->previews()->create([
-                    'name'                => (string) get('name', 'Untitled preview'),
-                    'client_display_name' => get('client_display_name'),
-                    'public_slug'         => $slug,
-                    'contact_uuid'        => get('contact_uuid'),
-                    'company_uuid'        => get('company_uuid'),
-                    'opportunity_uuid'    => get('opportunity_uuid'),
-                    'note'                => get('note'),
-                    'expires_at'          => $expires,
-                    'created_by'          => $actor(),
-                ]);
-            } catch (\PDOException) {
-                // Lost a race on the slug's UNIQUE index — return a clean error.
-                return ['status' => 'error', 'error' => 'slug_taken'];
-            }
+            $preview = $p->previews()->create([
+                'name'                => (string) get('name', 'Untitled preview'),
+                'client_display_name' => get('client_display_name'),
+                'public_slug'         => $slug,
+                'contact_uuid'        => get('contact_uuid'),
+                'company_uuid'        => get('company_uuid'),
+                'opportunity_uuid'    => get('opportunity_uuid'),
+                'note'                => get('note'),
+                'expires_at'          => $expires,
+                'created_by'          => $actor(),
+            ]);
             $p->audit()->event('preview.create', 'preview', (string) $preview['uuid'], $actor(), ['slug' => $slug]);
 
             return ['data' => $preview];
@@ -190,15 +185,11 @@ return [
             if ($p->previews()->slugTaken($slug, $uuid)) {
                 return ['status' => 'error', 'error' => 'slug_taken'];
             }
-            try {
-                $updated = $p->previews()->update($uuid, [
-                    'previous_slug' => (string) $preview['public_slug'],
-                    'public_slug'   => $slug,
-                    'updated_by'    => $actor(),
-                ]);
-            } catch (\PDOException) {
-                return ['status' => 'error', 'error' => 'slug_taken'];
-            }
+            $updated = $p->previews()->update($uuid, [
+                'previous_slug' => (string) $preview['public_slug'],
+                'public_slug'   => $slug,
+                'updated_by'    => $actor(),
+            ]);
             $p->audit()->event('preview.slug', 'preview', $uuid, $actor(), ['from' => $preview['public_slug'], 'to' => $slug]);
 
             return ['data' => $updated];
