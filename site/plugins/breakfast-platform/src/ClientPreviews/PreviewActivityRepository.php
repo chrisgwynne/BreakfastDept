@@ -4,20 +4,28 @@ declare(strict_types=1);
 
 namespace Breakfast\Platform\ClientPreviews;
 
-use Breakfast\Platform\Crm\Repository;
 use Breakfast\Platform\Security\Hash;
+use Breakfast\Platform\Support\FileRepository;
 use Breakfast\Platform\Support\Uuid;
 
 /**
- * Privacy-conscious access + form persistence for Client Previews.
+ * Privacy-conscious access + form persistence for Client Previews, stored as
+ * flat files.
  *
  * Access events store ONLY keyed hashes (never raw IPs or user agents), a coarse
  * referer host and a sanitised path. Retention is enforced by the cleanup
  * service. Form submissions are always flagged as test leads and are bulk
  * deletable per preview.
  */
-final class PreviewActivityRepository extends Repository
+final class PreviewActivityRepository extends FileRepository
 {
+    private const SUBMISSIONS = 'preview_form_submissions';
+
+    protected function collection(): string
+    {
+        return 'preview_access_events';
+    }
+
     /**
      * Record one access event. `$ip`/`$ua` are hashed with the server key here
      * and never persisted in the clear.
@@ -33,26 +41,19 @@ final class PreviewActivityRepository extends Repository
         ?string $refererHost,
         ?string $correlatorSeed = null
     ): void {
-        $this->db->run(
-            'INSERT INTO preview_access_events
-                (preview_uuid, version_uuid, event_type, path, status_code,
-                 ip_hash, ua_hash, referer_host, correlator, occurred_at)
-             VALUES
-                (:preview, :version, :type, :path, :code,
-                 :ip, :ua, :ref, :corr, :now)',
-            [
-                'preview' => $previewUuid,
-                'version' => $versionUuid,
-                'type'    => $eventType,
-                'path'    => $path !== null ? mb_substr($path, 0, 512) : null,
-                'code'    => $statusCode,
-                'ip'      => $ip !== null && $ip !== '' ? Hash::ip($ip) : null,
-                'ua'      => $ua !== null && $ua !== '' ? substr(Hash::correlator($ua), 0, 32) : null,
-                'ref'     => $refererHost !== null ? mb_substr($refererHost, 0, 255) : null,
-                'corr'    => $correlatorSeed !== null && $correlatorSeed !== '' ? Hash::correlator($correlatorSeed) : null,
-                'now'     => $this->now(),
-            ]
-        );
+        $this->persist([
+            'uuid'         => Uuid::v4(),
+            'preview_uuid' => $previewUuid,
+            'version_uuid' => $versionUuid,
+            'event_type'   => $eventType,
+            'path'         => $path !== null ? mb_substr($path, 0, 512) : null,
+            'status_code'  => $statusCode,
+            'ip_hash'      => $ip !== null && $ip !== '' ? Hash::ip($ip) : null,
+            'ua_hash'      => $ua !== null && $ua !== '' ? substr(Hash::correlator($ua), 0, 32) : null,
+            'referer_host' => $refererHost !== null ? mb_substr($refererHost, 0, 255) : null,
+            'correlator'   => $correlatorSeed !== null && $correlatorSeed !== '' ? Hash::correlator($correlatorSeed) : null,
+            'occurred_at'  => $this->now(),
+        ]);
     }
 
     /**
@@ -64,32 +65,44 @@ final class PreviewActivityRepository extends Repository
      */
     public function summary(string $previewUuid): array
     {
-        $views = (int) $this->db->scalar(
-            "SELECT COUNT(*) FROM preview_access_events WHERE preview_uuid = :p AND event_type = 'view'",
-            ['p' => $previewUuid]
+        $events = array_filter(
+            $this->records(),
+            static fn (array $r): bool => (string) ($r['preview_uuid'] ?? '') === $previewUuid
         );
-        $uniques = (int) $this->db->scalar(
-            "SELECT COUNT(DISTINCT ip_hash) FROM preview_access_events
-             WHERE preview_uuid = :p AND event_type = 'view' AND ip_hash IS NOT NULL",
-            ['p' => $previewUuid]
-        );
-        $passwordFailures = (int) $this->db->scalar(
-            "SELECT COUNT(*) FROM preview_access_events WHERE preview_uuid = :p AND event_type = 'password_failure'",
-            ['p' => $previewUuid]
-        );
+
+        $views    = 0;
+        $failures = 0;
+        $ipHashes = [];
+        foreach ($events as $e) {
+            $type = (string) ($e['event_type'] ?? '');
+            if ($type === 'view') {
+                $views++;
+                if (($e['ip_hash'] ?? null) !== null) {
+                    $ipHashes[(string) $e['ip_hash']] = true;
+                }
+            } elseif ($type === 'password_failure') {
+                $failures++;
+            }
+        }
 
         return [
             'views'             => $views,
-            'approx_visitors'   => $uniques,
-            'password_failures' => $passwordFailures,
+            'approx_visitors'   => count($ipHashes),
+            'password_failures' => $failures,
         ];
     }
 
     public function pruneAccessBefore(string $iso): int
     {
-        $stmt = $this->db->run('DELETE FROM preview_access_events WHERE occurred_at < :cut', ['cut' => $iso]);
+        $pruned = 0;
+        foreach ($this->records() as $row) {
+            if ((string) ($row['occurred_at'] ?? '') < $iso) {
+                $this->store->delete($this->collection(), (string) ($row['uuid'] ?? ''));
+                $pruned++;
+            }
+        }
 
-        return $stmt->rowCount();
+        return $pruned;
     }
 
     /**
@@ -100,26 +113,16 @@ final class PreviewActivityRepository extends Repository
      */
     public function recordSubmission(string $previewUuid, string $name, string $email, string $message, ?string $ip): array
     {
-        $uuid = Uuid::v4();
-        $this->db->run(
-            'INSERT INTO preview_form_submissions
-                (uuid, preview_uuid, name, email, message, is_test_lead, ip_hash, created_at)
-             VALUES (:uuid, :preview, :name, :email, :message, 1, :ip, :now)',
-            [
-                'uuid'    => $uuid,
-                'preview' => $previewUuid,
-                'name'    => mb_substr($name, 0, 200),
-                'email'   => mb_substr($email, 0, 255),
-                'message' => mb_substr($message, 0, 2000),
-                'ip'      => $ip !== null && $ip !== '' ? Hash::ip($ip) : null,
-                'now'     => $this->now(),
-            ]
-        );
-
-        /** @var array<string,mixed> $row */
-        $row = $this->db->one('SELECT * FROM preview_form_submissions WHERE uuid = :u', ['u' => $uuid]) ?? [];
-
-        return $row;
+        return $this->store->put(self::SUBMISSIONS, [
+            'uuid'         => Uuid::v4(),
+            'preview_uuid' => $previewUuid,
+            'name'         => mb_substr($name, 0, 200),
+            'email'        => mb_substr($email, 0, 255),
+            'message'      => mb_substr($message, 0, 2000),
+            'is_test_lead' => 1,
+            'ip_hash'      => $ip !== null && $ip !== '' ? Hash::ip($ip) : null,
+            'created_at'   => $this->now(),
+        ]);
     }
 
     /**
@@ -127,14 +130,31 @@ final class PreviewActivityRepository extends Repository
      */
     public function submissions(string $previewUuid): array
     {
-        return $this->db->all(
-            'SELECT * FROM preview_form_submissions WHERE preview_uuid = :p ORDER BY created_at DESC',
-            ['p' => $previewUuid]
-        );
+        $rows = array_values(array_filter(
+            $this->store->all(self::SUBMISSIONS),
+            static fn (array $r): bool => (string) ($r['preview_uuid'] ?? '') === $previewUuid
+        ));
+        usort($rows, static fn ($a, $b) => strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? '')));
+
+        return $rows;
+    }
+
+    /** Remove all access events for a preview (used when the preview is deleted). */
+    public function deleteAccessFor(string $previewUuid): void
+    {
+        foreach ($this->records() as $row) {
+            if ((string) ($row['preview_uuid'] ?? '') === $previewUuid) {
+                $this->store->delete($this->collection(), (string) ($row['uuid'] ?? ''));
+            }
+        }
     }
 
     public function deleteSubmissions(string $previewUuid): void
     {
-        $this->db->run('DELETE FROM preview_form_submissions WHERE preview_uuid = :p', ['p' => $previewUuid]);
+        foreach ($this->store->all(self::SUBMISSIONS) as $row) {
+            if ((string) ($row['preview_uuid'] ?? '') === $previewUuid) {
+                $this->store->delete(self::SUBMISSIONS, (string) ($row['uuid'] ?? ''));
+            }
+        }
     }
 }

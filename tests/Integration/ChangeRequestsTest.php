@@ -6,7 +6,6 @@ namespace Breakfast\Tests\Integration;
 
 use Breakfast\Platform\ChangeRequests\ChangeRequestException;
 use Breakfast\Platform\ChangeRequests\ChangeRequests;
-use Breakfast\Platform\Support\Database;
 use Breakfast\Platform\Support\Platform;
 use Kirby\Cms\App;
 use PHPUnit\Framework\TestCase;
@@ -32,9 +31,7 @@ final class ChangeRequestsTest extends TestCase
         parent::setUp();
         $base = dirname(__DIR__, 2);
         $this->tmp = sys_get_temp_dir() . '/bf-cr-' . bin2hex(random_bytes(6));
-        @mkdir($this->tmp . '/database', 0777, true);
 
-        Database::reset();
         Platform::reset();
 
         $this->kirby = new App([
@@ -47,9 +44,8 @@ final class ChangeRequestsTest extends TestCase
                 'sessions' => $this->tmp . '/sessions',
                 'accounts' => $this->tmp . '/accounts',
             ],
-            'options' => ['debug' => false, 'whoops' => false, 'breakfast' => ['production' => false, 'storageDir' => $this->tmp, 'dbPath' => $this->tmp . '/database/crm.sqlite', 'mail' => ['provider' => 'fake']]],
+            'options' => ['debug' => false, 'whoops' => false, 'breakfast' => ['production' => false, 'storageDir' => $this->tmp, 'mail' => ['provider' => 'fake']]],
         ]);
-        breakfast()->migrator()->migrate();
         $this->svc = breakfast()->changeRequests();
         $project = breakfast()->projects()->create(['name' => 'Roberts Cafe website', 'quoted_value' => 3000], 'staff@breakfast');
         $this->projectUuid = (string) $project['uuid'];
@@ -57,7 +53,6 @@ final class ChangeRequestsTest extends TestCase
 
     protected function tearDown(): void
     {
-        Database::reset();
         Platform::reset();
         $this->rrmdir($this->tmp);
         App::destroy();
@@ -138,7 +133,7 @@ final class ChangeRequestsTest extends TestCase
         $this->assertSame('%PDF', substr($doc['bytes'], 0, 4));
 
         // A version row was frozen.
-        $versions = breakfast()->db()->all('SELECT * FROM change_request_versions WHERE change_request_uuid = :u', ['u' => (string) $sent['uuid']]);
+        $versions = breakfast()->fileStore()->find('change_requests', (string) $sent['uuid'])['versions'] ?? [];
         $this->assertCount(1, $versions);
     }
 
@@ -213,8 +208,8 @@ final class ChangeRequestsTest extends TestCase
         $this->assertSame($approvedTotal, (int) $inv['total']);
 
         // The generated task links back deterministically.
-        $link = breakfast()->db()->one('SELECT source_ref FROM change_request_task_links WHERE change_request_uuid = :u', ['u' => (string) $cr['uuid']]);
-        $this->assertStringContainsString('change_request:' . (string) $cr['uuid'] . ':0', (string) $link['source_ref']);
+        $links = breakfast()->fileStore()->find('change_requests', (string) $cr['uuid'])['task_links'] ?? [];
+        $this->assertStringContainsString('change_request:' . (string) $cr['uuid'] . ':0', (string) ($links[0]['source_ref'] ?? ''));
     }
 
     public function testApplyIsIdempotent(): void

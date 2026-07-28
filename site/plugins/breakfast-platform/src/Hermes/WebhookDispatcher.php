@@ -6,7 +6,7 @@ namespace Breakfast\Platform\Hermes;
 
 use Breakfast\Platform\Queue\Queue;
 use Breakfast\Platform\Support\Clock;
-use Breakfast\Platform\Support\Database;
+use Breakfast\Platform\Support\FileStore;
 use Breakfast\Platform\Support\Uuid;
 
 /**
@@ -54,7 +54,7 @@ final class WebhookDispatcher
     private static mixed $httpClient = null;
 
     public function __construct(
-        private readonly Database $db,
+        private readonly FileStore $store,
         private readonly Queue $queue,
         private readonly string $signingSecret
     ) {
@@ -78,21 +78,20 @@ final class WebhookDispatcher
             ];
 
             $deliveryUuid = Uuid::v4();
-            $this->db->run(
-                'INSERT INTO webhook_deliveries
-                    (uuid, endpoint_uuid, event_uuid, event_type, schema_version, payload, status, attempts, created_at)
-                 VALUES (:uuid, :endpoint, :event, :type, :ver, :payload, :status, 0, :created)',
-                [
-                    'uuid'     => $deliveryUuid,
-                    'endpoint' => $endpoint['uuid'],
-                    'event'    => $eventUuid,
-                    'type'     => $eventType,
-                    'ver'      => self::SCHEMA_VERSION,
-                    'payload'  => json_encode($payload, JSON_UNESCAPED_SLASHES) ?: '{}',
-                    'status'   => 'pending',
-                    'created'  => Clock::nowIso(),
-                ]
-            );
+            $this->store->put('webhook_deliveries', [
+                'uuid'           => $deliveryUuid,
+                'endpoint_uuid'  => $endpoint['uuid'],
+                'event_uuid'     => $eventUuid,
+                'event_type'     => $eventType,
+                'schema_version' => self::SCHEMA_VERSION,
+                'payload'        => json_encode($payload, JSON_UNESCAPED_SLASHES) ?: '{}',
+                'status'         => 'pending',
+                'attempts'       => 0,
+                'response_code'  => null,
+                'last_error'     => null,
+                'delivered_at'   => null,
+                'created_at'     => Clock::nowIso(),
+            ]);
 
             // Enqueue — delivery happens in the worker, never in this request.
             $this->queue->push('webhook.deliver', ['delivery_uuid' => $deliveryUuid], 'webhook:' . $deliveryUuid);
@@ -105,18 +104,20 @@ final class WebhookDispatcher
      */
     public function deliver(string $deliveryUuid): void
     {
-        $delivery = $this->db->one('SELECT * FROM webhook_deliveries WHERE uuid = :u', ['u' => $deliveryUuid]);
+        $delivery = $this->store->find('webhook_deliveries', $deliveryUuid);
 
-        if ($delivery === null || $delivery['status'] === 'delivered') {
+        if ($delivery === null || ($delivery['status'] ?? '') === 'delivered') {
             return;
         }
 
-        $endpoint = $this->db->one('SELECT * FROM webhook_endpoints WHERE uuid = :u', ['u' => $delivery['endpoint_uuid']]);
-        if ($endpoint === null || (int) $endpoint['active'] !== 1) {
-            $this->db->run(
-                "UPDATE webhook_deliveries SET status = 'failed', last_error = 'endpoint_inactive' WHERE uuid = :u",
-                ['u' => $deliveryUuid]
-            );
+        $endpoint = $this->store->find('webhook_endpoints', (string) $delivery['endpoint_uuid']);
+        if ($endpoint === null || (int) ($endpoint['active'] ?? 0) !== 1) {
+            $this->store->update('webhook_deliveries', $deliveryUuid, static function (array $r): array {
+                $r['status']     = 'failed';
+                $r['last_error'] = 'endpoint_inactive';
+
+                return $r;
+            });
 
             return;
         }
@@ -138,36 +139,44 @@ final class WebhookDispatcher
         $attempts = (int) $delivery['attempts'] + 1;
 
         if ($result['status'] >= 200 && $result['status'] < 300) {
-            $this->db->run(
-                "UPDATE webhook_deliveries SET status = 'delivered', attempts = :a, response_code = :c, delivered_at = :now WHERE uuid = :u",
-                ['a' => $attempts, 'c' => $result['status'], 'now' => Clock::nowIso(), 'u' => $deliveryUuid]
-            );
-            $this->db->run(
-                'UPDATE webhook_endpoints SET consecutive_fails = 0, updated_at = :now WHERE uuid = :u',
-                ['now' => Clock::nowIso(), 'u' => $endpoint['uuid']]
-            );
+            $this->store->update('webhook_deliveries', $deliveryUuid, static function (array $r) use ($attempts, $result): array {
+                $r['status']        = 'delivered';
+                $r['attempts']      = $attempts;
+                $r['response_code'] = $result['status'];
+                $r['delivered_at']  = Clock::nowIso();
+
+                return $r;
+            });
+            $this->store->update('webhook_endpoints', (string) $endpoint['uuid'], static function (array $r): array {
+                $r['consecutive_fails'] = 0;
+                $r['updated_at']        = Clock::nowIso();
+
+                return $r;
+            });
 
             return;
         }
 
         // Record the failed attempt and possibly disable the endpoint.
-        $this->db->run(
-            "UPDATE webhook_deliveries SET attempts = :a, response_code = :c, last_error = :e WHERE uuid = :u",
-            ['a' => $attempts, 'c' => $result['status'] ?: null, 'e' => $result['error'] ?? 'http_error', 'u' => $deliveryUuid]
-        );
+        $this->store->update('webhook_deliveries', $deliveryUuid, static function (array $r) use ($attempts, $result): array {
+            $r['attempts']      = $attempts;
+            $r['response_code'] = $result['status'] ?: null;
+            $r['last_error']    = $result['error'] ?? 'http_error';
 
-        $fails = (int) $endpoint['consecutive_fails'] + 1;
-        if ($fails >= self::DISABLE_AFTER) {
-            $this->db->run(
-                "UPDATE webhook_endpoints SET consecutive_fails = :f, active = 0, disabled_reason = 'repeated_failures', updated_at = :now WHERE uuid = :u",
-                ['f' => $fails, 'now' => Clock::nowIso(), 'u' => $endpoint['uuid']]
-            );
-        } else {
-            $this->db->run(
-                'UPDATE webhook_endpoints SET consecutive_fails = :f, updated_at = :now WHERE uuid = :u',
-                ['f' => $fails, 'now' => Clock::nowIso(), 'u' => $endpoint['uuid']]
-            );
-        }
+            return $r;
+        });
+
+        $fails = (int) ($endpoint['consecutive_fails'] ?? 0) + 1;
+        $this->store->update('webhook_endpoints', (string) $endpoint['uuid'], static function (array $r) use ($fails): array {
+            $r['consecutive_fails'] = $fails;
+            $r['updated_at']        = Clock::nowIso();
+            if ($fails >= self::DISABLE_AFTER) {
+                $r['active']          = 0;
+                $r['disabled_reason'] = 'repeated_failures';
+            }
+
+            return $r;
+        });
 
         // Signal the queue to retry.
         throw new \RuntimeException('Webhook delivery failed: HTTP ' . $result['status']);
@@ -184,17 +193,17 @@ final class WebhookDispatcher
         $uuid = Uuid::v4();
         $now  = Clock::nowIso();
 
-        $this->db->run(
-            'INSERT INTO webhook_endpoints (uuid, label, url, events, active, consecutive_fails, created_at, updated_at)
-             VALUES (:uuid, :label, :url, :events, 1, 0, :now, :now)',
-            [
-                'uuid'   => $uuid,
-                'label'  => $label,
-                'url'    => $url,
-                'events' => json_encode(array_values($events)) ?: '["*"]',
-                'now'    => $now,
-            ]
-        );
+        $this->store->put('webhook_endpoints', [
+            'uuid'              => $uuid,
+            'label'             => $label,
+            'url'               => $url,
+            'events'            => json_encode(array_values($events)) ?: '["*"]',
+            'active'            => 1,
+            'consecutive_fails' => 0,
+            'disabled_reason'   => null,
+            'created_at'        => $now,
+            'updated_at'        => $now,
+        ]);
 
         return $uuid;
     }
@@ -202,10 +211,12 @@ final class WebhookDispatcher
     /** Re-enqueue a delivery for redelivery from the Panel. */
     public function redeliver(string $deliveryUuid): void
     {
-        $this->db->run(
-            "UPDATE webhook_deliveries SET status = 'pending', last_error = NULL WHERE uuid = :u",
-            ['u' => $deliveryUuid]
-        );
+        $this->store->update('webhook_deliveries', $deliveryUuid, static function (array $r): array {
+            $r['status']     = 'pending';
+            $r['last_error'] = null;
+
+            return $r;
+        });
         $this->queue->push('webhook.deliver', ['delivery_uuid' => $deliveryUuid]);
     }
 
@@ -214,7 +225,7 @@ final class WebhookDispatcher
      */
     private function activeEndpointsFor(string $eventType): array
     {
-        $rows = $this->db->all('SELECT * FROM webhook_endpoints WHERE active = 1');
+        $rows = array_filter($this->store->all('webhook_endpoints'), static fn (array $r): bool => (int) ($r['active'] ?? 0) === 1);
         $out  = [];
 
         foreach ($rows as $row) {

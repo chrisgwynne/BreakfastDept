@@ -4,63 +4,60 @@ declare(strict_types=1);
 
 namespace Breakfast\Platform\ClientPreviews;
 
-use Breakfast\Platform\Crm\Repository;
+use Breakfast\Platform\Support\FileRepository;
 use Breakfast\Platform\Support\Uuid;
 
 /**
- * Persistence for `preview_versions` — the immutable, versioned upload history.
- * A preview's current version is published; older ones are superseded and pruned
- * down to a retention cap by the cleanup service.
+ * Flat-file persistence for preview versions — the immutable, versioned upload
+ * history. A preview's current version is published; older ones are superseded
+ * and pruned down to a retention cap by the cleanup service.
  */
-final class PreviewVersionRepository extends Repository
+final class PreviewVersionRepository extends FileRepository
 {
+    /** @var list<string> */
+    private const UPDATABLE = [
+        'state', 'entry_file', 'bytes', 'file_count', 'storage_path',
+        'manifest_path', 'validation_report', 'published_at', 'superseded_at',
+        'archived_at', 'checksum',
+    ];
+
+    protected function collection(): string
+    {
+        return 'preview_versions';
+    }
+
     /**
      * @param array<string,mixed> $data
      * @return array<string,mixed>
      */
     public function create(string $previewUuid, array $data): array
     {
-        $uuid   = Uuid::v4();
-        $number = $this->nextNumber($previewUuid);
-
-        $this->db->run(
-            'INSERT INTO preview_versions
-                (uuid, preview_uuid, version_number, state, entry_file, source_type,
-                 original_filename, checksum, bytes, file_count, storage_path,
-                 manifest_path, validation_report, created_by, created_at)
-             VALUES
-                (:uuid, :preview, :num, :state, :entry, :source,
-                 :orig, :checksum, :bytes, :files, :storage,
-                 :manifest, :report, :by, :now)',
-            [
-                'uuid'     => $uuid,
-                'preview'  => $previewUuid,
-                'num'      => $number,
-                'state'    => (string) ($data['state'] ?? PreviewStatus::V_UPLOADED),
-                'entry'    => (string) ($data['entry_file'] ?? 'index.html'),
-                'source'   => (string) ($data['source_type'] ?? 'zip'),
-                'orig'     => $data['original_filename'] ?? null,
-                'checksum' => $data['checksum'] ?? null,
-                'bytes'    => (int) ($data['bytes'] ?? 0),
-                'files'    => (int) ($data['file_count'] ?? 0),
-                'storage'  => (string) ($data['storage_path'] ?? ''),
-                'manifest' => $data['manifest_path'] ?? null,
-                'report'   => isset($data['validation_report']) ? $this->encodeJson($data['validation_report']) : null,
-                'by'       => $data['created_by'] ?? null,
-                'now'      => $this->now(),
-            ]
-        );
-
-        /** @var array<string,mixed> $row */
-        $row = $this->find($uuid) ?? [];
-
-        return $row;
+        return $this->persist([
+            'uuid'              => Uuid::v4(),
+            'preview_uuid'      => $previewUuid,
+            'version_number'    => $this->nextNumber($previewUuid),
+            'state'             => (string) ($data['state'] ?? PreviewStatus::V_UPLOADED),
+            'entry_file'        => (string) ($data['entry_file'] ?? 'index.html'),
+            'source_type'       => (string) ($data['source_type'] ?? 'zip'),
+            'original_filename' => $data['original_filename'] ?? null,
+            'checksum'          => $data['checksum'] ?? null,
+            'bytes'             => (int) ($data['bytes'] ?? 0),
+            'file_count'        => (int) ($data['file_count'] ?? 0),
+            'storage_path'      => (string) ($data['storage_path'] ?? ''),
+            'manifest_path'     => $data['manifest_path'] ?? null,
+            'validation_report' => is_array($data['validation_report'] ?? null) ? $data['validation_report'] : null,
+            'published_at'      => null,
+            'superseded_at'     => null,
+            'archived_at'       => null,
+            'created_by'        => $data['created_by'] ?? null,
+            'created_at'        => $this->now(),
+        ]);
     }
 
     /** @return array<string,mixed>|null */
     public function find(string $uuid): ?array
     {
-        return $this->db->one('SELECT * FROM preview_versions WHERE uuid = :u', ['u' => $uuid]);
+        return $this->findRecord($uuid);
     }
 
     /**
@@ -68,10 +65,14 @@ final class PreviewVersionRepository extends Repository
      */
     public function forPreview(string $previewUuid): array
     {
-        return $this->db->all(
-            'SELECT * FROM preview_versions WHERE preview_uuid = :p ORDER BY version_number DESC',
-            ['p' => $previewUuid]
-        );
+        $rows = array_values(array_filter(
+            $this->records(),
+            static fn (array $r): bool => (string) ($r['preview_uuid'] ?? '') === $previewUuid
+        ));
+        // Highest version number first.
+        usort($rows, static fn ($a, $b) => (int) ($b['version_number'] ?? 0) <=> (int) ($a['version_number'] ?? 0));
+
+        return $rows;
     }
 
     /**
@@ -79,19 +80,10 @@ final class PreviewVersionRepository extends Repository
      */
     public function update(string $uuid, array $patch): void
     {
-        if (isset($patch['validation_report']) && is_array($patch['validation_report'])) {
-            $patch['validation_report'] = $this->encodeJson($patch['validation_report']);
+        if (array_key_exists('validation_report', $patch) && !is_array($patch['validation_report'])) {
+            $patch['validation_report'] = null;
         }
-        [$set, $params] = $this->assignments($patch, [
-            'state', 'entry_file', 'bytes', 'file_count', 'storage_path',
-            'manifest_path', 'validation_report', 'published_at', 'superseded_at',
-            'archived_at', 'checksum',
-        ]);
-        if ($set === '') {
-            return;
-        }
-        $params['uuid'] = $uuid;
-        $this->db->run('UPDATE preview_versions SET ' . $set . ' WHERE uuid = :uuid', $params);
+        $this->patch($uuid, $patch, self::UPDATABLE);
     }
 
     /**
@@ -99,25 +91,38 @@ final class PreviewVersionRepository extends Repository
      */
     public function supersedeOthers(string $previewUuid, string $keepUuid): void
     {
-        $this->db->run(
-            "UPDATE preview_versions
-             SET state = :superseded, superseded_at = :now
-             WHERE preview_uuid = :p AND uuid != :keep AND state = :published",
-            [
-                'superseded' => PreviewStatus::V_SUPERSEDED,
-                'now'        => $this->now(),
-                'p'          => $previewUuid,
-                'keep'       => $keepUuid,
-                'published'  => PreviewStatus::V_PUBLISHED,
-            ]
-        );
+        $now = $this->now();
+        foreach ($this->records() as $row) {
+            if ((string) ($row['preview_uuid'] ?? '') === $previewUuid
+                && (string) ($row['uuid'] ?? '') !== $keepUuid
+                && (string) ($row['state'] ?? '') === PreviewStatus::V_PUBLISHED) {
+                $this->patch((string) $row['uuid'], [
+                    'state'         => PreviewStatus::V_SUPERSEDED,
+                    'superseded_at' => $now,
+                ], self::UPDATABLE);
+            }
+        }
+    }
+
+    /** Remove every version of a preview (used when the preview is deleted). */
+    public function deleteForPreview(string $previewUuid): void
+    {
+        foreach ($this->records() as $row) {
+            if ((string) ($row['preview_uuid'] ?? '') === $previewUuid) {
+                $this->store->delete($this->collection(), (string) ($row['uuid'] ?? ''));
+            }
+        }
     }
 
     private function nextNumber(string $previewUuid): int
     {
-        return 1 + (int) $this->db->scalar(
-            'SELECT COALESCE(MAX(version_number), 0) FROM preview_versions WHERE preview_uuid = :p',
-            ['p' => $previewUuid]
-        );
+        $max = 0;
+        foreach ($this->records() as $row) {
+            if ((string) ($row['preview_uuid'] ?? '') === $previewUuid) {
+                $max = max($max, (int) ($row['version_number'] ?? 0));
+            }
+        }
+
+        return $max + 1;
     }
 }

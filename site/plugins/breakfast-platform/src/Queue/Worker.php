@@ -25,8 +25,6 @@ final class Worker
      */
     public function runOnce(int $max = 25): int
     {
-        $this->applyPendingMigrations();
-
         $queue     = $this->platform->queue();
         $processed = 0;
 
@@ -73,29 +71,6 @@ final class Worker
         }
     }
 
-    /**
-     * Apply any pending schema migrations before processing jobs.
-     *
-     * The queue only ever runs from the CLI (`queue:run` cron / `queue:work`),
-     * NEVER during a public web request, so this is a safe place to keep the
-     * schema current: a freshly deployed release migrates itself on the next
-     * cron tick with no manual step, while honouring the rule that migrations
-     * never run mid-request. Idempotent — only not-yet-applied migrations run —
-     * and best-effort, so a migration problem is logged but never stops existing
-     * jobs from draining (it is retried on the next tick).
-     */
-    private function applyPendingMigrations(): void
-    {
-        try {
-            $applied = $this->platform->migrator()->migrate();
-            if ($applied !== []) {
-                $this->platform->logger()->info('queue', 'Applied pending migrations', ['ids' => $applied]);
-            }
-        } catch (Throwable $e) {
-            $this->platform->logger()->error('queue', 'Migration on queue run failed', ['error' => $e->getMessage()]);
-        }
-    }
-
     private function handle(Job $job): void
     {
         match ($job->type) {
@@ -122,17 +97,14 @@ final class Worker
     private function housekeeping(): void
     {
         $this->platform->rateLimiter()->prune();
-        (new SubmissionGuard($this->platform->db(), $this->platform->rateLimiter()))->pruneFingerprints();
+        (new SubmissionGuard($this->platform->fileStore(), $this->platform->rateLimiter()))->pruneFingerprints();
         $this->platform->enquiries()->pruneIpHashes(30);
         $this->platform->outbound()->pruneEvents(90);
         $this->platform->audit()->prune(365);
 
         // Client Previews: expire due previews and prune preview access-event
-        // history to its retention window. Guarded so a database predating the
-        // previews migration (0004) never breaks the worker.
-        if ($this->platform->db()->tableExists('client_previews')) {
-            $this->platform->previewExpiry()->expireDue();
-            $this->platform->previewAnalytics()->prune();
-        }
+        // history to its retention window (flat-file store).
+        $this->platform->previewExpiry()->expireDue();
+        $this->platform->previewAnalytics()->prune();
     }
 }

@@ -30,7 +30,6 @@ const nav = [
   { to: '/invoices', name: 'invoices', label: 'Invoices', icon: 'receipt', perm: 'invoices.view' },
   { to: '/vault', name: 'vault', label: 'Vault', icon: 'cog', perm: 'crm.manage' },
   { to: '/email', name: 'email', label: 'Email', icon: 'mail' },
-  { to: '/portfolio', name: 'portfolio', label: 'Portfolio', icon: 'folder', perm: 'portfolio.view' },
   { to: '/website', name: 'website', label: 'Website', icon: 'globe' },
   { to: '/reports', name: 'reports', label: 'Reports', icon: 'chart' },
   { to: '/operations', name: 'operations', label: 'Operations', icon: 'pulse', perm: 'admin' },

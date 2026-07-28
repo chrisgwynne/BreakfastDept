@@ -20,9 +20,9 @@ For hosts where you upload files over FTP and the upload folder is served
 directly as the website (e.g. `public_html/`, which cannot be pointed at a
 `public/` subfolder). You push to `main`; a GitHub Action
 (`.github/workflows/deploy.yml`) installs dependencies **in CI**, assembles a
-ready-to-serve tree and uploads it over FTP. **You never run Composer**, and the
-schema keeps itself up to date. Requires an **Apache** host with `mod_rewrite`
-(standard on shared hosting).
+ready-to-serve tree and uploads it over FTP. **You never run Composer**, and
+there is no database schema to keep in step — all data is flat files. Requires
+an **Apache** host with `mod_rewrite` (standard on shared hosting).
 
 ### One-time setup
 
@@ -52,9 +52,7 @@ schema keeps itself up to date. Requires an **Apache** host with `mod_rewrite`
    of `vendor/`, `site/`, `content/`, `storage/`, `bin/`) from the web.
 
 3. **Add the queue cron** in your host's control panel (cPanel → *Cron Jobs*),
-   running every minute. It sends queued email/webhooks **and applies any
-   pending database migrations** on its next tick, so a deploy needs no manual
-   migrate step:
+   running every minute. It sends queued email/webhooks:
 
    ```cron
    * * * * * cd ~/public_html && /usr/bin/php bin/console queue:run >> storage/logs/queue-cron.log 2>&1
@@ -64,29 +62,29 @@ schema keeps itself up to date. Requires an **Apache** host with `mod_rewrite`
    from [`deploy/cron.example`](../deploy/cron.example).)
 
 4. **First deploy** — push to `main` (or run the *Deploy (FTP)* workflow from the
-   Actions tab). Within a minute the queue cron creates the database schema
-   automatically; if you want it ready instantly, run `php bin/console migrate`
-   once in the host terminal.
+   Actions tab). There is no schema to create: the flat-file store lives under
+   `storage/data/` and is created on first write, so the admin works the moment
+   the files land.
 
 ### Every deploy after that
 
 Just push to `main` (or merge a PR). The Action rebuilds and re-uploads. Code,
-content and template changes are live immediately; a release that adds a
-migration is applied by the queue cron within a minute. Your database, uploads,
-Panel accounts, generated media and `.env` are all left untouched.
+content and template changes are live immediately. There is no migration step —
+all data is flat files. Your `storage/` data tree, uploads, Panel accounts,
+generated media and `.env` are all left untouched.
 
 ### Rollback
 
 Re-run an earlier successful *Deploy (FTP)* run from the Actions tab, or push a
-revert commit — either way the previous file set is re-uploaded. Because
-migrations are forward-only, keep a database backup before deploys that change
-the schema (see [backups.md](backups.md)).
+revert commit — either way the previous file set is re-uploaded. Keep a recent
+`storage/` backup before any deploy so you can roll data back if needed (see
+[backups.md](backups.md)).
 
 ## Requirements
 
-- PHP **8.3+** with `pdo_sqlite`, `mbstring`, `gd` (or `imagick`), `dom` and
-  `curl`; `intl` and `fileinfo` are also used. `curl` is required for Brevo and
-  outbound webhooks.
+- PHP **8.3+** with `mbstring`, `gd` (or `imagick`), `dom` and `curl`; `intl` and
+  `fileinfo` are also used. `curl` is required for Brevo and outbound webhooks.
+  No database extension is needed — all data is flat files.
 - Composer (for the build step).
 - HTTPS (a valid certificate). Production cookies, HSTS and the Brevo webhook
   all assume TLS.
@@ -105,12 +103,10 @@ The example server, cron and worker configs referenced throughout live under
 Work top to bottom for a fresh production deploy; each item is expanded in a
 section below or in the linked document.
 
-- [ ] **PHP 8.3+** with `pdo_sqlite`, `mbstring`, `gd`, `dom`, `curl` (+ `intl`,
-      `fileinfo`).
+- [ ] **PHP 8.3+** with `mbstring`, `gd`, `dom`, `curl` (+ `intl`,
+      `fileinfo`). No database extension is needed.
 - [ ] Web server **docroot points at `public/`**; everything else is above it.
 - [ ] **Environment / `.env`** provided and not web-readable (see below).
-- [ ] **SQLite path** `storage/database/crm.sqlite` (outside the docroot,
-      `CRM_DB_PATH`).
 - [ ] **Backup path** chosen and a pre-deploy backup taken — see
       [backups.md](backups.md).
 - [ ] **Directory permissions** applied — `bash deploy/permissions.sh.example`
@@ -124,7 +120,6 @@ section below or in the linked document.
       webhook registered — see "Brevo setup" below.
 - [ ] **Hermes** credentials configured **only if used** (`HERMES_ENABLED=true`,
       `HERMES_KEY_*`) — see [hermes-integration.md](hermes-integration.md).
-- [ ] **Migrations** applied — `php bin/console migrate` (then `migrate:status`).
 - [ ] **Cache cleared** — remove `storage/cache/*` on deploy so the page cache
       rebuilds against the new release.
 - [ ] **Smoke tests** green — `php bin/console app:check` and
@@ -136,7 +131,7 @@ section below or in the linked document.
 
 This is the single most important deployment rule. Point the web server's
 document root at the `public/` directory. Everything else — `content/`,
-`site/`, `storage/` (SQLite, sessions, cache, logs, uploads, queue) and
+`site/`, `storage/` (the `data/` record tree, sessions, cache, logs, uploads) and
 `vendor/` — lives **above** the docroot and must never be served.
 
 ### Nginx (PHP-FPM)
@@ -230,7 +225,6 @@ APP_DEBUG=false
 APP_URL=https://breakfast.example
 APP_VERSION=<deploy id>
 KIRBY_LICENSE=<your licence>
-CRM_DB_PATH=storage/database/crm.sqlite
 
 MAIL_PROVIDER=brevo          # brevo | smtp | fake | null
 MAIL_FROM=studio@breakfast.example
@@ -277,18 +271,15 @@ find storage -type f -exec chmod 0660 {} \;
 chmod 0600 .env
 ```
 
-The database directory and uploads directory are created `0770` by the
-application if missing; uploaded files are written `0640` (non-executable).
+The data directory (`storage/data/`) and uploads directory are created `0770` by
+the application if missing; uploaded files are written `0640` (non-executable).
 
-## Migrations
+## Storage
 
-Create or update the schema before serving traffic. Migrations never run during
-a web request:
-
-```bash
-php bin/console migrate
-php bin/console migrate:status   # confirm all applied
-```
+There is no schema to create and no migration step. All data lives as JSON files
+under `storage/data/`, created on demand by the application. A fresh deploy
+starts with an empty tree; the first write creates the collection it needs. Just
+make sure `storage/` is writable by the PHP process (see file permissions above).
 
 ## First admin
 
@@ -455,7 +446,7 @@ two are consistent.
 composer update getkirby/cms      # update only Kirby
 composer test && composer stan    # run the suite
 # deploy the updated vendor/ + composer.lock, then:
-php bin/console migrate:status    # confirm no surprises
+php bin/console health            # confirm no surprises
 ```
 
 Never edit Kirby core in `vendor/`. Because the installer plugin is disabled,
@@ -468,9 +459,11 @@ either arrangement works because the roots are declared.
 Deploys should be atomic (e.g. symlinked release directories). To roll back:
 
 1. Repoint the `current` symlink (or redeploy the previous artefact).
-2. If the rolled-back release predates a migration, restore the database from
-   the backup taken **before** that migration ran (see [restore.md](restore.md))
-   — SQLite migrations here are forward-only.
+2. The data tree is plain JSON files with no schema, so rolling code back does
+   not require rolling data back — an older release reads the same files. If a
+   release actively rewrote records in an incompatible way, restore
+   `storage/data/` from the backup taken **before** that release (see
+   [restore.md](restore.md)).
 3. Bump `APP_VERSION` so the health endpoint reflects the running release.
 
 Always take a fresh backup immediately before deploying (see

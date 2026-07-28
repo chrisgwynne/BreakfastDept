@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Breakfast\Platform\ClientPreviews;
 
 use Breakfast\Platform\Support\Clock;
-use Breakfast\Platform\Support\Database;
 
 /**
  * Publishing and rollback for Client Previews.
@@ -13,9 +12,10 @@ use Breakfast\Platform\Support\Database;
  * Publish is a deliberate, audited human action: it points the preview at a
  * "ready" (or previously-superseded, for rollback) version, supersedes the rest,
  * and flips the preview to ACTIVE. The version-pointer + status changes are made
- * inside a single database transaction, so the responder (which reads the
- * current pointer) never observes a half-published state. Retention prunes
- * superseded versions beyond the configured cap.
+ * as sequential flat-file writes, finishing with the preview's current-pointer
+ * flip, so the responder (which reads the current pointer) never observes a
+ * half-published state. Retention prunes superseded versions beyond the
+ * configured cap.
  */
 final class PreviewPublisher
 {
@@ -26,7 +26,6 @@ final class PreviewPublisher
         private readonly PreviewRepository $previews,
         private readonly PreviewVersionRepository $versions,
         private readonly PreviewStorage $storage,
-        private readonly Database $db,
         private readonly array $config,
     ) {
     }
@@ -47,27 +46,25 @@ final class PreviewPublisher
 
         $now = Clock::nowIso();
 
-        // Flip the version pointer + statuses atomically. If any write fails the
-        // transaction rolls back, so the responder never sees a half-published
-        // state (e.g. the current pointer moved but the version not marked
-        // published). Filesystem pruning happens AFTER the commit.
-        $updated = $this->db->transaction(function () use ($previewUuid, $versionUuid, $version, $actor, $now) {
-            $this->versions->update($versionUuid, ['state' => PreviewStatus::V_PUBLISHED, 'published_at' => $now]);
-            $this->versions->supersedeOthers($previewUuid, $versionUuid);
+        // Mark the chosen version published and supersede the rest FIRST, then
+        // flip the preview's current pointer last. The responder reads the
+        // pointer, so it only ever sees the fully-published state. Filesystem
+        // pruning happens after the pointer flip.
+        $this->versions->update($versionUuid, ['state' => PreviewStatus::V_PUBLISHED, 'published_at' => $now]);
+        $this->versions->supersedeOthers($previewUuid, $versionUuid);
 
-            return $this->previews->update($previewUuid, [
-                'current_version_uuid' => $versionUuid,
-                'entry_file'           => (string) $version['entry_file'],
-                'bytes'                => (int) $version['bytes'],
-                'file_count'           => (int) $version['file_count'],
-                'version_count'        => count($this->versions->forPreview($previewUuid)),
-                'status'               => PreviewStatus::ACTIVE,
-                'published_at'         => $now,
-                'published_by'         => $actor,
-                'updated_by'           => $actor,
-                'disabled_at'          => null,
-            ]);
-        });
+        $updated = $this->previews->update($previewUuid, [
+            'current_version_uuid' => $versionUuid,
+            'entry_file'           => (string) $version['entry_file'],
+            'bytes'                => (int) $version['bytes'],
+            'file_count'           => (int) $version['file_count'],
+            'version_count'        => count($this->versions->forPreview($previewUuid)),
+            'status'               => PreviewStatus::ACTIVE,
+            'published_at'         => $now,
+            'published_by'         => $actor,
+            'updated_by'           => $actor,
+            'disabled_at'          => null,
+        ]);
 
         $this->pruneVersions($previewUuid);
 

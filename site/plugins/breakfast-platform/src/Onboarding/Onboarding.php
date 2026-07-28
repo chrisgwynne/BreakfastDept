@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace Breakfast\Platform\Onboarding;
 
 use Breakfast\Platform\Support\Clock;
-use Breakfast\Platform\Support\Database;
+use Breakfast\Platform\Support\FileStore;
 use Breakfast\Platform\Support\Platform;
 use Breakfast\Platform\Support\Uuid;
 
 /**
- * Onboarding instances — the client-facing delivery vertical.
+ * Onboarding instances — the client-facing delivery vertical, stored as flat files.
  *
  * An instance binds to an exact frozen template version. Answers save
  * incrementally (durable, server-authoritative) with optimistic concurrency;
@@ -19,9 +19,14 @@ use Breakfast\Platform\Support\Uuid;
  * version. Selected answers PROPOSE field updates: when they conflict with
  * trusted existing data a review item is created — data is never silently
  * overwritten. Generated tasks are idempotent across resubmission.
+ *
+ * Each instance is one JSON record; its answers, mapping reviews, events, answer
+ * versions and invitations live embedded in that record as native arrays.
  */
 final class Onboarding
 {
+    private const COLLECTION = 'onboarding_instances';
+
     /** Mappable targets → [table, column]. Everything else routes via mode. */
     private const TARGETS = [
         'contact.phone'        => ['contacts', 'phone'],
@@ -31,14 +36,14 @@ final class Onboarding
     ];
 
     public function __construct(
-        private readonly Database $db,
+        private readonly FileStore $store,
         private readonly Platform $platform,
     ) {
     }
 
     private function templates(): OnboardingTemplates
     {
-        return new OnboardingTemplates($this->db);
+        return new OnboardingTemplates($this->store);
     }
 
     // ==================================================================
@@ -48,34 +53,26 @@ final class Onboarding
     /** @return list<array<string,mixed>> */
     public function forProject(string $projectUuid): array
     {
-        return $this->db->all('SELECT * FROM onboarding_instances WHERE project_uuid = :p ORDER BY created_at DESC', ['p' => $projectUuid]);
+        $rows = array_values(array_filter($this->store->all(self::COLLECTION), static fn (array $i): bool => (string) ($i['project_uuid'] ?? '') === $projectUuid));
+        usort($rows, static fn ($a, $b) => strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? '')));
+
+        return array_map(fn (array $i): array => $this->shape($i), $rows);
     }
 
     /** @return array<string,mixed>|null */
     public function find(string $uuid): ?array
     {
-        $i = $this->db->one('SELECT * FROM onboarding_instances WHERE uuid = :u', ['u' => $uuid]);
-        if ($i === null) {
-            return null;
-        }
-        $i['answers']    = $this->answers($uuid);
-        $i['reviews']    = $this->db->all('SELECT * FROM onboarding_mapping_reviews WHERE instance_uuid = :u ORDER BY created_at ASC', ['u' => $uuid]);
-        $i['events']     = $this->db->all('SELECT * FROM onboarding_events WHERE instance_uuid = :u ORDER BY created_at DESC LIMIT 100', ['u' => $uuid]);
-        $i['readiness']  = $this->readiness($uuid);
+        $i = $this->store->find(self::COLLECTION, $uuid);
 
-        return $i;
+        return $i === null ? null : $this->shape($i);
     }
 
     /** @return array<string,mixed> qkey => value */
     public function answers(string $instanceUuid): array
     {
-        $out = [];
-        foreach ($this->db->all('SELECT question_key, value FROM onboarding_answers WHERE instance_uuid = :u', ['u' => $instanceUuid]) as $row) {
-            $decoded = json_decode((string) $row['value'], true);
-            $out[(string) $row['question_key']] = $decoded !== null && (is_array($decoded)) ? $decoded : (string) $row['value'];
-        }
+        $i = $this->store->find(self::COLLECTION, $instanceUuid);
 
-        return $out;
+        return $i === null ? [] : $this->decodeAnswers($i);
     }
 
     // ==================================================================
@@ -88,7 +85,7 @@ final class Onboarding
      */
     public function createForProject(string $projectUuid, string $templateUuid, array $data, string $actor): array
     {
-        $project = $this->db->one('SELECT * FROM projects WHERE uuid = :u', ['u' => $projectUuid]);
+        $project = $this->platform->projects()->raw($projectUuid);
         if ($project === null) {
             throw new OnboardingException(404, 'Project not found.');
         }
@@ -98,16 +95,35 @@ final class Onboarding
         }
         $uuid = Uuid::v4();
         $now = Clock::nowIso();
-        $this->db->run(
-            'INSERT INTO onboarding_instances (uuid, template_uuid, version, version_uuid, project_uuid, company_uuid, contact_uuid, opportunity_uuid, proposal_uuid, contract_uuid, status, created_by, created_at, updated_at)
-             VALUES (:uuid, :t, :v, :vu, :p, :company, :contact, :opp, :proposal, :contract, \'draft\', :actor, :now, :now)',
-            [
-                'uuid' => $uuid, 't' => $templateUuid, 'v' => (int) $structure['version'], 'vu' => (string) $structure['uuid'], 'p' => $projectUuid,
-                'company' => $this->nullable($project['company_uuid'] ?? null), 'contact' => $this->nullable($project['contact_uuid'] ?? null),
-                'opp' => $this->nullable($project['opportunity_uuid'] ?? null), 'proposal' => $this->nullable($project['proposal_uuid'] ?? null), 'contract' => $this->nullable($project['contract_uuid'] ?? null),
-                'actor' => $actor, 'now' => $now,
-            ]
-        );
+        $this->store->put(self::COLLECTION, [
+            'uuid'             => $uuid,
+            'template_uuid'    => $templateUuid,
+            'version'          => (int) $structure['version'],
+            'version_uuid'     => (string) $structure['uuid'],
+            'project_uuid'     => $projectUuid,
+            'company_uuid'     => $this->nullable($project['company_uuid'] ?? null),
+            'contact_uuid'     => $this->nullable($project['contact_uuid'] ?? null),
+            'opportunity_uuid' => $this->nullable($project['opportunity_uuid'] ?? null),
+            'proposal_uuid'    => $this->nullable($project['proposal_uuid'] ?? null),
+            'contract_uuid'    => $this->nullable($project['contract_uuid'] ?? null),
+            'status'           => 'draft',
+            'token_hash'       => '',
+            'expires_at'       => null,
+            'invited_at'       => null,
+            'viewed_at'        => null,
+            'submitted_at'     => null,
+            'completed_at'     => null,
+            'submission_no'    => 0,
+            'revision'         => 0,
+            'answers'          => [],
+            'reviews'          => [],
+            'events'           => [],
+            'answer_versions'  => [],
+            'invitations'      => [],
+            'created_by'       => $actor,
+            'created_at'       => $now,
+            'updated_at'       => $now,
+        ]);
         $this->event($uuid, 'created', 'Onboarding created from template', $actor);
 
         return $this->find($uuid) ?? [];
@@ -121,7 +137,7 @@ final class Onboarding
      */
     public function invite(string $instanceUuid, string $email, int $expiresDays, string $actor): array
     {
-        $i = $this->db->one('SELECT status FROM onboarding_instances WHERE uuid = :u', ['u' => $instanceUuid]);
+        $i = $this->store->find(self::COLLECTION, $instanceUuid);
         if ($i === null) {
             throw new OnboardingException(404, 'Onboarding not found.');
         }
@@ -132,11 +148,25 @@ final class Onboarding
         $hash = hash('sha256', $raw);
         $expires = $expiresDays > 0 ? date('c', time() + $expiresDays * 86400) : null;
         $now = Clock::nowIso();
-        $this->db->transaction(function (Database $db) use ($instanceUuid, $hash, $expires, $email, $now): void {
-            $db->run('UPDATE onboarding_instances SET token_hash = :h, expires_at = :exp, status = \'invited\', invited_at = COALESCE(invited_at, :now), updated_at = :now, revision = revision + 1 WHERE uuid = :u', ['h' => $hash, 'exp' => $expires, 'now' => $now, 'u' => $instanceUuid]);
-            // Revoke prior invitations, insert the new one.
-            $db->run('UPDATE onboarding_invitations SET revoked = 1 WHERE instance_uuid = :u AND revoked = 0', ['u' => $instanceUuid]);
-            $db->run('INSERT INTO onboarding_invitations (uuid, instance_uuid, token_hash, email, expires_at, sent_at, created_at) VALUES (:uuid, :i, :h, :email, :exp, :now, :now)', ['uuid' => Uuid::v4(), 'i' => $instanceUuid, 'h' => $hash, 'email' => $email, 'exp' => $expires, 'now' => $now]);
+        $this->store->update(self::COLLECTION, $instanceUuid, static function (array $row) use ($hash, $expires, $email, $now): array {
+            $row['token_hash'] = $hash;
+            $row['expires_at'] = $expires;
+            $row['status']     = 'invited';
+            $row['invited_at'] = (string) ($row['invited_at'] ?? '') !== '' ? $row['invited_at'] : $now;
+            $row['updated_at'] = $now;
+            $row['revision']   = (int) ($row['revision'] ?? 0) + 1;
+            // Revoke prior invitations, then record the new one.
+            $invitations = is_array($row['invitations'] ?? null) ? $row['invitations'] : [];
+            foreach ($invitations as &$inv) {
+                if ((int) ($inv['revoked'] ?? 0) === 0) {
+                    $inv['revoked'] = 1;
+                }
+            }
+            unset($inv);
+            $invitations[] = ['uuid' => Uuid::v4(), 'token_hash' => $hash, 'email' => $email, 'expires_at' => $expires, 'revoked' => 0, 'sent_at' => $now, 'created_at' => $now];
+            $row['invitations'] = $invitations;
+
+            return $row;
         });
         $this->event($instanceUuid, 'invited', 'Invitation sent to ' . $email, $actor);
 
@@ -146,8 +176,20 @@ final class Onboarding
     /** @return array<string,mixed> */
     public function withdraw(string $instanceUuid, string $actor): array
     {
-        $this->db->run("UPDATE onboarding_instances SET status = 'withdrawn', token_hash = '', updated_at = :now, revision = revision + 1 WHERE uuid = :u", ['now' => Clock::nowIso(), 'u' => $instanceUuid]);
-        $this->db->run('UPDATE onboarding_invitations SET revoked = 1 WHERE instance_uuid = :u', ['u' => $instanceUuid]);
+        $this->store->update(self::COLLECTION, $instanceUuid, static function (array $row): array {
+            $row['status']     = 'withdrawn';
+            $row['token_hash'] = '';
+            $row['updated_at'] = Clock::nowIso();
+            $row['revision']   = (int) ($row['revision'] ?? 0) + 1;
+            $invitations = is_array($row['invitations'] ?? null) ? $row['invitations'] : [];
+            foreach ($invitations as &$inv) {
+                $inv['revoked'] = 1;
+            }
+            unset($inv);
+            $row['invitations'] = $invitations;
+
+            return $row;
+        });
         $this->event($instanceUuid, 'withdrawn', 'Onboarding withdrawn', $actor);
 
         return $this->find($instanceUuid) ?? [];
@@ -164,21 +206,27 @@ final class Onboarding
             return null;
         }
         $hash = hash('sha256', $rawToken);
-        $i = $this->db->one('SELECT * FROM onboarding_instances WHERE token_hash = :h', ['h' => $hash]);
-        if ($i === null) {
-            return null;
-        }
-        if ($this->isExpired($i)) {
-            return null;
+        foreach ($this->store->all(self::COLLECTION) as $i) {
+            if ((string) ($i['token_hash'] ?? '') === $hash) {
+                return $this->isExpired($i) ? null : $this->shape($i);
+            }
         }
 
-        return $i;
+        return null;
     }
 
     /** Viewing records 'viewed' — never 'in_progress'. */
     public function markViewed(string $instanceUuid): void
     {
-        $this->db->run("UPDATE onboarding_instances SET status = CASE WHEN status = 'invited' THEN 'viewed' ELSE status END, viewed_at = COALESCE(viewed_at, :now), updated_at = :now WHERE uuid = :u", ['now' => Clock::nowIso(), 'u' => $instanceUuid]);
+        $this->store->update(self::COLLECTION, $instanceUuid, static function (array $row): array {
+            if ((string) ($row['status'] ?? '') === 'invited') {
+                $row['status'] = 'viewed';
+            }
+            $row['viewed_at']  = (string) ($row['viewed_at'] ?? '') !== '' ? $row['viewed_at'] : Clock::nowIso();
+            $row['updated_at'] = Clock::nowIso();
+
+            return $row;
+        });
     }
 
     /**
@@ -190,7 +238,7 @@ final class Onboarding
      */
     public function saveDraft(string $instanceUuid, array $answers, ?int $expectedRevision, string $actor): array
     {
-        $i = $this->db->one('SELECT * FROM onboarding_instances WHERE uuid = :u', ['u' => $instanceUuid]);
+        $i = $this->store->find(self::COLLECTION, $instanceUuid);
         if ($i === null) {
             throw new OnboardingException(404, 'Onboarding not found.');
         }
@@ -205,28 +253,28 @@ final class Onboarding
         }
         $structure = $this->templates()->versionStructure((string) $i['template_uuid'], (int) $i['version']);
         $validKeys = array_map(static fn (array $q): string => (string) $q['qkey'], $structure['questions'] ?? []);
-        $now = Clock::nowIso();
-        $currentStatus = (string) $i['status'];
-        $meaningful = false;
-        $this->db->transaction(function (Database $db) use ($instanceUuid, $answers, $validKeys, $now, $currentStatus, &$meaningful): void {
+        $this->store->update(self::COLLECTION, $instanceUuid, static function (array $row) use ($answers, $validKeys): array {
+            $meaningful = false;
+            $stored = is_array($row['answers'] ?? null) ? $row['answers'] : [];
             foreach ($answers as $key => $value) {
                 if (!in_array((string) $key, $validKeys, true)) {
                     continue; // ignore answers to unknown/frozen-removed questions
                 }
-                $stored = is_array($value) ? (json_encode(array_values($value)) ?: '') : (string) $value;
-                if (trim($stored) !== '' && $stored !== '[]') {
+                $encoded = is_array($value) ? (json_encode(array_values($value)) ?: '') : (string) $value;
+                if (trim($encoded) !== '' && $encoded !== '[]') {
                     $meaningful = true;
                 }
-                $db->run(
-                    'INSERT INTO onboarding_answers (uuid, instance_uuid, question_key, value, updated_at)
-                     VALUES (:uuid, :i, :qk, :val, :now)
-                     ON CONFLICT (instance_uuid, question_key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at',
-                    ['uuid' => Uuid::v4(), 'i' => $instanceUuid, 'qk' => (string) $key, 'val' => $stored, 'now' => $now]
-                );
+                $stored[(string) $key] = $encoded;
             }
+            $row['answers'] = $stored;
             // Meaningful client input advances invited/viewed → in_progress.
-            $newStatus = ($meaningful && in_array($currentStatus, ['invited', 'viewed'], true)) ? 'in_progress' : $currentStatus;
-            $db->run('UPDATE onboarding_instances SET status = :status, updated_at = :now, revision = revision + 1 WHERE uuid = :u', ['status' => $newStatus, 'now' => $now, 'u' => $instanceUuid]);
+            if ($meaningful && in_array((string) ($row['status'] ?? ''), ['invited', 'viewed'], true)) {
+                $row['status'] = 'in_progress';
+            }
+            $row['updated_at'] = Clock::nowIso();
+            $row['revision']   = (int) ($row['revision'] ?? 0) + 1;
+
+            return $row;
         });
 
         return $this->find($instanceUuid) ?? [];
@@ -240,7 +288,7 @@ final class Onboarding
      */
     public function submit(string $instanceUuid, string $actor): array
     {
-        $i = $this->db->one('SELECT * FROM onboarding_instances WHERE uuid = :u', ['u' => $instanceUuid]);
+        $i = $this->store->find(self::COLLECTION, $instanceUuid);
         if ($i === null) {
             throw new OnboardingException(404, 'Onboarding not found.');
         }
@@ -251,25 +299,30 @@ final class Onboarding
             throw new OnboardingException(409, 'This onboarding has already been submitted.');
         }
         $structure = $this->templates()->versionStructure((string) $i['template_uuid'], (int) $i['version']);
-        $answers = $this->answers($instanceUuid);
-        $errors = $this->validate($structure, $answers);
+        $answers = $this->decodeAnswers($i);
+        $errors = $this->validate($structure ?? [], $answers);
         if ($errors !== []) {
             throw new OnboardingException(422, 'Please complete the required fields: ' . implode(', ', array_slice($errors, 0, 5)));
         }
 
         $now = Clock::nowIso();
-        $result = $this->db->transaction(function (Database $db) use ($instanceUuid, $answers, $now): array {
-            $no = (int) $db->scalar('SELECT submission_no FROM onboarding_instances WHERE uuid = :u', ['u' => $instanceUuid]) + 1;
-            $db->run('INSERT INTO onboarding_answer_versions (uuid, instance_uuid, submission_no, snapshot, created_at) VALUES (:uuid, :i, :no, :snap, :now)', ['uuid' => Uuid::v4(), 'i' => $instanceUuid, 'no' => $no, 'snap' => json_encode($answers) ?: '{}', 'now' => $now]);
-            $db->run("UPDATE onboarding_instances SET status = 'submitted', submitted_at = :now, submission_no = :no, updated_at = :now, revision = revision + 1 WHERE uuid = :u", ['now' => $now, 'no' => $no, 'u' => $instanceUuid]);
+        $submissionNo = 0;
+        $this->store->update(self::COLLECTION, $instanceUuid, static function (array $row) use ($answers, $now, &$submissionNo): array {
+            $submissionNo = (int) ($row['submission_no'] ?? 0) + 1;
+            $row['answer_versions'][] = ['uuid' => Uuid::v4(), 'submission_no' => $submissionNo, 'snapshot' => $answers, 'created_at' => $now];
+            $row['status']        = 'submitted';
+            $row['submitted_at']  = $now;
+            $row['submission_no'] = $submissionNo;
+            $row['updated_at']    = $now;
+            $row['revision']      = (int) ($row['revision'] ?? 0) + 1;
 
-            return ['submission_no' => $no];
+            return $row;
         });
-        $this->event($instanceUuid, 'submitted', 'Submission #' . $result['submission_no'], $actor);
+        $this->event($instanceUuid, 'submitted', 'Submission #' . $submissionNo, $actor);
 
         // Propose mappings (creates review items for conflicts; auto-applies safe empties).
-        $this->proposeMappings($instanceUuid, $structure, $answers, $actor);
-        $this->generateTasks($instanceUuid, $structure, $actor);
+        $this->proposeMappings($instanceUuid, $structure ?? [], $answers, $actor);
+        $this->generateTasks($instanceUuid, $structure ?? [], $actor);
 
         // CRM activity on the contact.
         $contact = (string) ($i['contact_uuid'] ?? '');
@@ -289,7 +342,7 @@ final class Onboarding
     public function requestClarification(string $instanceUuid, string $note, string $actor): array
     {
         $i = $this->requireStatus($instanceUuid, ['submitted', 'under_review']);
-        $this->db->run("UPDATE onboarding_instances SET status = 'needs_clarification', updated_at = :now, revision = revision + 1 WHERE uuid = :u", ['now' => Clock::nowIso(), 'u' => (string) $i['uuid']]);
+        $this->setStatus((string) $i['uuid'], 'needs_clarification');
         $this->event($instanceUuid, 'clarification_requested', $note, $actor);
 
         return $this->find($instanceUuid) ?? [];
@@ -299,7 +352,7 @@ final class Onboarding
     public function startReview(string $instanceUuid, string $actor): array
     {
         $i = $this->requireStatus($instanceUuid, ['submitted']);
-        $this->db->run("UPDATE onboarding_instances SET status = 'under_review', updated_at = :now, revision = revision + 1 WHERE uuid = :u", ['now' => Clock::nowIso(), 'u' => (string) $i['uuid']]);
+        $this->setStatus((string) $i['uuid'], 'under_review');
         $this->event($instanceUuid, 'review_started', 'Review started', $actor);
 
         return $this->find($instanceUuid) ?? [];
@@ -313,8 +366,22 @@ final class Onboarding
         if (!$readiness['ready']) {
             throw new OnboardingException(409, 'Onboarding is not ready: ' . implode('; ', $readiness['blockers']));
         }
-        $this->db->run("UPDATE onboarding_instances SET status = 'completed', completed_at = :now, token_hash = '', updated_at = :now, revision = revision + 1 WHERE uuid = :u", ['now' => Clock::nowIso(), 'u' => (string) $i['uuid']]);
-        $this->db->run('UPDATE onboarding_invitations SET revoked = 1 WHERE instance_uuid = :u', ['u' => (string) $i['uuid']]);
+        $now = Clock::nowIso();
+        $this->store->update(self::COLLECTION, (string) $i['uuid'], static function (array $row) use ($now): array {
+            $row['status']       = 'completed';
+            $row['completed_at'] = $now;
+            $row['token_hash']   = '';
+            $row['updated_at']   = $now;
+            $row['revision']     = (int) ($row['revision'] ?? 0) + 1;
+            $invitations = is_array($row['invitations'] ?? null) ? $row['invitations'] : [];
+            foreach ($invitations as &$inv) {
+                $inv['revoked'] = 1;
+            }
+            unset($inv);
+            $row['invitations'] = $invitations;
+
+            return $row;
+        });
         $this->event($instanceUuid, 'completed', 'Onboarding completed', $actor);
         $this->platform->audit()->event('onboarding.completed', 'project', (string) ($i['project_uuid'] ?? ''), $actor, ['instance' => $instanceUuid]);
 
@@ -331,7 +398,7 @@ final class Onboarding
         if (!in_array($decision, ['accepted', 'rejected', 'merged'], true)) {
             throw new OnboardingException(422, 'Unknown mapping decision.');
         }
-        $review = $this->db->one('SELECT * FROM onboarding_mapping_reviews WHERE uuid = :u', ['u' => $reviewUuid]);
+        [$instanceUuid, $review] = $this->findReview($reviewUuid);
         if ($review === null) {
             throw new OnboardingException(404, 'Mapping review not found.');
         }
@@ -342,13 +409,26 @@ final class Onboarding
             $value = $decision === 'merged'
                 ? trim((string) $review['existing_value'] . "\n" . (string) $review['submitted_value'])
                 : (string) $review['submitted_value'];
-            $this->applyTarget((string) $review['target'], (string) $review['instance_uuid'], $value);
+            $this->applyTarget((string) $review['target'], $instanceUuid, $value);
         }
-        $this->db->run('UPDATE onboarding_mapping_reviews SET decision = :d, reviewer = :r, decided_at = :now WHERE uuid = :u', ['d' => $decision, 'r' => $actor, 'now' => Clock::nowIso(), 'u' => $reviewUuid]);
-        $this->event((string) $review['instance_uuid'], 'mapping_' . $decision, (string) $review['target'], $actor);
-        $this->platform->audit()->event('onboarding.mapping_' . $decision, 'project', $this->projectOf((string) $review['instance_uuid']), $actor, ['target' => $review['target']]);
+        $this->store->update(self::COLLECTION, $instanceUuid, static function (array $row) use ($reviewUuid, $decision, $actor): array {
+            $reviews = is_array($row['reviews'] ?? null) ? $row['reviews'] : [];
+            foreach ($reviews as &$r) {
+                if ((string) ($r['uuid'] ?? '') === $reviewUuid) {
+                    $r['decision']   = $decision;
+                    $r['reviewer']   = $actor;
+                    $r['decided_at'] = Clock::nowIso();
+                }
+            }
+            unset($r);
+            $row['reviews'] = $reviews;
 
-        return $this->find((string) $review['instance_uuid']) ?? [];
+            return $row;
+        });
+        $this->event($instanceUuid, 'mapping_' . $decision, (string) $review['target'], $actor);
+        $this->platform->audit()->event('onboarding.mapping_' . $decision, 'project', $this->projectOf($instanceUuid), $actor, ['target' => $review['target']]);
+
+        return $this->find($instanceUuid) ?? [];
     }
 
     // ==================================================================
@@ -358,7 +438,7 @@ final class Onboarding
     /** @return array{ready:bool,blockers:list<string>,percent:int} */
     public function readiness(string $instanceUuid): array
     {
-        $i = $this->db->one('SELECT * FROM onboarding_instances WHERE uuid = :u', ['u' => $instanceUuid]);
+        $i = $this->store->find(self::COLLECTION, $instanceUuid);
         if ($i === null) {
             return ['ready' => false, 'blockers' => ['Onboarding not found'], 'percent' => 0];
         }
@@ -366,7 +446,7 @@ final class Onboarding
         if (!in_array((string) $i['status'], ['submitted', 'under_review', 'completed'], true)) {
             $blockers[] = 'Not yet submitted';
         }
-        $pendingReviews = (int) $this->db->scalar("SELECT COUNT(*) FROM onboarding_mapping_reviews WHERE instance_uuid = :u AND decision = 'pending'", ['u' => $instanceUuid]);
+        $pendingReviews = count(array_filter(is_array($i['reviews'] ?? null) ? $i['reviews'] : [], static fn (array $r): bool => (string) ($r['decision'] ?? '') === 'pending'));
         if ($pendingReviews > 0) {
             $blockers[] = $pendingReviews . ' mapping conflict(s) to review';
         }
@@ -375,7 +455,7 @@ final class Onboarding
         }
         // Percent: required visible answered / required visible total.
         $structure = $this->templates()->versionStructure((string) $i['template_uuid'], (int) $i['version']);
-        $answers = $this->answers($instanceUuid);
+        $answers = $this->decodeAnswers($i);
         $reqTotal = 0;
         $reqDone = 0;
         foreach ($structure['questions'] ?? [] as $q) {
@@ -398,6 +478,53 @@ final class Onboarding
     // ==================================================================
     // Internals
     // ==================================================================
+
+    /**
+     * Return an instance with its answers decoded and reviews/events normalised
+     * to the shape callers expect, plus live readiness.
+     *
+     * @param array<string,mixed> $i
+     * @return array<string,mixed>
+     */
+    private function shape(array $i): array
+    {
+        $i['answers'] = $this->decodeAnswers($i);
+        $reviews = is_array($i['reviews'] ?? null) ? array_values($i['reviews']) : [];
+        usort($reviews, static fn ($a, $b) => strcmp((string) ($a['created_at'] ?? ''), (string) ($b['created_at'] ?? '')));
+        $i['reviews'] = $reviews;
+        $events = is_array($i['events'] ?? null) ? array_values($i['events']) : [];
+        usort($events, static fn ($a, $b) => strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? '')));
+        $i['events'] = array_slice($events, 0, 100);
+        $i['readiness'] = $this->readiness((string) $i['uuid']);
+
+        return $i;
+    }
+
+    /**
+     * @param array<string,mixed> $instance
+     * @return array<string,mixed> qkey => value (arrays decoded, else string)
+     */
+    private function decodeAnswers(array $instance): array
+    {
+        $out = [];
+        foreach (is_array($instance['answers'] ?? null) ? $instance['answers'] : [] as $key => $raw) {
+            $decoded = json_decode((string) $raw, true);
+            $out[(string) $key] = is_array($decoded) ? $decoded : (string) $raw;
+        }
+
+        return $out;
+    }
+
+    private function setStatus(string $instanceUuid, string $status): void
+    {
+        $this->store->update(self::COLLECTION, $instanceUuid, static function (array $row) use ($status): array {
+            $row['status']     = $status;
+            $row['updated_at'] = Clock::nowIso();
+            $row['revision']   = (int) ($row['revision'] ?? 0) + 1;
+
+            return $row;
+        });
+    }
 
     /**
      * @param array<string,mixed> $structure
@@ -507,8 +634,7 @@ final class Onboarding
                 continue; // no change
             }
             // Conflict — needs review; don't duplicate an open review.
-            $open = $this->db->one("SELECT uuid FROM onboarding_mapping_reviews WHERE instance_uuid = :i AND question_key = :q AND target = :t AND decision = 'pending'", ['i' => $instanceUuid, 'q' => $qk, 't' => $target]);
-            if ($open === null) {
+            if (!$this->hasOpenReview($instanceUuid, $qk, $target)) {
                 $this->recordReview($instanceUuid, $qk, $target, $existing, $submittedStr, 'pending', '');
             }
         }
@@ -536,7 +662,7 @@ final class Onboarding
                 continue;
             }
             $sourceRef = 'onboarding:' . $instanceUuid . ':' . $qk;
-            if ($this->db->one('SELECT uuid FROM project_tasks WHERE source_ref = :r', ['r' => $sourceRef]) !== null) {
+            if ($this->platform->projectTasks()->findBySourceRef($sourceRef) !== null) {
                 continue; // idempotent
             }
             $this->platform->projectTasks()->create($projectUuid, [
@@ -549,11 +675,44 @@ final class Onboarding
 
     private function recordReview(string $instanceUuid, string $qk, string $target, string $existing, string $submitted, string $decision, string $reviewer): void
     {
-        $this->db->run(
-            'INSERT INTO onboarding_mapping_reviews (uuid, instance_uuid, question_key, target, existing_value, submitted_value, decision, reviewer, decided_at, created_at)
-             VALUES (:uuid, :i, :qk, :t, :ex, :sub, :d, :r, :decided, :now)',
-            ['uuid' => Uuid::v4(), 'i' => $instanceUuid, 'qk' => $qk, 't' => $target, 'ex' => $existing, 'sub' => $submitted, 'd' => $decision, 'r' => $reviewer, 'decided' => $decision === 'pending' ? null : Clock::nowIso(), 'now' => Clock::nowIso()]
-        );
+        $this->store->update(self::COLLECTION, $instanceUuid, static function (array $row) use ($qk, $target, $existing, $submitted, $decision, $reviewer): array {
+            $row['reviews'][] = [
+                'uuid' => Uuid::v4(), 'question_key' => $qk, 'target' => $target, 'existing_value' => $existing, 'submitted_value' => $submitted,
+                'decision' => $decision, 'reviewer' => $reviewer, 'decided_at' => $decision === 'pending' ? null : Clock::nowIso(), 'created_at' => Clock::nowIso(),
+            ];
+
+            return $row;
+        });
+    }
+
+    private function hasOpenReview(string $instanceUuid, string $qk, string $target): bool
+    {
+        $i = $this->store->find(self::COLLECTION, $instanceUuid);
+        foreach (is_array($i['reviews'] ?? null) ? $i['reviews'] : [] as $r) {
+            if ((string) ($r['question_key'] ?? '') === $qk && (string) ($r['target'] ?? '') === $target && (string) ($r['decision'] ?? '') === 'pending') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Locate a mapping review by id across instances.
+     *
+     * @return array{0:string,1:array<string,mixed>|null} [instanceUuid, review]
+     */
+    private function findReview(string $reviewUuid): array
+    {
+        foreach ($this->store->all(self::COLLECTION) as $i) {
+            foreach (is_array($i['reviews'] ?? null) ? $i['reviews'] : [] as $r) {
+                if ((string) ($r['uuid'] ?? '') === $reviewUuid) {
+                    return [(string) $i['uuid'], $r];
+                }
+            }
+        }
+
+        return ['', null];
     }
 
     private function readTarget(string $target, string $instanceUuid): string
@@ -567,7 +726,14 @@ final class Onboarding
             return '';
         }
 
-        return (string) $this->db->scalar("SELECT {$column} FROM {$table} WHERE uuid = :u", ['u' => $id]);
+        // The CRM core (contacts, companies) and projects are all flat-file.
+        $record = match ($table) {
+            'contacts'  => $this->platform->contacts()->find($id),
+            'companies' => $this->platform->companies()->find($id),
+            default     => $this->platform->projects()->raw($id),
+        };
+
+        return (string) ($record[$column] ?? '');
     }
 
     private function applyTarget(string $target, string $instanceUuid, string $value): void
@@ -580,12 +746,18 @@ final class Onboarding
         if ($id === '') {
             return;
         }
-        $this->db->run("UPDATE {$table} SET {$column} = :v WHERE uuid = :u", ['v' => $value, 'u' => $id]);
+
+        // The CRM core (contacts, companies) and projects are all flat-file.
+        match ($table) {
+            'contacts'  => $this->platform->contacts()->update($id, [$column => $value]),
+            'companies' => $this->platform->companies()->update($id, [$column => $value]),
+            default     => $this->platform->projects()->update($id, [$column => $value], 'onboarding'),
+        };
     }
 
     private function targetId(string $table, string $instanceUuid): string
     {
-        $i = $this->db->one('SELECT project_uuid, company_uuid, contact_uuid FROM onboarding_instances WHERE uuid = :u', ['u' => $instanceUuid]);
+        $i = $this->store->find(self::COLLECTION, $instanceUuid);
         if ($i === null) {
             return '';
         }
@@ -600,7 +772,9 @@ final class Onboarding
 
     private function projectOf(string $instanceUuid): string
     {
-        return (string) $this->db->scalar('SELECT project_uuid FROM onboarding_instances WHERE uuid = :u', ['u' => $instanceUuid]);
+        $i = $this->store->find(self::COLLECTION, $instanceUuid);
+
+        return (string) ($i['project_uuid'] ?? '');
     }
 
     /** @param array<string,mixed> $instance */
@@ -617,7 +791,7 @@ final class Onboarding
      */
     private function requireStatus(string $instanceUuid, array $allowed): array
     {
-        $i = $this->db->one('SELECT * FROM onboarding_instances WHERE uuid = :u', ['u' => $instanceUuid]);
+        $i = $this->store->find(self::COLLECTION, $instanceUuid);
         if ($i === null) {
             throw new OnboardingException(404, 'Onboarding not found.');
         }
@@ -639,7 +813,11 @@ final class Onboarding
 
     private function event(string $instanceUuid, string $type, string $detail, string $actor): void
     {
-        $this->db->run('INSERT INTO onboarding_events (uuid, instance_uuid, type, detail, actor, created_at) VALUES (:uuid, :i, :type, :detail, :actor, :now)', ['uuid' => Uuid::v4(), 'i' => $instanceUuid, 'type' => $type, 'detail' => $detail, 'actor' => $actor, 'now' => Clock::nowIso()]);
+        $this->store->update(self::COLLECTION, $instanceUuid, static function (array $row) use ($type, $detail, $actor): array {
+            $row['events'][] = ['uuid' => Uuid::v4(), 'type' => $type, 'detail' => $detail, 'actor' => $actor, 'created_at' => Clock::nowIso()];
+
+            return $row;
+        });
     }
 
     private function nullable(mixed $value): ?string

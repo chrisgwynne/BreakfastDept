@@ -23,9 +23,9 @@ final class HermesApiTest extends PlatformTestCase
         $store = new CredentialStore([
             'HERMES_KEY_test' => implode(',', $scopes) . '|' . base64_encode($this->secret),
         ]);
-        $auth = new Authenticator($store, $this->platform->db(), 300);
+        $auth = new Authenticator($store, $this->platform->fileStore(), 300);
 
-        return new Api($this->platform, $auth, new AuditLog($this->platform->db()));
+        return new Api($this->platform, $auth, new AuditLog($this->platform->fileStore()));
     }
 
     /** @return array<string,string> */
@@ -177,7 +177,7 @@ final class HermesApiTest extends PlatformTestCase
         $headers = $this->signedHeaders('GET', '/crm/summary', '');
         $this->api([Scopes::CRM_SUMMARY])->handle('GET', '/crm/summary', '', $headers);
 
-        $audit = (new AuditLog($this->platform->db()))->recent();
+        $audit = (new AuditLog($this->platform->fileStore()))->recent();
         $this->assertNotEmpty($audit);
         $this->assertSame('test', $audit[0]['credential_id']);
         $this->assertSame('ok', $audit[0]['result']);

@@ -63,7 +63,11 @@ final class PreviewRepositoryTest extends PlatformTestCase
 
         $activity->recordAccess($preview['uuid'], null, 'view', '/index.html', 200, '203.0.113.9', 'Mozilla/5.0', 'example.com', 'sess-1');
 
-        $row = $this->platform->db()->one('SELECT * FROM preview_access_events WHERE preview_uuid = :p', ['p' => $preview['uuid']]);
+        $events = array_values(array_filter(
+            $this->platform->fileStore()->all('preview_access_events'),
+            static fn (array $e): bool => ($e['preview_uuid'] ?? null) === $preview['uuid']
+        ));
+        $row = $events[0] ?? null;
         $this->assertNotNull($row);
         $this->assertNotSame('203.0.113.9', $row['ip_hash']);
         $this->assertNotNull($row['ip_hash']);

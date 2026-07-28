@@ -6,7 +6,6 @@ namespace Breakfast\Tests\Integration;
 
 use Breakfast\Platform\Onboarding\OnboardingConditions;
 use Breakfast\Platform\Onboarding\OnboardingException;
-use Breakfast\Platform\Support\Database;
 use Breakfast\Platform\Support\Platform;
 use Kirby\Cms\App;
 use PHPUnit\Framework\TestCase;
@@ -32,14 +31,11 @@ final class OnboardingTest extends TestCase
         parent::setUp();
         $base = dirname(__DIR__, 2);
         $this->tmp = sys_get_temp_dir() . '/bf-onboarding-' . bin2hex(random_bytes(6));
-        @mkdir($this->tmp . '/database', 0777, true);
-        Database::reset();
         Platform::reset();
         $this->kirby = new App([
             'roots' => ['index' => $base . '/public', 'base' => $base, 'site' => $base . '/site', 'content' => $base . '/content', 'storage' => $this->tmp, 'sessions' => $this->tmp . '/sessions', 'accounts' => $this->tmp . '/accounts'],
-            'options' => ['debug' => false, 'whoops' => false, 'breakfast' => ['production' => false, 'storageDir' => $this->tmp, 'dbPath' => $this->tmp . '/database/crm.sqlite', 'mail' => ['provider' => 'fake']]],
+            'options' => ['debug' => false, 'whoops' => false, 'breakfast' => ['production' => false, 'storageDir' => $this->tmp, 'mail' => ['provider' => 'fake']]],
         ]);
-        breakfast()->migrator()->migrate();
 
         $p = breakfast();
         $this->company = (string) $p->companies()->create(['name' => 'Roberts Cafe'])['uuid'];
@@ -54,7 +50,6 @@ final class OnboardingTest extends TestCase
 
     protected function tearDown(): void
     {
-        Database::reset();
         Platform::reset();
         $this->rrmdir($this->tmp);
         App::destroy();
@@ -125,7 +120,7 @@ final class OnboardingTest extends TestCase
     {
         $p = breakfast();
         // Pre-existing trusted phone on the contact.
-        breakfast()->db()->run('UPDATE contacts SET phone = :v WHERE uuid = :u', ['v' => '01111 111111', 'u' => $this->contact]);
+        $p->contacts()->update($this->contact, ['phone' => '01111 111111']);
 
         $inst = $p->onboarding()->createForProject($this->project, $this->templateUuid, [], 'staff@breakfast');
         $id = (string) $inst['uuid'];
@@ -143,20 +138,20 @@ final class OnboardingTest extends TestCase
         }
         $this->assertNotNull($phoneReview);
         $this->assertSame('pending', (string) $phoneReview['decision']);
-        $this->assertSame('01111 111111', (string) breakfast()->db()->scalar('SELECT phone FROM contacts WHERE uuid = :u', ['u' => $this->contact]));
+        $this->assertSame('01111 111111', (string) breakfast()->contacts()->find($this->contact)['phone']);
 
         // The empty company website was safely auto-populated (logged review row).
-        $this->assertSame('https://new.example', (string) breakfast()->db()->scalar('SELECT website FROM companies WHERE uuid = :u', ['u' => $this->company]));
+        $this->assertSame('https://new.example', (string) breakfast()->companies()->find($this->company)['website']);
 
         // Accepting the phone review applies the submitted value.
         $p->onboarding()->decideMapping((string) $phoneReview['uuid'], 'accepted', 'staff@breakfast');
-        $this->assertSame('02222 222222', (string) breakfast()->db()->scalar('SELECT phone FROM contacts WHERE uuid = :u', ['u' => $this->contact]));
+        $this->assertSame('02222 222222', (string) breakfast()->contacts()->find($this->contact)['phone']);
     }
 
     public function testReadinessBlocksCompletionUntilReviewsResolved(): void
     {
         $p = breakfast();
-        breakfast()->db()->run('UPDATE contacts SET phone = :v WHERE uuid = :u', ['v' => 'existing', 'u' => $this->contact]);
+        $p->contacts()->update($this->contact, ['phone' => 'existing']);
         $inst = $p->onboarding()->createForProject($this->project, $this->templateUuid, [], 'staff@breakfast');
         $id = (string) $inst['uuid'];
         $p->onboarding()->invite($id, 's@x.co', 14, 'staff@breakfast');
@@ -179,7 +174,7 @@ final class OnboardingTest extends TestCase
         $completed = $p->onboarding()->complete($id, 'staff@breakfast');
         $this->assertSame('completed', (string) $completed['status']);
         // Token cleared on completion.
-        $this->assertSame('', (string) breakfast()->db()->scalar('SELECT token_hash FROM onboarding_instances WHERE uuid = :u', ['u' => $id]));
+        $this->assertSame('', (string) (breakfast()->fileStore()->find('onboarding_instances', $id)['token_hash'] ?? 'x'));
     }
 
     public function testExpiredInvitationCannotSubmit(): void
@@ -189,7 +184,11 @@ final class OnboardingTest extends TestCase
         $id = (string) $inst['uuid'];
         $p->onboarding()->invite($id, 's@x.co', 14, 'staff@breakfast');
         // Force expiry.
-        breakfast()->db()->run("UPDATE onboarding_instances SET expires_at = :e WHERE uuid = :u", ['e' => date('c', time() - 3600), 'u' => $id]);
+        breakfast()->fileStore()->update('onboarding_instances', $id, static function (array $row): array {
+            $row['expires_at'] = date('c', time() - 3600);
+
+            return $row;
+        });
         $this->assertNull($p->onboarding()->findByToken($p->onboarding()->find($id)['token_hash']));
         $this->assertError(410, fn () => $p->onboarding()->saveDraft($id, ['business_name' => 'X'], null, 'client'));
     }

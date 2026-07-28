@@ -13,8 +13,10 @@
  */
 $e = static fn ($v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
 $nonce = (string) ($nonce ?? '');
-$snapRaw = (string) ($cr['snapshot'] ?? '');
-$snap = $snapRaw !== '' ? (json_decode($snapRaw, true) ?: []) : [];
+// The snapshot is stored as a native array (flat-file store); tolerate a legacy
+// JSON string too.
+$snapRaw = $cr['snapshot'] ?? null;
+$snap = is_array($snapRaw) ? $snapRaw : (is_string($snapRaw) && $snapRaw !== '' ? (json_decode($snapRaw, true) ?: []) : []);
 $status = (string) ($cr['status'] ?? '');
 $decided = in_array($status, ['approved', 'rejected'], true);
 $base = rtrim((string) kirby()->site()->url(), '/') . '/change/' . $token;

@@ -6,7 +6,6 @@ namespace Breakfast\Tests\Integration;
 
 use Breakfast\Platform\Operations\Automation;
 use Breakfast\Platform\Operations\AutomationException;
-use Breakfast\Platform\Support\Database;
 use Breakfast\Platform\Support\Platform;
 use Kirby\Cms\App;
 use PHPUnit\Framework\TestCase;
@@ -29,21 +28,17 @@ final class AutomationTest extends TestCase
         parent::setUp();
         $base = dirname(__DIR__, 2);
         $this->tmp = sys_get_temp_dir() . '/bf-automation-' . bin2hex(random_bytes(6));
-        @mkdir($this->tmp . '/database', 0777, true);
-        Database::reset();
         Platform::reset();
         $this->kirby = new App([
             'roots' => ['index' => $base . '/public', 'base' => $base, 'site' => $base . '/site', 'content' => $base . '/content', 'storage' => $this->tmp, 'sessions' => $this->tmp . '/sessions', 'accounts' => $this->tmp . '/accounts'],
-            'options' => ['debug' => false, 'whoops' => false, 'breakfast' => ['production' => false, 'storageDir' => $this->tmp, 'dbPath' => $this->tmp . '/database/crm.sqlite', 'mail' => ['provider' => 'fake']]],
+            'options' => ['debug' => false, 'whoops' => false, 'breakfast' => ['production' => false, 'storageDir' => $this->tmp, 'mail' => ['provider' => 'fake']]],
         ]);
-        breakfast()->migrator()->migrate();
         $this->svc = breakfast()->automation();
         $this->project = (string) breakfast()->projects()->create(['name' => 'Automation project'], 'staff@breakfast')['uuid'];
     }
 
     protected function tearDown(): void
     {
-        Database::reset();
         Platform::reset();
         $this->rrmdir($this->tmp);
         App::destroy();
@@ -61,7 +56,14 @@ final class AutomationTest extends TestCase
     private function overdueInvoice(string $due): void
     {
         $inv = breakfast()->invoices()->create(['bill_to_name' => 'Client', 'items' => [['description' => 'Work', 'quantity' => 1, 'unit_price' => 500]]], 'staff@breakfast');
-        breakfast()->db()->run("UPDATE invoices SET project_uuid = :p, status = 'issued', due_date = :due WHERE uuid = :u", ['p' => $this->project, 'due' => $due, 'u' => (string) $inv['uuid']]);
+        $projectUuid = $this->project;
+        breakfast()->fileStore()->update('invoices', (string) $inv['uuid'], static function (array $row) use ($projectUuid, $due): array {
+            $row['project_uuid'] = $projectUuid;
+            $row['status']       = 'issued';
+            $row['due_date']     = $due;
+
+            return $row;
+        });
     }
 
     public function testOverdueInvoiceFiresFollowUpTaskOnceAndIsIdempotent(): void
@@ -79,7 +81,7 @@ final class AutomationTest extends TestCase
         // Re-running does not create a second task (idempotent per target).
         $again = $this->svc->run('2026-02-02', 'staff@breakfast');
         $this->assertSame(0, $again['fired']);
-        $this->assertSame(1, (int) breakfast()->db()->scalar('SELECT COUNT(*) FROM automation_fires WHERE rule_uuid = :r', ['r' => (string) $rule['uuid']]));
+        $this->assertSame(1, count(array_filter(breakfast()->fileStore()->all('automation_fires'), static fn (array $f): bool => (string) ($f['rule_uuid'] ?? '') === (string) $rule['uuid'])));
     }
 
     public function testDisabledRuleNeverFires(): void

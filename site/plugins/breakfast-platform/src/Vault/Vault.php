@@ -6,11 +6,11 @@ namespace Breakfast\Platform\Vault;
 
 use Breakfast\Platform\Hermes\AuditLog;
 use Breakfast\Platform\Support\Clock;
-use Breakfast\Platform\Support\Database;
+use Breakfast\Platform\Support\FileStore;
 use Breakfast\Platform\Support\Uuid;
 
 /**
- * Secure credential vault.
+ * Secure credential vault, stored as flat files.
  *
  * Sensitive field values are field-level encrypted (key-versioned, authenticated)
  * and NEVER returned by list/find — only masked hints. Revealing or copying a
@@ -18,6 +18,9 @@ use Breakfast\Platform\Support\Uuid;
  * value itself is never written to logs, audit descriptions or exceptions.
  * Editing a secret snapshots the previous encrypted value as an immutable
  * version. Key rotation re-encrypts every field to the new current version.
+ *
+ * The ciphertext is unchanged by the migration — only the storage engine moved
+ * from the database to JSON files.
  */
 final class Vault
 {
@@ -27,7 +30,7 @@ final class Vault
     private const REAUTH_TTL = 300; // seconds a step-up session stays valid
 
     public function __construct(
-        private readonly Database $db,
+        private readonly FileStore $store,
         private readonly VaultCrypto $crypto,
         private readonly AuditLog $audit,
     ) {
@@ -40,18 +43,42 @@ final class Vault
     /** Record a fresh step-up session for a user (called after a verified password check). */
     public function grantReauth(string $userEmail): void
     {
-        $this->db->run('UPDATE vault_reauth_sessions SET revoked = 1 WHERE user_email = :u AND revoked = 0', ['u' => $userEmail]);
-        $this->db->run('INSERT INTO vault_reauth_sessions (uuid, user_email, expires_at, created_at) VALUES (:uuid, :u, :exp, :now)', ['uuid' => Uuid::v4(), 'u' => $userEmail, 'exp' => date('c', time() + self::REAUTH_TTL), 'now' => Clock::nowIso()]);
+        foreach ($this->store->all('vault_reauth_sessions') as $s) {
+            if ((string) ($s['user_email'] ?? '') === $userEmail && (int) ($s['revoked'] ?? 0) === 0) {
+                $this->store->update('vault_reauth_sessions', (string) $s['uuid'], static function (array $r): array {
+                    $r['revoked'] = 1;
+
+                    return $r;
+                });
+            }
+        }
+        $this->store->put('vault_reauth_sessions', [
+            'uuid'       => Uuid::v4(),
+            'user_email' => $userEmail,
+            'revoked'    => 0,
+            'expires_at' => date('c', time() + self::REAUTH_TTL),
+            'created_at' => Clock::nowIso(),
+        ]);
     }
 
     public function revokeReauth(string $userEmail): void
     {
-        $this->db->run('UPDATE vault_reauth_sessions SET revoked = 1 WHERE user_email = :u', ['u' => $userEmail]);
+        foreach ($this->store->all('vault_reauth_sessions') as $s) {
+            if ((string) ($s['user_email'] ?? '') === $userEmail) {
+                $this->store->update('vault_reauth_sessions', (string) $s['uuid'], static function (array $r): array {
+                    $r['revoked'] = 1;
+
+                    return $r;
+                });
+            }
+        }
     }
 
     public function hasValidReauth(string $userEmail): bool
     {
-        $row = $this->db->one("SELECT expires_at FROM vault_reauth_sessions WHERE user_email = :u AND revoked = 0 ORDER BY created_at DESC LIMIT 1", ['u' => $userEmail]);
+        $sessions = array_values(array_filter($this->store->all('vault_reauth_sessions'), static fn (array $s): bool => (string) ($s['user_email'] ?? '') === $userEmail && (int) ($s['revoked'] ?? 0) === 0));
+        usort($sessions, static fn ($a, $b) => strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? '')));
+        $row = $sessions[0] ?? null;
         if ($row === null) {
             return false;
         }
@@ -70,19 +97,17 @@ final class Vault
      */
     public function list(array $filters = []): array
     {
-        $where = ['archived = 0'];
-        $params = [];
+        $rows = array_filter($this->store->all('vault_items'), static fn (array $i): bool => (int) ($i['archived'] ?? 0) === 0);
         if (!empty($filters['company_uuid'])) {
-            $where[] = 'company_uuid = :c';
-            $params['c'] = (string) $filters['company_uuid'];
+            $rows = array_filter($rows, static fn (array $i): bool => (string) ($i['company_uuid'] ?? '') === (string) $filters['company_uuid']);
         }
         if (!empty($filters['project_uuid'])) {
-            $where[] = 'project_uuid = :p';
-            $params['p'] = (string) $filters['project_uuid'];
+            $rows = array_filter($rows, static fn (array $i): bool => (string) ($i['project_uuid'] ?? '') === (string) $filters['project_uuid']);
         }
-        $rows = $this->db->all('SELECT * FROM vault_items WHERE ' . implode(' AND ', $where) . ' ORDER BY label ASC LIMIT 500', $params);
+        $rows = array_values($rows);
+        usort($rows, static fn ($a, $b) => strcasecmp((string) ($a['label'] ?? ''), (string) ($b['label'] ?? '')));
 
-        return array_map(fn (array $i): array => $this->maskItem($i, false), $rows);
+        return array_map(fn (array $i): array => $this->maskItem($i, false), array_slice($rows, 0, 500));
     }
 
     /**
@@ -92,7 +117,7 @@ final class Vault
      */
     public function find(string $uuid): ?array
     {
-        $i = $this->db->one('SELECT * FROM vault_items WHERE uuid = :u', ['u' => $uuid]);
+        $i = $this->store->find('vault_items', $uuid);
 
         return $i === null ? null : $this->maskItem($i, true);
     }
@@ -112,30 +137,38 @@ final class Vault
             throw new VaultException(422, 'Enter a label.');
         }
 
-        return $this->db->transaction(function (Database $db) use ($data, $label, $actor): array {
-            $uuid = Uuid::v4();
-            $now = Clock::nowIso();
-            $db->run(
-                'INSERT INTO vault_items (uuid, label, item_type, company_uuid, project_uuid, url, account_id, username, owner, status, tags, notes, expiry, created_by, created_at, updated_at)
-                 VALUES (:uuid, :label, :type, :company, :project, :url, :account, :username, :owner, \'active\', :tags, :notes, :expiry, :actor, :now, :now)',
-                [
-                    'uuid' => $uuid, 'label' => $label, 'type' => (string) ($data['item_type'] ?? 'other'),
-                    'company' => $this->nullable($data['company_uuid'] ?? null), 'project' => $this->nullable($data['project_uuid'] ?? null),
-                    'url' => (string) ($data['url'] ?? ''), 'account' => (string) ($data['account_id'] ?? ''), 'username' => (string) ($data['username'] ?? ''),
-                    'owner' => (string) ($data['owner'] ?? $actor), 'tags' => json_encode(is_array($data['tags'] ?? null) ? array_values($data['tags']) : [], JSON_UNESCAPED_SLASHES) ?: '[]',
-                    'notes' => (string) ($data['notes'] ?? ''), 'expiry' => $this->nullable($data['expiry'] ?? null), 'actor' => $actor, 'now' => $now,
-                ]
-            );
-            foreach (is_array($data['fields'] ?? null) ? $data['fields'] : [] as $field) {
-                if (is_array($field) && !empty($field['fkey']) && isset($field['value']) && (string) $field['value'] !== '') {
-                    $this->putField($db, $uuid, (string) $field['fkey'], (string) ($field['label'] ?? ''), (string) $field['value'], $actor, 'created');
-                }
+        $uuid = Uuid::v4();
+        $now = Clock::nowIso();
+        $this->store->put('vault_items', [
+            'uuid'          => $uuid,
+            'label'         => $label,
+            'item_type'     => (string) ($data['item_type'] ?? 'other'),
+            'company_uuid'  => $this->nullable($data['company_uuid'] ?? null),
+            'project_uuid'  => $this->nullable($data['project_uuid'] ?? null),
+            'url'           => (string) ($data['url'] ?? ''),
+            'account_id'    => (string) ($data['account_id'] ?? ''),
+            'username'      => (string) ($data['username'] ?? ''),
+            'owner'         => (string) ($data['owner'] ?? $actor),
+            'status'        => 'active',
+            'tags'          => is_array($data['tags'] ?? null) ? array_values($data['tags']) : [],
+            'notes'         => (string) ($data['notes'] ?? ''),
+            'expiry'        => $this->nullable($data['expiry'] ?? null),
+            'archived'      => 0,
+            'revision'      => 0,
+            'last_verified' => null,
+            'created_by'    => $actor,
+            'created_at'    => $now,
+            'updated_at'    => $now,
+        ]);
+        foreach (is_array($data['fields'] ?? null) ? $data['fields'] : [] as $field) {
+            if (is_array($field) && !empty($field['fkey']) && isset($field['value']) && (string) $field['value'] !== '') {
+                $this->putField($uuid, (string) $field['fkey'], (string) ($field['label'] ?? ''), (string) $field['value'], $actor, 'created');
             }
-            $this->accessEvent($db, $uuid, '', 'create', $actor);
-            $this->audit->event('vault.created', 'vault', $uuid, $actor, ['label' => $label]);
+        }
+        $this->accessEvent($uuid, '', 'create', $actor);
+        $this->audit->event('vault.created', 'vault', $uuid, $actor, ['label' => $label]);
 
-            return $this->find($uuid) ?? [];
-        });
+        return $this->find($uuid) ?? [];
     }
 
     /**
@@ -146,30 +179,30 @@ final class Vault
      */
     public function updateMetadata(string $uuid, array $data, string $actor, ?int $expectedRevision = null): array
     {
-        $item = $this->db->one('SELECT revision FROM vault_items WHERE uuid = :u', ['u' => $uuid]);
+        $item = $this->store->find('vault_items', $uuid);
         if ($item === null) {
             throw new VaultException(404, 'Vault item not found.');
         }
-        if ($expectedRevision !== null && (int) $item['revision'] !== $expectedRevision) {
+        if ($expectedRevision !== null && (int) ($item['revision'] ?? 0) !== $expectedRevision) {
             throw new VaultException(409, 'This item was changed by someone else. Reload and try again.');
         }
-        $sets = ['updated_at = :now', 'revision = revision + 1'];
-        $params = ['u' => $uuid, 'now' => Clock::nowIso()];
-        foreach (['label', 'item_type', 'url', 'account_id', 'username', 'owner', 'status', 'notes'] as $f) {
-            if (array_key_exists($f, $data)) {
-                $sets[] = "$f = :$f";
-                $params[$f] = (string) $data[$f];
+        $this->store->update('vault_items', $uuid, function (array $row) use ($data): array {
+            foreach (['label', 'item_type', 'url', 'account_id', 'username', 'owner', 'status', 'notes'] as $f) {
+                if (array_key_exists($f, $data)) {
+                    $row[$f] = (string) $data[$f];
+                }
             }
-        }
-        if (array_key_exists('expiry', $data)) {
-            $sets[] = 'expiry = :expiry';
-            $params['expiry'] = $this->nullable($data['expiry']);
-        }
-        if (array_key_exists('tags', $data) && is_array($data['tags'])) {
-            $sets[] = 'tags = :tags';
-            $params['tags'] = json_encode(array_values($data['tags']), JSON_UNESCAPED_SLASHES) ?: '[]';
-        }
-        $this->db->run('UPDATE vault_items SET ' . implode(', ', $sets) . ' WHERE uuid = :u', $params);
+            if (array_key_exists('expiry', $data)) {
+                $row['expiry'] = $this->nullable($data['expiry']);
+            }
+            if (array_key_exists('tags', $data) && is_array($data['tags'])) {
+                $row['tags'] = array_values($data['tags']);
+            }
+            $row['revision']   = (int) ($row['revision'] ?? 0) + 1;
+            $row['updated_at'] = Clock::nowIso();
+
+            return $row;
+        });
         $this->audit->event('vault.metadata_updated', 'vault', $uuid, $actor, ['fields' => array_keys($data)]);
 
         return $this->find($uuid) ?? [];
@@ -182,16 +215,14 @@ final class Vault
      */
     public function setSecret(string $uuid, string $fkey, string $label, string $value, string $actor): array
     {
-        if ($this->db->one('SELECT uuid FROM vault_items WHERE uuid = :u', ['u' => $uuid]) === null) {
+        if ($this->store->find('vault_items', $uuid) === null) {
             throw new VaultException(404, 'Vault item not found.');
         }
         if ($value === '') {
             throw new VaultException(422, 'Enter a value.');
         }
-        $this->db->transaction(function (Database $db) use ($uuid, $fkey, $label, $value, $actor): void {
-            $this->putField($db, $uuid, $fkey, $label, $value, $actor, 'edited');
-        });
-        $this->accessEvent($this->db, $uuid, $fkey, 'edit_secret', $actor);
+        $this->putField($uuid, $fkey, $label, $value, $actor, 'edited');
+        $this->accessEvent($uuid, $fkey, 'edit_secret', $actor);
         $this->audit->event('vault.secret_set', 'vault', $uuid, $actor, ['field' => $fkey]); // never the value
 
         return $this->find($uuid) ?? [];
@@ -203,7 +234,6 @@ final class Vault
 
     /**
      * Reveal ONE field's plaintext. Requires a recent step-up re-auth; audited.
-     * The value is returned to the caller only — never logged.
      */
     public function reveal(string $uuid, string $fkey, string $actor): string
     {
@@ -221,7 +251,7 @@ final class Vault
         if (!$this->hasValidReauth($actor)) {
             throw new VaultException(401, 'Re-authentication is required to reveal a secret.');
         }
-        $field = $this->db->one('SELECT ciphertext, key_version FROM vault_item_fields WHERE item_uuid = :u AND fkey = :k', ['u' => $uuid, 'k' => $fkey]);
+        $field = $this->store->find('vault_item_fields', $this->fieldId($uuid, $fkey));
         if ($field === null) {
             throw new VaultException(404, 'That field does not exist.');
         }
@@ -230,7 +260,7 @@ final class Vault
             // Integrity failure — never echo anything derived from the ciphertext.
             throw new VaultException(409, 'The stored secret failed its integrity check.');
         }
-        $this->accessEvent($this->db, $uuid, $fkey, $action, $actor);
+        $this->accessEvent($uuid, $fkey, $action, $actor);
         $this->audit->event('vault.' . $action, 'vault', $uuid, $actor, ['field' => $fkey]); // metadata only
 
         return $plain;
@@ -243,8 +273,8 @@ final class Vault
     /** @return array<string,mixed> */
     public function archive(string $uuid, string $actor): array
     {
-        $this->db->run('UPDATE vault_items SET archived = 1, updated_at = :now WHERE uuid = :u', ['now' => Clock::nowIso(), 'u' => $uuid]);
-        $this->accessEvent($this->db, $uuid, '', 'archive', $actor);
+        $this->setArchived($uuid, 1);
+        $this->accessEvent($uuid, '', 'archive', $actor);
 
         return $this->find($uuid) ?? [];
     }
@@ -252,8 +282,8 @@ final class Vault
     /** @return array<string,mixed> */
     public function restore(string $uuid, string $actor): array
     {
-        $this->db->run('UPDATE vault_items SET archived = 0, updated_at = :now WHERE uuid = :u', ['now' => Clock::nowIso(), 'u' => $uuid]);
-        $this->accessEvent($this->db, $uuid, '', 'restore', $actor);
+        $this->setArchived($uuid, 0);
+        $this->accessEvent($uuid, '', 'restore', $actor);
 
         return $this->find($uuid) ?? [];
     }
@@ -261,7 +291,12 @@ final class Vault
     /** @return list<array<string,mixed>> */
     public function accessLog(string $uuid): array
     {
-        return $this->db->all('SELECT fkey, action, actor, created_at FROM vault_access_events WHERE item_uuid = :u ORDER BY created_at DESC LIMIT 200', ['u' => $uuid]);
+        $rows = array_values(array_filter($this->store->all('vault_access_events'), static fn (array $e): bool => (string) ($e['item_uuid'] ?? '') === $uuid));
+        usort($rows, static fn ($a, $b) => strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? '')));
+
+        return array_slice(array_map(static fn (array $e): array => [
+            'fkey' => $e['fkey'] ?? '', 'action' => $e['action'] ?? '', 'actor' => $e['actor'] ?? '', 'created_at' => $e['created_at'] ?? '',
+        ], $rows), 0, 200);
     }
 
     // ==================================================================
@@ -276,21 +311,26 @@ final class Vault
      */
     public function rotateKeys(string $actor): array
     {
-        $current = (int) $this->db->scalar('SELECT COALESCE(MAX(version),1) FROM vault_key_versions');
-        if ($current === 0) {
-            $current = 1;
-        }
-        $next = $current + 1;
-        $this->db->run('INSERT INTO vault_key_versions (version, created_at, note) VALUES (:v, :now, :note) ON CONFLICT(version) DO NOTHING', ['v' => $next, 'now' => Clock::nowIso(), 'note' => 'rotation by ' . $actor]);
+        $next = $this->currentKeyVersion() + 1;
+        $this->store->put('vault_key_versions', ['uuid' => 'v' . $next, 'version' => $next, 'created_at' => Clock::nowIso(), 'note' => 'rotation by ' . $actor]);
 
         $rotated = 0;
-        foreach ($this->db->all('SELECT uuid, item_uuid, ciphertext, key_version FROM vault_item_fields WHERE key_version < :v', ['v' => $next]) as $field) {
+        foreach ($this->store->all('vault_item_fields') as $field) {
+            if ((int) ($field['key_version'] ?? 0) >= $next) {
+                continue;
+            }
             $plain = $this->crypto->decrypt((string) $field['ciphertext'], (int) $field['key_version']);
             if ($plain === null) {
                 continue; // leave unreadable field untouched rather than lose it
             }
             $newCipher = $this->crypto->encrypt($plain, $next);
-            $this->db->run('UPDATE vault_item_fields SET ciphertext = :c, key_version = :v, updated_at = :now WHERE uuid = :u', ['c' => $newCipher, 'v' => $next, 'now' => Clock::nowIso(), 'u' => (string) $field['uuid']]);
+            $this->store->update('vault_item_fields', (string) $field['uuid'], static function (array $row) use ($newCipher, $next): array {
+                $row['ciphertext']  = $newCipher;
+                $row['key_version'] = $next;
+                $row['updated_at']  = Clock::nowIso();
+
+                return $row;
+            });
             $rotated++;
         }
         $this->audit->event('vault.keys_rotated', 'vault', 'system', $actor, ['version' => $next, 'rotated' => $rotated]);
@@ -302,26 +342,81 @@ final class Vault
     // Internals
     // ==================================================================
 
-    private function putField(Database $db, string $uuid, string $fkey, string $label, string $value, string $actor, string $reason): void
+    private function currentKeyVersion(): int
     {
-        $keyVersion = (int) $db->scalar('SELECT COALESCE(MAX(version),1) FROM vault_key_versions');
-        if ($keyVersion === 0) {
-            $keyVersion = 1;
+        $max = 1;
+        foreach ($this->store->all('vault_key_versions') as $v) {
+            $max = max($max, (int) ($v['version'] ?? 0));
         }
+
+        return $max;
+    }
+
+    /** Deterministic file id for a field, keyed on (item, fkey) — the old UNIQUE. */
+    private function fieldId(string $itemUuid, string $fkey): string
+    {
+        return sha1($itemUuid . ':' . $fkey);
+    }
+
+    private function setArchived(string $uuid, int $archived): void
+    {
+        $this->store->update('vault_items', $uuid, static function (array $row) use ($archived): array {
+            $row['archived']   = $archived;
+            $row['updated_at'] = Clock::nowIso();
+
+            return $row;
+        });
+    }
+
+    private function putField(string $uuid, string $fkey, string $label, string $value, string $actor, string $reason): void
+    {
+        $keyVersion = $this->currentKeyVersion();
+        $id = $this->fieldId($uuid, $fkey);
         // Snapshot the previous encrypted value (if any) before overwriting.
-        $existing = $db->one('SELECT ciphertext, key_version FROM vault_item_fields WHERE item_uuid = :u AND fkey = :k', ['u' => $uuid, 'k' => $fkey]);
+        $existing = $this->store->find('vault_item_fields', $id);
         if ($existing !== null) {
-            $ver = (int) $db->scalar('SELECT COALESCE(MAX(version),0) + 1 FROM vault_item_versions WHERE item_uuid = :u', ['u' => $uuid]);
-            $db->run('INSERT INTO vault_item_versions (uuid, item_uuid, version, fkey, ciphertext, key_version, editor, reason, created_at) VALUES (:uuid, :i, :v, :k, :c, :kv, :editor, :reason, :now)', ['uuid' => Uuid::v4(), 'i' => $uuid, 'v' => $ver, 'k' => $fkey, 'c' => (string) $existing['ciphertext'], 'kv' => (int) $existing['key_version'], 'editor' => $actor, 'reason' => $reason, 'now' => Clock::nowIso()]);
+            $ver = 1;
+            foreach ($this->store->all('vault_item_versions') as $v) {
+                if ((string) ($v['item_uuid'] ?? '') === $uuid) {
+                    $ver = max($ver, (int) ($v['version'] ?? 0) + 1);
+                }
+            }
+            $this->store->put('vault_item_versions', [
+                'uuid'        => Uuid::v4(),
+                'item_uuid'   => $uuid,
+                'version'     => $ver,
+                'fkey'        => $fkey,
+                'ciphertext'  => (string) $existing['ciphertext'],
+                'key_version' => (int) $existing['key_version'],
+                'editor'      => $actor,
+                'reason'      => $reason,
+                'created_at'  => Clock::nowIso(),
+            ]);
         }
         $cipher = $this->crypto->encrypt($value, $keyVersion);
-        $hint = $this->hint($value);
-        $db->run(
-            'INSERT INTO vault_item_fields (uuid, item_uuid, fkey, label, ciphertext, key_version, hint, updated_at)
-             VALUES (:uuid, :i, :k, :label, :c, :kv, :hint, :now)
-             ON CONFLICT (item_uuid, fkey) DO UPDATE SET ciphertext = excluded.ciphertext, key_version = excluded.key_version, hint = excluded.hint, label = excluded.label, updated_at = excluded.updated_at',
-            ['uuid' => Uuid::v4(), 'i' => $uuid, 'k' => $fkey, 'label' => $label !== '' ? $label : $fkey, 'c' => $cipher, 'kv' => $keyVersion, 'hint' => $hint, 'now' => Clock::nowIso()]
-        );
+        $this->store->put('vault_item_fields', [
+            'uuid'        => $id,
+            'item_uuid'   => $uuid,
+            'fkey'        => $fkey,
+            'label'       => $label !== '' ? $label : $fkey,
+            'ciphertext'  => $cipher,
+            'key_version' => $keyVersion,
+            'hint'        => $this->hint($value),
+            'sort_order'  => $existing !== null ? (int) ($existing['sort_order'] ?? 0) : $this->nextSortOrder($uuid),
+            'updated_at'  => Clock::nowIso(),
+        ]);
+    }
+
+    private function nextSortOrder(string $itemUuid): int
+    {
+        $count = 0;
+        foreach ($this->store->all('vault_item_fields') as $f) {
+            if ((string) ($f['item_uuid'] ?? '') === $itemUuid) {
+                $count++;
+            }
+        }
+
+        return $count;
     }
 
     /** A safe masked hint — never more than the last 2 characters. */
@@ -349,13 +444,15 @@ final class Vault
             'owner' => (string) $i['owner'], 'status' => (string) $i['status'], 'expiry' => (string) ($i['expiry'] ?? ''),
             'last_verified' => (string) ($i['last_verified'] ?? ''), 'archived' => (int) $i['archived'] === 1,
             'revision' => (int) $i['revision'], 'notes' => (string) $i['notes'],
-            'tags' => $this->decodeTags($i['tags'] ?? '[]'),
+            'tags' => is_array($i['tags'] ?? null) ? array_values(array_map('strval', $i['tags'])) : $this->decodeTags($i['tags'] ?? '[]'),
             'updated_at' => (string) $i['updated_at'],
         ];
         // Fields are ALWAYS masked here — hint only, never ciphertext/plaintext.
+        $fields = array_values(array_filter($this->store->all('vault_item_fields'), static fn (array $f): bool => (string) ($f['item_uuid'] ?? '') === $uuid));
+        usort($fields, static fn ($a, $b) => (int) ($a['sort_order'] ?? 0) <=> (int) ($b['sort_order'] ?? 0));
         $out['fields'] = array_map(static fn (array $f): array => [
             'fkey' => (string) $f['fkey'], 'label' => (string) $f['label'], 'hint' => (string) $f['hint'], 'has_value' => true,
-        ], $this->db->all('SELECT fkey, label, hint FROM vault_item_fields WHERE item_uuid = :u ORDER BY sort_order ASC', ['u' => $uuid]));
+        ], $fields);
 
         return $out;
     }
@@ -368,9 +465,16 @@ final class Vault
         return is_array($decoded) ? array_values(array_map('strval', $decoded)) : [];
     }
 
-    private function accessEvent(Database $db, string $uuid, string $fkey, string $action, string $actor): void
+    private function accessEvent(string $uuid, string $fkey, string $action, string $actor): void
     {
-        $db->run('INSERT INTO vault_access_events (uuid, item_uuid, fkey, action, actor, created_at) VALUES (:uuid, :i, :k, :a, :actor, :now)', ['uuid' => Uuid::v4(), 'i' => $uuid, 'k' => $fkey, 'a' => $action, 'actor' => $actor, 'now' => Clock::nowIso()]);
+        $this->store->put('vault_access_events', [
+            'uuid'       => Uuid::v4(),
+            'item_uuid'  => $uuid,
+            'fkey'       => $fkey,
+            'action'     => $action,
+            'actor'      => $actor,
+            'created_at' => Clock::nowIso(),
+        ]);
     }
 
     private function nullable(mixed $value): ?string

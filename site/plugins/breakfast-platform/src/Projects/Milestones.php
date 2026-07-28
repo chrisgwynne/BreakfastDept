@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Breakfast\Platform\Projects;
 
 use Breakfast\Platform\Support\Clock;
-use Breakfast\Platform\Support\Database;
+use Breakfast\Platform\Support\FileStore;
 use Breakfast\Platform\Support\Uuid;
 
 /**
@@ -15,9 +15,15 @@ use Breakfast\Platform\Support\Uuid;
  * when configured), never invented. Dependencies form a DAG: adding a
  * dependency that would create a cycle is rejected. Completing a blocker does
  * NOT auto-complete dependents — it only makes them "ready".
+ *
+ * Each milestone is one flat-file record; its dependency edges live embedded in
+ * that record as a native array. Task-derived progress reads the flat-file
+ * project_tasks collection.
  */
 final class Milestones
 {
+    private const COLLECTION = 'milestones';
+
     /** @var list<string> */
     public const STATUSES = ['not_started', 'active', 'awaiting_client', 'blocked', 'completed', 'cancelled'];
 
@@ -31,14 +37,16 @@ final class Milestones
         'cancelled'       => ['not_started'],
     ];
 
-    public function __construct(private readonly Database $db)
-    {
+    public function __construct(
+        private readonly FileStore $store,
+    ) {
     }
 
     /** @return list<array<string,mixed>> */
     public function forProject(string $projectUuid): array
     {
-        $rows = $this->db->all('SELECT * FROM milestones WHERE project_uuid = :p ORDER BY sort_order ASC, created_at ASC', ['p' => $projectUuid]);
+        $rows = array_values(array_filter($this->store->all(self::COLLECTION), static fn (array $m): bool => (string) ($m['project_uuid'] ?? '') === $projectUuid));
+        usort($rows, static fn ($a, $b) => [(int) ($a['sort_order'] ?? 0), (string) ($a['created_at'] ?? '')] <=> [(int) ($b['sort_order'] ?? 0), (string) ($b['created_at'] ?? '')]);
 
         return array_map(fn (array $m): array => $this->withDerived($m), $rows);
     }
@@ -46,7 +54,7 @@ final class Milestones
     /** @return array<string,mixed>|null */
     public function find(string $uuid): ?array
     {
-        $m = $this->db->one('SELECT * FROM milestones WHERE uuid = :u', ['u' => $uuid]);
+        $m = $this->store->find(self::COLLECTION, $uuid);
 
         return $m === null ? null : $this->withDerived($m);
     }
@@ -57,7 +65,7 @@ final class Milestones
      */
     public function create(string $projectUuid, array $data, string $actor): array
     {
-        if ($this->db->one('SELECT uuid FROM projects WHERE uuid = :u', ['u' => $projectUuid]) === null) {
+        if (!$this->store->exists('projects', $projectUuid)) {
             throw new ProjectException(404, 'Project not found.');
         }
         $title = trim((string) ($data['title'] ?? ''));
@@ -66,25 +74,27 @@ final class Milestones
         }
         $uuid = Uuid::v4();
         $now  = Clock::nowIso();
-        $order = (int) $this->db->scalar('SELECT COALESCE(MAX(sort_order),0) + 1 FROM milestones WHERE project_uuid = :p', ['p' => $projectUuid]);
-        $this->db->run(
-            'INSERT INTO milestones (uuid, project_uuid, title, description, owner, due_date, status, priority, client_visible, sort_order, progress_method, manual_progress, linked_invoice, linked_preview, created_at, updated_at)
-             VALUES (:uuid, :p, :title, :desc, :owner, :due, :status, :priority, :cv, :order, :pm, :mp, :li, :lp, :now, :now)',
-            [
-                'uuid' => $uuid, 'p' => $projectUuid, 'title' => $title,
-                'desc' => (string) ($data['description'] ?? ''), 'owner' => (string) ($data['owner'] ?? ''),
-                'due' => $this->nullable($data['due_date'] ?? null),
-                'status' => in_array((string) ($data['status'] ?? 'not_started'), self::STATUSES, true) ? (string) ($data['status'] ?? 'not_started') : 'not_started',
-                'priority' => (string) ($data['priority'] ?? 'normal'),
-                'cv' => !empty($data['client_visible']) ? 1 : (array_key_exists('client_visible', $data) ? 0 : 1),
-                'order' => $order,
-                'pm' => in_array((string) ($data['progress_method'] ?? 'tasks'), ['tasks', 'manual'], true) ? (string) ($data['progress_method'] ?? 'tasks') : 'tasks',
-                'mp' => max(0, min(100, (int) ($data['manual_progress'] ?? 0))),
-                'li' => $this->nullable($data['linked_invoice'] ?? null),
-                'lp' => $this->nullable($data['linked_preview'] ?? null),
-                'now' => $now,
-            ]
-        );
+        $this->store->put(self::COLLECTION, [
+            'uuid'            => $uuid,
+            'project_uuid'    => $projectUuid,
+            'title'           => $title,
+            'description'     => (string) ($data['description'] ?? ''),
+            'owner'           => (string) ($data['owner'] ?? ''),
+            'due_date'        => $this->nullable($data['due_date'] ?? null),
+            'status'          => in_array((string) ($data['status'] ?? 'not_started'), self::STATUSES, true) ? (string) ($data['status'] ?? 'not_started') : 'not_started',
+            'priority'        => (string) ($data['priority'] ?? 'normal'),
+            'client_visible'  => !empty($data['client_visible']) ? 1 : (array_key_exists('client_visible', $data) ? 0 : 1),
+            'sort_order'      => $this->nextSortOrder($projectUuid),
+            'progress_method' => in_array((string) ($data['progress_method'] ?? 'tasks'), ['tasks', 'manual'], true) ? (string) ($data['progress_method'] ?? 'tasks') : 'tasks',
+            'manual_progress' => max(0, min(100, (int) ($data['manual_progress'] ?? 0))),
+            'linked_invoice'  => $this->nullable($data['linked_invoice'] ?? null),
+            'linked_preview'  => $this->nullable($data['linked_preview'] ?? null),
+            'completed_date'  => null,
+            'revision'        => 0,
+            'dependencies'    => [],
+            'created_at'      => $now,
+            'updated_at'      => $now,
+        ]);
 
         return $this->find($uuid) ?? [];
     }
@@ -95,38 +105,39 @@ final class Milestones
      */
     public function update(string $uuid, array $data, string $actor, ?int $expectedRevision = null): array
     {
-        $m = $this->db->one('SELECT revision FROM milestones WHERE uuid = :u', ['u' => $uuid]);
+        $m = $this->store->find(self::COLLECTION, $uuid);
         if ($m === null) {
             throw new ProjectException(404, 'Milestone not found.');
         }
-        if ($expectedRevision !== null && (int) $m['revision'] !== $expectedRevision) {
+        if ($expectedRevision !== null && (int) ($m['revision'] ?? 0) !== $expectedRevision) {
             throw new ProjectException(409, 'This milestone was changed by someone else. Reload and try again.');
         }
-        $sets = ['updated_at = :now', 'revision = revision + 1'];
-        $params = ['u' => $uuid, 'now' => Clock::nowIso()];
-        foreach (['title', 'description', 'owner', 'due_date'] as $f) {
-            if (array_key_exists($f, $data)) {
-                $sets[] = "$f = :$f";
-                $params[$f] = $f === 'due_date' ? $this->nullable($data[$f]) : (string) $data[$f];
+        $this->store->update(self::COLLECTION, $uuid, function (array $row) use ($data): array {
+            foreach (['title', 'description', 'owner'] as $f) {
+                if (array_key_exists($f, $data)) {
+                    $row[$f] = (string) $data[$f];
+                }
             }
-        }
-        if (array_key_exists('priority', $data)) {
-            $sets[] = 'priority = :priority';
-            $params['priority'] = (string) $data['priority'];
-        }
-        if (array_key_exists('client_visible', $data)) {
-            $sets[] = 'client_visible = :cv';
-            $params['cv'] = !empty($data['client_visible']) ? 1 : 0;
-        }
-        if (array_key_exists('manual_progress', $data)) {
-            $sets[] = 'manual_progress = :mp';
-            $params['mp'] = max(0, min(100, (int) $data['manual_progress']));
-        }
-        if (array_key_exists('progress_method', $data) && in_array((string) $data['progress_method'], ['tasks', 'manual'], true)) {
-            $sets[] = 'progress_method = :pm';
-            $params['pm'] = (string) $data['progress_method'];
-        }
-        $this->db->run('UPDATE milestones SET ' . implode(', ', $sets) . ' WHERE uuid = :u', $params);
+            if (array_key_exists('due_date', $data)) {
+                $row['due_date'] = $this->nullable($data['due_date']);
+            }
+            if (array_key_exists('priority', $data)) {
+                $row['priority'] = (string) $data['priority'];
+            }
+            if (array_key_exists('client_visible', $data)) {
+                $row['client_visible'] = !empty($data['client_visible']) ? 1 : 0;
+            }
+            if (array_key_exists('manual_progress', $data)) {
+                $row['manual_progress'] = max(0, min(100, (int) $data['manual_progress']));
+            }
+            if (array_key_exists('progress_method', $data) && in_array((string) $data['progress_method'], ['tasks', 'manual'], true)) {
+                $row['progress_method'] = (string) $data['progress_method'];
+            }
+            $row['revision']   = (int) ($row['revision'] ?? 0) + 1;
+            $row['updated_at'] = Clock::nowIso();
+
+            return $row;
+        });
 
         return $this->find($uuid) ?? [];
     }
@@ -134,7 +145,7 @@ final class Milestones
     /** @return array<string,mixed> */
     public function setStatus(string $uuid, string $to, string $actor): array
     {
-        $m = $this->db->one('SELECT * FROM milestones WHERE uuid = :u', ['u' => $uuid]);
+        $m = $this->store->find(self::COLLECTION, $uuid);
         if ($m === null) {
             throw new ProjectException(404, 'Milestone not found.');
         }
@@ -152,15 +163,18 @@ final class Milestones
         if ($to === 'completed' && !$this->isReady($uuid)) {
             throw new ProjectException(409, 'This milestone is blocked by an incomplete dependency.');
         }
-        $sets = ['status = :to', 'updated_at = :now', 'revision = revision + 1'];
-        $params = ['u' => $uuid, 'to' => $to, 'now' => Clock::nowIso()];
-        if ($to === 'completed') {
-            $sets[] = 'completed_date = :cd';
-            $params['cd'] = date('Y-m-d');
-        } elseif ($from === 'completed') {
-            $sets[] = 'completed_date = NULL';
-        }
-        $this->db->run('UPDATE milestones SET ' . implode(', ', $sets) . ' WHERE uuid = :u', $params);
+        $this->store->update(self::COLLECTION, $uuid, static function (array $row) use ($from, $to): array {
+            $row['status'] = $to;
+            if ($to === 'completed') {
+                $row['completed_date'] = date('Y-m-d');
+            } elseif ($from === 'completed') {
+                $row['completed_date'] = null;
+            }
+            $row['revision']   = (int) ($row['revision'] ?? 0) + 1;
+            $row['updated_at'] = Clock::nowIso();
+
+            return $row;
+        });
 
         return $this->find($uuid) ?? [];
     }
@@ -168,23 +182,39 @@ final class Milestones
     /** @param list<string> $orderedUuids */
     public function reorder(string $projectUuid, array $orderedUuids, string $actor): void
     {
-        $this->db->transaction(function (Database $db) use ($projectUuid, $orderedUuids): void {
-            $i = 1;
-            foreach ($orderedUuids as $uuid) {
-                $db->run('UPDATE milestones SET sort_order = :o, updated_at = :now WHERE uuid = :u AND project_uuid = :p', ['o' => $i++, 'now' => Clock::nowIso(), 'u' => (string) $uuid, 'p' => $projectUuid]);
-            }
-        });
+        $i = 1;
+        foreach ($orderedUuids as $uuid) {
+            $order = $i++;
+            $this->store->update(self::COLLECTION, (string) $uuid, static function (array $row) use ($order, $projectUuid): array {
+                if ((string) ($row['project_uuid'] ?? '') === $projectUuid) {
+                    $row['sort_order'] = $order;
+                    $row['updated_at'] = Clock::nowIso();
+                }
+
+                return $row;
+            });
+        }
     }
 
     /** @return array<string,mixed> */
     public function delete(string $uuid): array
     {
-        $m = $this->db->one('SELECT project_uuid FROM milestones WHERE uuid = :u', ['u' => $uuid]);
+        $m = $this->store->find(self::COLLECTION, $uuid);
         if ($m === null) {
             throw new ProjectException(404, 'Milestone not found.');
         }
-        $this->db->run('DELETE FROM milestone_dependencies WHERE milestone_uuid = :u OR blocked_by = :u', ['u' => $uuid]);
-        $this->db->run('DELETE FROM milestones WHERE uuid = :u', ['u' => $uuid]);
+        // Drop any edges from other milestones that pointed at this one.
+        foreach ($this->store->all(self::COLLECTION) as $other) {
+            $deps = is_array($other['dependencies'] ?? null) ? $other['dependencies'] : [];
+            if ($deps !== [] && $this->hasBlocker($deps, $uuid)) {
+                $this->store->update(self::COLLECTION, (string) $other['uuid'], static function (array $row) use ($uuid): array {
+                    $row['dependencies'] = array_values(array_filter(is_array($row['dependencies'] ?? null) ? $row['dependencies'] : [], static fn (array $d): bool => (string) ($d['blocked_by'] ?? '') !== $uuid));
+
+                    return $row;
+                });
+            }
+        }
+        $this->store->delete(self::COLLECTION, $uuid);
 
         return ['ok' => true];
     }
@@ -199,38 +229,50 @@ final class Milestones
         if ($milestoneUuid === $blockedBy) {
             throw new ProjectException(422, 'A milestone cannot depend on itself.');
         }
-        $m = $this->db->one('SELECT project_uuid FROM milestones WHERE uuid = :u', ['u' => $milestoneUuid]);
-        $b = $this->db->one('SELECT project_uuid FROM milestones WHERE uuid = :u', ['u' => $blockedBy]);
+        $m = $this->store->find(self::COLLECTION, $milestoneUuid);
+        $b = $this->store->find(self::COLLECTION, $blockedBy);
         if ($m === null || $b === null) {
             throw new ProjectException(404, 'Milestone not found.');
         }
-        if ((string) $m['project_uuid'] !== (string) $b['project_uuid']) {
+        if ((string) ($m['project_uuid'] ?? '') !== (string) ($b['project_uuid'] ?? '')) {
             throw new ProjectException(422, 'Dependencies must be within the same project.');
         }
         // Cycle check: would $blockedBy (transitively) already depend on $milestoneUuid?
         if ($this->dependsOn($blockedBy, $milestoneUuid)) {
             throw new ProjectException(409, 'That would create a circular dependency.');
         }
-        $this->db->run(
-            'INSERT INTO milestone_dependencies (uuid, project_uuid, milestone_uuid, blocked_by, created_at)
-             VALUES (:uuid, :p, :m, :b, :now) ON CONFLICT (milestone_uuid, blocked_by) DO NOTHING',
-            ['uuid' => Uuid::v4(), 'p' => (string) $m['project_uuid'], 'm' => $milestoneUuid, 'b' => $blockedBy, 'now' => Clock::nowIso()]
-        );
+        $this->store->update(self::COLLECTION, $milestoneUuid, static function (array $row) use ($blockedBy): array {
+            $deps = is_array($row['dependencies'] ?? null) ? $row['dependencies'] : [];
+            foreach ($deps as $d) {
+                if ((string) ($d['blocked_by'] ?? '') === $blockedBy) {
+                    return $row; // already present
+                }
+            }
+            $deps[] = ['blocked_by' => $blockedBy, 'created_at' => Clock::nowIso()];
+            $row['dependencies'] = $deps;
+
+            return $row;
+        });
 
         return $this->find($milestoneUuid) ?? [];
     }
 
     public function removeDependency(string $milestoneUuid, string $blockedBy): void
     {
-        $this->db->run('DELETE FROM milestone_dependencies WHERE milestone_uuid = :m AND blocked_by = :b', ['m' => $milestoneUuid, 'b' => $blockedBy]);
+        $this->store->update(self::COLLECTION, $milestoneUuid, static function (array $row) use ($blockedBy): array {
+            $row['dependencies'] = array_values(array_filter(is_array($row['dependencies'] ?? null) ? $row['dependencies'] : [], static fn (array $d): bool => (string) ($d['blocked_by'] ?? '') !== $blockedBy));
+
+            return $row;
+        });
     }
 
     /** A milestone is ready when every blocker is completed or cancelled. */
     public function isReady(string $milestoneUuid): bool
     {
-        $blockers = $this->db->all('SELECT blocked_by FROM milestone_dependencies WHERE milestone_uuid = :m', ['m' => $milestoneUuid]);
-        foreach ($blockers as $b) {
-            $status = (string) $this->db->scalar('SELECT status FROM milestones WHERE uuid = :u', ['u' => (string) $b['blocked_by']]);
+        $m = $this->store->find(self::COLLECTION, $milestoneUuid);
+        foreach (is_array($m['dependencies'] ?? null) ? $m['dependencies'] : [] as $edge) {
+            $blocker = $this->store->find(self::COLLECTION, (string) ($edge['blocked_by'] ?? ''));
+            $status = (string) ($blocker['status'] ?? '');
             if (!in_array($status, ['completed', 'cancelled'], true)) {
                 return false;
             }
@@ -243,6 +285,20 @@ final class Milestones
     // Internals
     // ==================================================================
 
+    /**
+     * @param list<array<string,mixed>> $deps
+     */
+    private function hasBlocker(array $deps, string $blockedBy): bool
+    {
+        foreach ($deps as $d) {
+            if ((string) ($d['blocked_by'] ?? '') === $blockedBy) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /** Does $a (transitively) depend on $b? DFS over the blocked_by edges. */
     /** @param array<string,bool> $seen */
     private function dependsOn(string $a, string $b, array &$seen = []): bool
@@ -251,14 +307,27 @@ final class Milestones
             return false;
         }
         $seen[$a] = true;
-        foreach ($this->db->all('SELECT blocked_by FROM milestone_dependencies WHERE milestone_uuid = :m', ['m' => $a]) as $edge) {
-            $next = (string) $edge['blocked_by'];
+        $m = $this->store->find(self::COLLECTION, $a);
+        foreach (is_array($m['dependencies'] ?? null) ? $m['dependencies'] : [] as $edge) {
+            $next = (string) ($edge['blocked_by'] ?? '');
             if ($next === $b || $this->dependsOn($next, $b, $seen)) {
                 return true;
             }
         }
 
         return false;
+    }
+
+    private function nextSortOrder(string $projectUuid): int
+    {
+        $max = 0;
+        foreach ($this->store->all(self::COLLECTION) as $m) {
+            if ((string) ($m['project_uuid'] ?? '') === $projectUuid) {
+                $max = max($max, (int) ($m['sort_order'] ?? 0));
+            }
+        }
+
+        return $max + 1;
     }
 
     /**
@@ -271,16 +340,21 @@ final class Milestones
         if ((string) $m['progress_method'] === 'manual') {
             $m['progress_percent'] = (int) $m['manual_progress'];
         } else {
-            $t = $this->db->one(
-                "SELECT COUNT(*) AS total, COALESCE(SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END),0) AS done
-                 FROM project_tasks WHERE milestone_uuid = :m AND archived = 0 AND status <> 'cancelled'",
-                ['m' => $uuid]
-            ) ?? ['total' => 0, 'done' => 0];
-            $m['progress_percent'] = (int) $t['total'] > 0 ? (int) round((int) $t['done'] / (int) $t['total'] * 100) : ((string) $m['status'] === 'completed' ? 100 : 0);
-            $m['tasks_total'] = (int) $t['total'];
-            $m['tasks_completed'] = (int) $t['done'];
+            $total = 0;
+            $done = 0;
+            foreach ($this->store->all('project_tasks') as $t) {
+                if ((string) ($t['milestone_uuid'] ?? '') === $uuid && (int) ($t['archived'] ?? 0) === 0 && (string) ($t['status'] ?? '') !== 'cancelled') {
+                    $total++;
+                    if ((string) ($t['status'] ?? '') === 'completed') {
+                        $done++;
+                    }
+                }
+            }
+            $m['progress_percent'] = $total > 0 ? (int) round($done / $total * 100) : ((string) $m['status'] === 'completed' ? 100 : 0);
+            $m['tasks_total'] = $total;
+            $m['tasks_completed'] = $done;
         }
-        $m['blocked_by'] = array_map(static fn (array $d): string => (string) $d['blocked_by'], $this->db->all('SELECT blocked_by FROM milestone_dependencies WHERE milestone_uuid = :m', ['m' => $uuid]));
+        $m['blocked_by'] = array_map(static fn (array $d): string => (string) ($d['blocked_by'] ?? ''), is_array($m['dependencies'] ?? null) ? array_values($m['dependencies']) : []);
         $m['is_ready'] = $this->isReady($uuid);
 
         return $m;

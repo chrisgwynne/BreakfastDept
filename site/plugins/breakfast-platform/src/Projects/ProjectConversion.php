@@ -158,11 +158,7 @@ final class ProjectConversion
 
     private function guardDuplicate(string $column, string $value): void
     {
-        $existing = $this->platform->db()->one(
-            "SELECT uuid FROM projects WHERE {$column} = :v AND archived = 0",
-            ['v' => $value]
-        );
-        if ($existing !== null) {
+        if ($this->platform->projects()->activeUuidsBy($column, $value) !== []) {
             throw new ProjectException(409, 'A project already exists for this record.');
         }
     }

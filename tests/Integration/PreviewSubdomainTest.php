@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Breakfast\Tests\Integration;
 
-use Breakfast\Platform\Support\Database;
 use Breakfast\Platform\Support\Platform;
 use Kirby\Cms\App;
 use Kirby\Http\Request;
@@ -30,9 +29,7 @@ final class PreviewSubdomainTest extends TestCase
         parent::setUp();
         $base = dirname(__DIR__, 2);
         $this->tmp = sys_get_temp_dir() . '/bf-sub-' . bin2hex(random_bytes(6));
-        @mkdir($this->tmp . '/database', 0777, true);
 
-        Database::reset();
         Platform::reset();
 
         $this->kirby = new App([
@@ -51,7 +48,6 @@ final class PreviewSubdomainTest extends TestCase
                 'breakfast' => [
                     'production' => false,
                     'storageDir' => $this->tmp,
-                    'dbPath'     => $this->tmp . '/database/crm.sqlite',
                     'previews'   => [
                         'storageDir'   => $this->tmp . '/client-previews',
                         'wildcardBase' => self::BASE,
@@ -62,14 +58,12 @@ final class PreviewSubdomainTest extends TestCase
                 ],
             ],
         ]);
-        breakfast()->migrator()->migrate();
     }
 
     protected function tearDown(): void
     {
         $_COOKIE = [];
         $_SERVER['HTTP_HOST'] = '';
-        Database::reset();
         Platform::reset();
         $this->rrmdir($this->tmp);
         App::destroy();

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Breakfast\Platform\Hermes;
 
 use Breakfast\Platform\Support\Clock;
-use Breakfast\Platform\Support\Database;
+use Breakfast\Platform\Support\FileStore;
 
 /**
  * Authenticates a Hermes request: resolves the credential, verifies the HMAC
@@ -16,12 +16,15 @@ use Breakfast\Platform\Support\Database;
  *   X-Hermes-Timestamp  unix seconds
  *   X-Hermes-Nonce      unique per request
  *   X-Hermes-Signature  hex HMAC-SHA256 of the canonical string
+ *
+ * Single-use nonces are held as flat files; a putIfAbsent on the nonce hash is
+ * the filesystem equivalent of the old UNIQUE primary key.
  */
 final class Authenticator
 {
     public function __construct(
         private readonly CredentialStore $store,
-        private readonly Database $db,
+        private readonly FileStore $files,
         private readonly int $replayWindow = 300
     ) {
     }
@@ -75,23 +78,20 @@ final class Authenticator
      */
     private function consumeNonce(string $nonce): bool
     {
-        $this->db->run('DELETE FROM hermes_nonces WHERE expires_at < :now', ['now' => Clock::nowIso()]);
-
-        try {
-            $this->db->run(
-                'INSERT INTO hermes_nonces (nonce, seen_at, expires_at) VALUES (:n, :s, :e)',
-                [
-                    'n' => $nonce,
-                    's' => Clock::nowIso(),
-                    'e' => Clock::now()->modify('+' . ($this->replayWindow * 2) . ' seconds')->format('c'),
-                ]
-            );
-        } catch (\PDOException $e) {
-            // Primary-key conflict → nonce already used.
-            return false;
+        $now = Clock::nowIso();
+        // Prune expired nonces opportunistically.
+        foreach ($this->files->all('hermes_nonces') as $n) {
+            if ((string) ($n['expires_at'] ?? '') < $now) {
+                $this->files->delete('hermes_nonces', (string) ($n['uuid'] ?? ''));
+            }
         }
-
-        return true;
+        // putIfAbsent on the nonce hash — false means it was already seen (replay).
+        return $this->files->putIfAbsent('hermes_nonces', sha1($nonce), [
+            'uuid'       => sha1($nonce),
+            'nonce'      => $nonce,
+            'seen_at'    => $now,
+            'expires_at' => Clock::now()->modify('+' . ($this->replayWindow * 2) . ' seconds')->format('c'),
+        ]);
     }
 
     /**

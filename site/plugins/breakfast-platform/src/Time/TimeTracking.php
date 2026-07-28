@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace Breakfast\Platform\Time;
 
 use Breakfast\Platform\Support\Clock;
-use Breakfast\Platform\Support\Database;
+use Breakfast\Platform\Support\FileStore;
 use Breakfast\Platform\Support\Platform;
 use Breakfast\Platform\Support\Uuid;
 
 /**
- * Time tracking (Phase 4 — Operations).
+ * Time tracking (Phase 4 — Operations), stored as flat files.
  *
  * Time is logged against a project (and optionally a task) either with an
  * explicit duration or a live start/stop timer — at most one running timer per
@@ -28,9 +28,9 @@ final class TimeTracking
     {
     }
 
-    private function db(): Database
+    private function store(): FileStore
     {
-        return $this->platform->db();
+        return $this->platform->fileStore();
     }
 
     // ==================================================================
@@ -43,30 +43,32 @@ final class TimeTracking
      */
     public function list(array $filters = []): array
     {
-        $where = ['1 = 1'];
-        $params = [];
-        foreach (['project_uuid' => 'project_uuid', 'task_uuid' => 'task_uuid', 'author' => 'author'] as $key => $col) {
-            if (!empty($filters[$key])) {
-                $where[] = "$col = :$key";
-                $params[$key] = (string) $filters[$key];
+        $rows = $this->store()->all('time_entries');
+        foreach (['project_uuid', 'task_uuid', 'author'] as $col) {
+            if (!empty($filters[$col])) {
+                $rows = array_filter($rows, static fn (array $r): bool => (string) ($r[$col] ?? '') === (string) $filters[$col]);
             }
         }
         if (isset($filters['billable'])) {
-            $where[] = 'billable = :billable';
-            $params['billable'] = !empty($filters['billable']) ? 1 : 0;
+            $want = !empty($filters['billable']) ? 1 : 0;
+            $rows = array_filter($rows, static fn (array $r): bool => (int) ($r['billable'] ?? 0) === $want);
         }
-        if (isset($filters['unbilled']) && $filters['unbilled']) {
-            $where[] = 'billed = 0';
+        if (!empty($filters['unbilled'])) {
+            $rows = array_filter($rows, static fn (array $r): bool => (int) ($r['billed'] ?? 0) === 0);
         }
-        $params['l'] = (int) ($filters['limit'] ?? 500);
+        $rows = array_values($rows);
+        usort($rows, static fn ($a, $b) => strcmp(
+            (string) ($b['started_at'] ?? $b['created_at'] ?? ''),
+            (string) ($a['started_at'] ?? $a['created_at'] ?? '')
+        ));
 
-        return $this->db()->all('SELECT * FROM time_entries WHERE ' . implode(' AND ', $where) . ' ORDER BY COALESCE(started_at, created_at) DESC LIMIT :l', $params);
+        return array_slice($rows, 0, (int) ($filters['limit'] ?? 500));
     }
 
     /** @return array<string,mixed>|null */
     public function find(string $uuid): ?array
     {
-        return $this->db()->one('SELECT * FROM time_entries WHERE uuid = :u', ['u' => $uuid]);
+        return $this->store()->find('time_entries', $uuid);
     }
 
     /**
@@ -77,22 +79,24 @@ final class TimeTracking
      */
     public function rollup(string $projectUuid): array
     {
-        $rows = $this->db()->all('SELECT duration_seconds, started_at, billable, rate_pence, running, billed FROM time_entries WHERE project_uuid = :p', ['p' => $projectUuid]);
         $billable = 0;
         $nonbillable = 0;
         $value = 0;
         $unbilled = 0;
         $running = false;
-        foreach ($rows as $r) {
+        foreach ($this->store()->all('time_entries') as $r) {
+            if ((string) ($r['project_uuid'] ?? '') !== $projectUuid) {
+                continue;
+            }
             $secs = $this->effectiveSeconds($r);
-            if ((int) $r['running'] === 1) {
+            if ((int) ($r['running'] ?? 0) === 1) {
                 $running = true;
             }
-            if ((int) $r['billable'] === 1) {
+            if ((int) ($r['billable'] ?? 0) === 1) {
                 $billable += $secs;
-                $lineValue = (int) round($secs / 3600 * (int) $r['rate_pence']);
+                $lineValue = (int) round($secs / 3600 * (int) ($r['rate_pence'] ?? 0));
                 $value += $lineValue;
-                if ((int) $r['billed'] === 0) {
+                if ((int) ($r['billed'] ?? 0) === 0) {
                     $unbilled += $lineValue;
                 }
             } else {
@@ -116,7 +120,7 @@ final class TimeTracking
      */
     public function create(string $projectUuid, array $data, string $actor): array
     {
-        if ($this->db()->one('SELECT uuid FROM projects WHERE uuid = :u', ['u' => $projectUuid]) === null) {
+        if (!$this->platform->projects()->exists($projectUuid)) {
             throw new TimeException(404, 'Project not found.');
         }
         $seconds = $this->durationToSeconds($data);
@@ -125,18 +129,24 @@ final class TimeTracking
         }
         $uuid = Uuid::v4();
         $now = Clock::nowIso();
-        $this->db()->run(
-            'INSERT INTO time_entries (uuid, project_uuid, task_uuid, author, description, activity, started_at, duration_seconds, billable, rate_pence, running, billed, created_at, updated_at)
-             VALUES (:uuid, :p, :task, :author, :desc, :activity, :started, :dur, :billable, :rate, 0, 0, :now, :now)',
-            [
-                'uuid' => $uuid, 'p' => $projectUuid, 'task' => $this->nullable($data['task_uuid'] ?? null),
-                'author' => (string) ($data['author'] ?? $actor), 'desc' => (string) ($data['description'] ?? ''),
-                'activity' => $this->activity($data),
-                'started' => $this->nullable($data['started_at'] ?? null) ?? substr($now, 0, 10),
-                'dur' => $seconds, 'billable' => !empty($data['billable'] ?? true) ? 1 : 0,
-                'rate' => (int) round(((float) ($data['rate'] ?? 0)) * 100), 'now' => $now,
-            ]
-        );
+        $this->store()->put('time_entries', [
+            'uuid'             => $uuid,
+            'project_uuid'     => $projectUuid,
+            'task_uuid'        => $this->nullable($data['task_uuid'] ?? null),
+            'author'           => (string) ($data['author'] ?? $actor),
+            'description'      => (string) ($data['description'] ?? ''),
+            'activity'         => $this->activity($data),
+            'started_at'       => $this->nullable($data['started_at'] ?? null) ?? substr($now, 0, 10),
+            'duration_seconds' => $seconds,
+            'billable'         => !empty($data['billable'] ?? true) ? 1 : 0,
+            'rate_pence'       => (int) round(((float) ($data['rate'] ?? 0)) * 100),
+            'running'          => 0,
+            'billed'           => 0,
+            'invoice_uuid'     => null,
+            'revision'         => 0,
+            'created_at'       => $now,
+            'updated_at'       => $now,
+        ]);
 
         return $this->find($uuid) ?? [];
     }
@@ -151,35 +161,36 @@ final class TimeTracking
         if ($expectedRevision !== null && (int) $entry['revision'] !== $expectedRevision) {
             throw new TimeException(409, 'This entry was changed by someone else. Reload and try again.');
         }
-        $sets = ['updated_at = :now', 'revision = revision + 1'];
-        $params = ['u' => $uuid, 'now' => Clock::nowIso()];
-        foreach (['description', 'started_at', 'task_uuid'] as $f) {
-            if (array_key_exists($f, $data)) {
-                $sets[] = "$f = :$f";
-                $params[$f] = in_array($f, ['started_at', 'task_uuid'], true) ? $this->nullable($data[$f]) : (string) $data[$f];
-            }
-        }
-        if (array_key_exists('activity', $data) && in_array((string) $data['activity'], self::ACTIVITIES, true)) {
-            $sets[] = 'activity = :activity';
-            $params['activity'] = (string) $data['activity'];
-        }
-        if (array_key_exists('billable', $data)) {
-            $sets[] = 'billable = :billable';
-            $params['billable'] = !empty($data['billable']) ? 1 : 0;
-        }
-        if (array_key_exists('rate', $data)) {
-            $sets[] = 'rate_pence = :rate';
-            $params['rate'] = (int) round(((float) $data['rate']) * 100);
-        }
+        $seconds = null;
         if (array_key_exists('hours', $data) || array_key_exists('minutes', $data) || array_key_exists('duration_seconds', $data)) {
             $seconds = $this->durationToSeconds($data);
             if ($seconds <= 0) {
                 throw new TimeException(422, 'Enter a duration greater than zero.');
             }
-            $sets[] = 'duration_seconds = :dur';
-            $params['dur'] = $seconds;
         }
-        $this->db()->run('UPDATE time_entries SET ' . implode(', ', $sets) . ' WHERE uuid = :u', $params);
+        $this->store()->update('time_entries', $uuid, function (array $row) use ($data, $seconds): array {
+            foreach (['description', 'started_at', 'task_uuid'] as $f) {
+                if (array_key_exists($f, $data)) {
+                    $row[$f] = in_array($f, ['started_at', 'task_uuid'], true) ? $this->nullable($data[$f]) : (string) $data[$f];
+                }
+            }
+            if (array_key_exists('activity', $data) && in_array((string) $data['activity'], self::ACTIVITIES, true)) {
+                $row['activity'] = (string) $data['activity'];
+            }
+            if (array_key_exists('billable', $data)) {
+                $row['billable'] = !empty($data['billable']) ? 1 : 0;
+            }
+            if (array_key_exists('rate', $data)) {
+                $row['rate_pence'] = (int) round(((float) $data['rate']) * 100);
+            }
+            if ($seconds !== null) {
+                $row['duration_seconds'] = $seconds;
+            }
+            $row['revision']   = (int) ($row['revision'] ?? 0) + 1;
+            $row['updated_at'] = Clock::nowIso();
+
+            return $row;
+        });
 
         return $this->find($uuid) ?? [];
     }
@@ -187,7 +198,7 @@ final class TimeTracking
     public function delete(string $uuid, string $actor): void
     {
         $this->requireEditable($uuid);
-        $this->db()->run('DELETE FROM time_entries WHERE uuid = :u', ['u' => $uuid]);
+        $this->store()->delete('time_entries', $uuid);
     }
 
     // ==================================================================
@@ -203,21 +214,29 @@ final class TimeTracking
         if ($this->runningTimer($actor) !== null) {
             throw new TimeException(409, 'You already have a running timer. Stop it first.');
         }
-        if ($this->db()->one('SELECT uuid FROM projects WHERE uuid = :u', ['u' => $projectUuid]) === null) {
+        if (!$this->platform->projects()->exists($projectUuid)) {
             throw new TimeException(404, 'Project not found.');
         }
         $uuid = Uuid::v4();
         $now = Clock::nowIso();
-        $this->db()->run(
-            'INSERT INTO time_entries (uuid, project_uuid, task_uuid, author, description, activity, started_at, duration_seconds, billable, rate_pence, running, billed, created_at, updated_at)
-             VALUES (:uuid, :p, :task, :author, :desc, :activity, :now, 0, :billable, :rate, 1, 0, :now, :now)',
-            [
-                'uuid' => $uuid, 'p' => $projectUuid, 'task' => $this->nullable($data['task_uuid'] ?? null), 'author' => $actor,
-                'desc' => (string) ($data['description'] ?? ''),
-                'activity' => $this->activity($data),
-                'billable' => !empty($data['billable'] ?? true) ? 1 : 0, 'rate' => (int) round(((float) ($data['rate'] ?? 0)) * 100), 'now' => $now,
-            ]
-        );
+        $this->store()->put('time_entries', [
+            'uuid'             => $uuid,
+            'project_uuid'     => $projectUuid,
+            'task_uuid'        => $this->nullable($data['task_uuid'] ?? null),
+            'author'           => $actor,
+            'description'      => (string) ($data['description'] ?? ''),
+            'activity'         => $this->activity($data),
+            'started_at'       => $now,
+            'duration_seconds' => 0,
+            'billable'         => !empty($data['billable'] ?? true) ? 1 : 0,
+            'rate_pence'       => (int) round(((float) ($data['rate'] ?? 0)) * 100),
+            'running'          => 1,
+            'billed'           => 0,
+            'invoice_uuid'     => null,
+            'revision'         => 0,
+            'created_at'       => $now,
+            'updated_at'       => $now,
+        ]);
 
         return $this->find($uuid) ?? [];
     }
@@ -230,7 +249,15 @@ final class TimeTracking
             throw new TimeException(409, 'You don’t have a running timer.');
         }
         $elapsed = $this->effectiveSeconds($running);
-        $this->db()->run('UPDATE time_entries SET running = 0, duration_seconds = :dur, updated_at = :now, revision = revision + 1 WHERE uuid = :u', ['dur' => $elapsed, 'now' => Clock::nowIso(), 'u' => (string) $running['uuid']]);
+        $now = Clock::nowIso();
+        $this->store()->update('time_entries', (string) $running['uuid'], static function (array $row) use ($elapsed, $now): array {
+            $row['running']          = 0;
+            $row['duration_seconds'] = $elapsed;
+            $row['revision']         = (int) ($row['revision'] ?? 0) + 1;
+            $row['updated_at']       = $now;
+
+            return $row;
+        });
 
         return $this->find((string) $running['uuid']) ?? [];
     }
@@ -238,7 +265,13 @@ final class TimeTracking
     /** @return array<string,mixed>|null */
     public function runningTimer(string $actor): ?array
     {
-        return $this->db()->one('SELECT * FROM time_entries WHERE author = :a AND running = 1 LIMIT 1', ['a' => $actor]);
+        foreach ($this->store()->all('time_entries') as $row) {
+            if ((string) ($row['author'] ?? '') === $actor && (int) ($row['running'] ?? 0) === 1) {
+                return $row;
+            }
+        }
+
+        return null;
     }
 
     // ==================================================================
@@ -253,12 +286,20 @@ final class TimeTracking
     public function markBilled(array $entryUuids, string $invoiceUuid, string $actor): int
     {
         $count = 0;
+        $now = Clock::nowIso();
         foreach ($entryUuids as $uuid) {
             $entry = $this->find((string) $uuid);
             if ($entry === null || (int) $entry['billed'] === 1 || (int) $entry['running'] === 1) {
                 continue;
             }
-            $this->db()->run('UPDATE time_entries SET billed = 1, invoice_uuid = :inv, updated_at = :now, revision = revision + 1 WHERE uuid = :u', ['inv' => $invoiceUuid, 'now' => Clock::nowIso(), 'u' => (string) $uuid]);
+            $this->store()->update('time_entries', (string) $uuid, static function (array $row) use ($invoiceUuid, $now): array {
+                $row['billed']       = 1;
+                $row['invoice_uuid'] = $invoiceUuid;
+                $row['revision']     = (int) ($row['revision'] ?? 0) + 1;
+                $row['updated_at']   = $now;
+
+                return $row;
+            });
             $count++;
         }
 
@@ -272,9 +313,9 @@ final class TimeTracking
     /** @param array<string,mixed> $entry */
     private function effectiveSeconds(array $entry): int
     {
-        if ((int) $entry['running'] === 1) {
+        if ((int) ($entry['running'] ?? 0) === 1) {
             $start = strtotime((string) ($entry['started_at'] ?? ''));
-            $base = (int) $entry['duration_seconds'];
+            $base = (int) ($entry['duration_seconds'] ?? 0);
             if ($start !== false) {
                 return $base + max(0, (int) (strtotime(Clock::nowIso()) - $start));
             }
@@ -282,7 +323,7 @@ final class TimeTracking
             return $base;
         }
 
-        return (int) $entry['duration_seconds'];
+        return (int) ($entry['duration_seconds'] ?? 0);
     }
 
     /** @param array<string,mixed> $data */

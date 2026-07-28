@@ -7,32 +7,33 @@ namespace Breakfast\Platform\Mail;
 use Breakfast\Platform\Crm\ActivityRepository;
 use Breakfast\Platform\Security\Hash;
 use Breakfast\Platform\Support\Clock;
-use Breakfast\Platform\Support\Database;
-use Breakfast\Platform\Support\Uuid;
+use Breakfast\Platform\Support\FileStore;
 
 /**
  * Email suppression. Marketing and transactional suppression are modelled
  * SEPARATELY: an unsubscribe only stops marketing; a hard bounce / complaint /
  * block / invalid recipient also stops transactional delivery. A CRM edit can
  * never silently resubscribe someone — removal is an explicit, audited action.
+ *
+ * Each suppression is one flat-file record keyed on a hash of (email, scope),
+ * the filesystem equivalent of the old UNIQUE(email_hash, scope).
  */
 final class SuppressionService
 {
+    private const COLLECTION = 'email_suppressions';
+
     public const SCOPE_TRANSACTIONAL = 'transactional';
     public const SCOPE_MARKETING     = 'marketing';
 
     public function __construct(
-        private readonly Database $db,
+        private readonly FileStore $store,
         private readonly ActivityRepository $activities,
     ) {
     }
 
     public function isSuppressed(string $email, string $scope): bool
     {
-        return $this->db->scalar(
-            'SELECT uuid FROM email_suppressions WHERE email_hash = :h AND scope = :s LIMIT 1',
-            ['h' => Hash::correlator(strtolower($email)), 's' => $scope]
-        ) !== null;
+        return $this->store->exists(self::COLLECTION, $this->id($email, $scope));
     }
 
     /**
@@ -48,16 +49,20 @@ final class SuppressionService
     {
         $now  = Clock::nowIso();
         $hash = Hash::correlator(strtolower($email));
+        $id   = $this->id($email, $scope);
 
-        $this->db->run(
-            'INSERT INTO email_suppressions (uuid, email_hash, email, scope, reason, contact_uuid, created_at, updated_at)
-             VALUES (:uuid, :hash, :email, :scope, :reason, :contact, :now, :now)
-             ON CONFLICT(email_hash, scope) DO UPDATE SET reason = :reason, updated_at = :now',
-            [
-                'uuid' => Uuid::v4(), 'hash' => $hash, 'email' => strtolower($email),
-                'scope' => $scope, 'reason' => $reason, 'contact' => $contactUuid, 'now' => $now,
-            ]
-        );
+        // Upsert: preserve the original created_at, refresh reason + updated_at.
+        $existing = $this->store->find(self::COLLECTION, $id);
+        $this->store->put(self::COLLECTION, [
+            'uuid'         => $id,
+            'email_hash'   => $hash,
+            'email'        => strtolower($email),
+            'scope'        => $scope,
+            'reason'       => $reason,
+            'contact_uuid' => $contactUuid,
+            'created_at'   => (string) ($existing['created_at'] ?? $now),
+            'updated_at'   => $now,
+        ]);
 
         if ($contactUuid !== null) {
             $this->activities->record(
@@ -75,10 +80,7 @@ final class SuppressionService
     /** Explicit, audited removal — never triggered silently by a CRM edit. */
     public function unsuppress(string $email, string $scope, ?string $contactUuid, string $actor): void
     {
-        $this->db->run(
-            'DELETE FROM email_suppressions WHERE email_hash = :h AND scope = :s',
-            ['h' => Hash::correlator(strtolower($email)), 's' => $scope]
-        );
+        $this->store->delete(self::COLLECTION, $this->id($email, $scope));
 
         if ($contactUuid !== null) {
             $this->activities->record(
@@ -110,6 +112,12 @@ final class SuppressionService
 
     public function count(string $scope): int
     {
-        return (int) $this->db->scalar('SELECT COUNT(*) FROM email_suppressions WHERE scope = :s', ['s' => $scope]);
+        return count(array_filter($this->store->all(self::COLLECTION), static fn (array $r): bool => (string) ($r['scope'] ?? '') === $scope));
+    }
+
+    /** Deterministic record id for (email, scope). */
+    private function id(string $email, string $scope): string
+    {
+        return sha1(Hash::correlator(strtolower($email)) . '|' . $scope);
     }
 }

@@ -8,8 +8,7 @@ declare(strict_types=1);
  *
  * Usage: php bin/console <command> [args] [--flags]
  *
- * Migrations / queue
- *   migrate | migrate:status
+ * Queue
  *   queue:run [max] | queue:work [sleep]
  *
  * Mail
@@ -51,8 +50,6 @@ declare(strict_types=1);
  * Diagnostics
  *   app:check                              Boot + route + config verification
  *   health | hermes:keys <id> <scopes> | seed:crm
- *
- * Destructive migrations are NEVER run during a public web request — only here.
  */
 
 use Breakfast\Platform\Hermes\Scopes;
@@ -127,16 +124,6 @@ $mailConfig = $platform->mailConfig();
 $brevo      = is_array($mailConfig['brevo'] ?? null) ? $mailConfig['brevo'] : [];
 
 switch ($command) {
-    case 'migrate':
-        $applied = $platform->migrator()->migrate();
-        out($applied === [] ? 'Nothing to migrate.' : 'Applied: ' . implode(', ', $applied));
-        break;
-
-    case 'migrate:status':
-        foreach ($platform->migrator()->status() as $id => $done) {
-            out(($done ? '[x] ' : '[ ] ') . $id);
-        }
-        break;
 
     case 'queue:run':
         $max = (int) ($args[0] ?? 25);
@@ -260,7 +247,7 @@ switch ($command) {
     case 'brevo:events:reconcile':
         $since = (string) ($flags['since'] ?? '24 hours ago');
         out('Reconcile since: ' . $since);
-        out('Local delivery events: ' . $platform->db()->scalar('SELECT COUNT(*) FROM email_events'));
+        out('Local delivery events: ' . count($platform->fileStore()->all('email_events')));
         out('Note: a full provider reconcile requires live Brevo credentials and is paginated + bounded.');
         out('OK');
         break;
@@ -430,7 +417,7 @@ switch ($command) {
         $slug = $args[0] ?? 'demo';
         $existing = $platform->previews()->findBySlug($slug);
         if ($existing !== null) {
-            $platform->db()->run('DELETE FROM client_previews WHERE uuid = :u', ['u' => $existing['uuid']]);
+            $platform->fileStore()->delete('client_previews', (string) $existing['uuid']);
         }
         $prev = $platform->previews()->create(['name' => 'Demo preview', 'public_slug' => $slug, 'created_by' => 'seed']);
         $zip  = $base . '/storage/_seed_' . $slug . '.zip';
@@ -565,47 +552,6 @@ switch ($command) {
         out(sprintf('automation:run — as of %s: %d rule(s) evaluated, %d action(s) fired.', $asOf, (int) $res['rules'], (int) $res['fired']));
         break;
 
-    case 'portfolio:publish-due':
-        // Publish every scheduled portfolio record whose publish time has passed.
-        // Idempotent: a record leaves the `scheduled` state as soon as it
-        // publishes, so re-running never republishes it. --as-of=ISO8601
-        // evaluates as if run at that instant (defaults to now).
-        $asOfFlag = $flags['as-of'] ?? null;
-        $asOf     = is_string($asOfFlag) && $asOfFlag !== '' ? $asOfFlag : date('c');
-        $res      = $platform->portfolio()->publishDue($asOf, 'cli:portfolio');
-        $failed   = count($res['failed']);
-        out(sprintf('portfolio:publish-due — as of %s: %d published, %d failed.', $asOf, count($res['published']), $failed));
-        foreach ($res['failed'] as $uuid => $why) {
-            out(sprintf('  ! %s — %s', $uuid, $why));
-        }
-        break;
-
-    case 'portfolio:import':
-        // One-time, safe import of the existing Kirby "project" case-study content
-        // into portfolio records. Everything lands as a DRAFT and is never
-        // published automatically; concept/demo pieces are flagged for review and
-        // nothing is deleted. Idempotent per slug — a record (or retired redirect)
-        // already using a slug is reported as a duplicate and skipped. Use
-        // --dry-run to preview without writing anything.
-        $dryRun = flag($flags, 'dry-run');
-        $report = $platform->portfolioImporter()->import('cli:portfolio-import', $dryRun);
-        foreach ($report as $bucket => $slugs) {
-            out(sprintf('%-14s %d', $bucket, count($slugs)));
-            foreach ($slugs as $slug) {
-                out('  ' . $slug);
-            }
-        }
-        out($dryRun ? 'Dry run (pass without --dry-run to import). OK' : 'Imported as drafts. OK');
-        break;
-
-    case 'portfolio:seed-localmarkers':
-        // Create the LocalMarkers portfolio entry through the real Portfolio
-        // service (the same methods the admin API calls). Idempotent — skips if
-        // the slug already exists — so it is safe to run in production, which is
-        // where this real entry needs to live (the portfolio DB is not in git).
-        require $base . '/site/plugins/breakfast-platform/seed/localmarkers.php';
-        break;
-
     case 'invoices:backfill-pdfs':
         // Generate the immutable PDF for every issued invoice that doesn't have
         // one yet (issued before the PDF pipeline existed, or a prior failure).
@@ -711,7 +657,7 @@ switch ($command) {
             out(($ok ? '  [OK]   ' : '  [FAIL] ') . $label . ($detail !== '' ? ' — ' . $detail : ''));
         };
 
-        $record('Schema migrated', $platform->migrator()->hasPending() === false);
+        $record('Flat-file store ready', is_dir($platform->storageDir() . '/data') || @mkdir($platform->storageDir() . '/data', 0775, true));
         foreach (['contacts', 'companies', 'enquiries', 'opportunities', 'tasks', 'activities', 'queue', 'outbound', 'audit', 'crmMail', 'invoices', 'settings', 'brevoSettings', 'calendar'] as $svc) {
             try {
                 $platform->{$svc}();
@@ -757,32 +703,41 @@ switch ($command) {
         $record('Mail provider configured', (string) ($platform->mailConfig()['provider'] ?? '') !== '');
 
         if (!$readOnly) {
-            $db = $platform->db();
-            $db->pdo()->beginTransaction();
+            $lead = $invoice = $event = null;
             try {
                 $lead = (new \Breakfast\Platform\Admin\CrmWrite($platform))->createLead(
                     ['name' => 'Functionality Check', 'email' => 'functionality-check@example.test'],
                     'cli'
                 );
                 $ok = !empty($lead['enquiry']['uuid']) && !empty($lead['contact']['uuid']);
-                $record('Lead creation persists (rolled back)', $ok);
+                $record('Lead creation persists (cleaned up)', $ok);
 
                 $invoice = $platform->invoices()->create(
                     ['bill_to_name' => 'Functionality Check', 'items' => [['description' => 'Check', 'quantity' => 1, 'unit_price' => 100]]],
                     'cli'
                 );
-                $record('Invoice creation persists (rolled back)', (int) ($invoice['total'] ?? 0) === 10000);
+                $record('Invoice creation persists (cleaned up)', (int) ($invoice['total'] ?? 0) === 10000);
 
                 $event = $platform->calendar()->create(
                     ['title' => 'Functionality Check', 'starts_at' => '2030-01-01T10:00:00Z', 'ends_at' => '2030-01-01T10:30:00Z'],
                     'cli'
                 );
-                $record('Calendar event persists (rolled back)', !empty($event['uuid']));
+                $record('Calendar event persists (cleaned up)', !empty($event['uuid']));
             } catch (\Throwable $e) {
-                $record('Write path persists (rolled back)', false, $e->getMessage());
+                $record('Write path persists (cleaned up)', false, $e->getMessage());
             } finally {
-                if ($db->pdo()->inTransaction()) {
-                    $db->pdo()->rollBack();
+                // Remove the diagnostic records from the flat-file store.
+                $fs = $platform->fileStore();
+                foreach ([
+                    ['contacts', $lead['contact']['uuid'] ?? ''],
+                    ['companies', $lead['company']['uuid'] ?? ''],
+                    ['enquiries', $lead['enquiry']['uuid'] ?? ''],
+                    ['invoices', $invoice['uuid'] ?? ''],
+                    ['calendar_events', $event['uuid'] ?? ''],
+                ] as [$collection, $uuid]) {
+                    if ((string) $uuid !== '') {
+                        $fs->delete($collection, (string) $uuid);
+                    }
                 }
             }
         } else {
@@ -863,8 +818,7 @@ switch ($command) {
     case 'health':
         $q = $platform->queue();
         out('Time:        ' . Clock::nowIso());
-        out('DB:          ' . $platform->dbPath());
-        out('Migrations:  ' . count($platform->migrator()->appliedIds()) . ' applied');
+        out('Store:       ' . $platform->storageDir() . '/data');
         out('Queue depth: ' . $q->pendingCount());
         out('Failed jobs: ' . $q->failedCount());
         out('Mail failed: ' . $platform->outbound()->recentFailureCount());
@@ -873,7 +827,7 @@ switch ($command) {
     case 'help':
     default:
         out('Breakfast CLI — see the header of bin/console for the full command list.');
-        out('  migrate | migrate:status | queue:run | queue:work');
+        out('  queue:run | queue:work');
         out('  mail:check [--connect] | mail:test --to= --confirm');
         out('  brevo:webhook:status|register|remove | brevo:templates:check | brevo:contacts:check|sync');
         out('  privacy:export-contact | privacy:anonymise-contact | privacy:cleanup');

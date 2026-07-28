@@ -9,7 +9,6 @@ use Breakfast\Platform\Mail\HttpResponse;
 use Breakfast\Platform\Payments\PaymentException;
 use Breakfast\Platform\Payments\PaymentsService;
 use Breakfast\Platform\Payments\StripeWebhook;
-use Breakfast\Platform\Support\Database;
 use Breakfast\Platform\Support\Platform;
 use Kirby\Cms\App;
 use PHPUnit\Framework\TestCase;
@@ -36,9 +35,7 @@ final class PaymentsTest extends TestCase
         parent::setUp();
         $base = dirname(__DIR__, 2);
         $this->tmp = sys_get_temp_dir() . '/bf-payments-' . bin2hex(random_bytes(6));
-        @mkdir($this->tmp . '/database', 0777, true);
 
-        Database::reset();
         Platform::reset();
 
         $this->kirby = new App([
@@ -51,9 +48,8 @@ final class PaymentsTest extends TestCase
                 'sessions' => $this->tmp . '/sessions',
                 'accounts' => $this->tmp . '/accounts',
             ],
-            'options' => ['debug' => false, 'whoops' => false, 'breakfast' => ['production' => false, 'storageDir' => $this->tmp, 'dbPath' => $this->tmp . '/database/crm.sqlite', 'mail' => ['provider' => 'fake']]],
+            'options' => ['debug' => false, 'whoops' => false, 'breakfast' => ['production' => false, 'storageDir' => $this->tmp, 'mail' => ['provider' => 'fake']]],
         ]);
-        breakfast()->migrator()->migrate();
         $this->svc = breakfast()->payments();
 
         // Configure Stripe in test mode with a stored secret + webhook secret.
@@ -66,7 +62,6 @@ final class PaymentsTest extends TestCase
     protected function tearDown(): void
     {
         HttpClient::useTransport(null);
-        Database::reset();
         Platform::reset();
         $this->rrmdir($this->tmp);
         App::destroy();
@@ -199,7 +194,7 @@ final class PaymentsTest extends TestCase
         // Provider reports a different amount than we expected — must warn.
         $this->svc->handleEvent($this->checkoutCompletedEvent('evt_mism', 'cs_test_5', $invoiceUuid, $paymentUuid, 55000));
 
-        $anomaly = breakfast()->db()->one("SELECT COUNT(*) AS n FROM hermes_audit WHERE endpoint = 'payment.anomaly'");
+        $anomaly = ['n' => count(array_filter(breakfast()->fileStore()->all('hermes_audit'), static fn (array $r): bool => (string) ($r['endpoint'] ?? '') === 'payment.anomaly'))];
         $this->assertGreaterThan(0, (int) ($anomaly['n'] ?? 0));
     }
 

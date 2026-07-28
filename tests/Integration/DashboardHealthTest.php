@@ -6,7 +6,6 @@ namespace Breakfast\Tests\Integration;
 
 use Breakfast\Platform\Admin\AdminApi;
 use Breakfast\Platform\Admin\DashboardData;
-use Breakfast\Platform\Support\Database;
 use Breakfast\Platform\Support\Platform;
 use Kirby\Cms\App;
 use PHPUnit\Framework\TestCase;
@@ -27,9 +26,7 @@ final class DashboardHealthTest extends TestCase
         parent::setUp();
         $base = dirname(__DIR__, 2);
         $this->tmp = sys_get_temp_dir() . '/bf-health-' . bin2hex(random_bytes(6));
-        @mkdir($this->tmp . '/database', 0777, true);
 
-        Database::reset();
         Platform::reset();
 
         // Production mode + Brevo selected but NO api key — the failing condition.
@@ -49,17 +46,14 @@ final class DashboardHealthTest extends TestCase
                 'breakfast' => [
                     'production' => true,
                     'storageDir' => $this->tmp,
-                    'dbPath'     => $this->tmp . '/database/crm.sqlite',
                     'mail'       => ['provider' => 'brevo'],
                 ],
             ],
         ]);
-        breakfast()->migrator()->migrate();
     }
 
     protected function tearDown(): void
     {
-        Database::reset();
         Platform::reset();
         $this->rrmdir($this->tmp);
         App::destroy();

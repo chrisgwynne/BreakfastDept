@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Breakfast\Tests\Integration;
 
 use Breakfast\Platform\Files\FileException;
-use Breakfast\Platform\Support\Database;
 use Breakfast\Platform\Support\Platform;
 use Kirby\Cms\App;
 use PHPUnit\Framework\TestCase;
@@ -29,20 +28,16 @@ final class FilesTest extends TestCase
         $base = dirname(__DIR__, 2);
         $this->tmp = sys_get_temp_dir() . '/bf-files-' . bin2hex(random_bytes(6));
         $this->scratch = $this->tmp . '/scratch';
-        @mkdir($this->tmp . '/database', 0777, true);
         @mkdir($this->scratch, 0777, true);
-        Database::reset();
         Platform::reset();
         $this->kirby = new App([
             'roots' => ['index' => $base . '/public', 'base' => $base, 'site' => $base . '/site', 'content' => $base . '/content', 'storage' => $this->tmp, 'sessions' => $this->tmp . '/sessions', 'accounts' => $this->tmp . '/accounts'],
-            'options' => ['debug' => false, 'whoops' => false, 'breakfast' => ['production' => false, 'storageDir' => $this->tmp, 'dbPath' => $this->tmp . '/database/crm.sqlite', 'mail' => ['provider' => 'fake']]],
+            'options' => ['debug' => false, 'whoops' => false, 'breakfast' => ['production' => false, 'storageDir' => $this->tmp, 'mail' => ['provider' => 'fake']]],
         ]);
-        breakfast()->migrator()->migrate();
     }
 
     protected function tearDown(): void
     {
-        Database::reset();
         Platform::reset();
         $this->rrmdir($this->tmp);
         App::destroy();
@@ -81,7 +76,7 @@ final class FilesTest extends TestCase
         // Bytes readable with an integrity check + it records an access event.
         $dl = breakfast()->files()->download((string) $file['uuid'], null, 'staff@breakfast');
         $this->assertSame($this->pngBytes(), $dl['bytes']);
-        $this->assertSame(1, (int) breakfast()->db()->scalar('SELECT COUNT(*) FROM client_file_access_events WHERE file_uuid = :u', ['u' => $file['uuid']]));
+        $this->assertSame(1, count(breakfast()->fileStore()->find('client_files', (string) $file['uuid'])['access_events'] ?? []));
         // A thumbnail was generated for the image.
         $this->assertSame('ready', (string) $file['current']['thumb_state']);
     }
@@ -173,7 +168,8 @@ final class FilesTest extends TestCase
     {
         $file = breakfast()->files()->upload($this->tmpFile('t.txt', 'trusted'), 't.txt', 'text/plain', [], 'staff@breakfast');
         $uuid = (string) $file['uuid'];
-        $key = (string) breakfast()->db()->scalar('SELECT storage_key FROM client_file_versions WHERE file_uuid = :u AND version = 1', ['u' => $uuid]);
+        $versions = breakfast()->fileStore()->find('client_files', $uuid)['versions'] ?? [];
+        $key = (string) (array_values(array_filter($versions, static fn (array $v): bool => (int) ($v['version'] ?? 0) === 1))[0]['storage_key'] ?? '');
         file_put_contents($this->tmp . '/client-files/' . $key, 'tampered');
         $this->assertError(409, fn () => breakfast()->files()->download($uuid, 1, 'staff@breakfast'));
     }

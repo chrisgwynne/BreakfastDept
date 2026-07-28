@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Breakfast\Platform\Operations;
 
 use Breakfast\Platform\Support\Clock;
-use Breakfast\Platform\Support\Database;
 use Breakfast\Platform\Support\Platform;
 
 /**
@@ -24,11 +23,6 @@ final class Reporting
     {
     }
 
-    private function db(): Database
-    {
-        return $this->platform->db();
-    }
-
     /**
      * Per-project financial + effort position for the active portfolio (newest
      * first). `limit` caps the rows returned.
@@ -37,11 +31,7 @@ final class Reporting
      */
     public function projects(int $limit = 100): array
     {
-        $rows = $this->db()->all(
-            "SELECT uuid, name, status, quoted_value, approved_variations FROM projects
-             WHERE status <> 'archived' ORDER BY updated_at DESC LIMIT :l",
-            ['l' => $limit]
-        );
+        $rows = $this->platform->projects()->list(['limit' => $limit]);
 
         return array_map(fn (array $p): array => $this->projectRow($p), $rows);
     }
@@ -83,15 +73,25 @@ final class Reporting
     public function utilisation(int $days = 30): array
     {
         $since = date('Y-m-d', strtotime('-' . max(1, $days) . ' day', (int) strtotime(Clock::nowIso())));
-        $rows = $this->db()->all(
-            "SELECT author,
-                    SUM(CASE WHEN billable = 1 THEN duration_seconds ELSE 0 END) AS billable_seconds,
-                    SUM(CASE WHEN billable = 0 THEN duration_seconds ELSE 0 END) AS nonbillable_seconds
-             FROM time_entries
-             WHERE running = 0 AND COALESCE(started_at, created_at) >= :since
-             GROUP BY author ORDER BY billable_seconds DESC",
-            ['since' => $since]
-        );
+        // Utilisation per author from flat-file time entries.
+        $byAuthor = [];
+        foreach ($this->platform->fileStore()->all('time_entries') as $e) {
+            if ((int) ($e['running'] ?? 0) === 1) {
+                continue;
+            }
+            if ((string) ($e['started_at'] ?? $e['created_at'] ?? '') < $since) {
+                continue;
+            }
+            $author = (string) ($e['author'] ?? '');
+            $byAuthor[$author] ??= ['author' => $author, 'billable_seconds' => 0, 'nonbillable_seconds' => 0];
+            if ((int) ($e['billable'] ?? 0) === 1) {
+                $byAuthor[$author]['billable_seconds'] += (int) ($e['duration_seconds'] ?? 0);
+            } else {
+                $byAuthor[$author]['nonbillable_seconds'] += (int) ($e['duration_seconds'] ?? 0);
+            }
+        }
+        $rows = array_values($byAuthor);
+        usort($rows, static fn ($a, $b) => $b['billable_seconds'] <=> $a['billable_seconds']);
 
         return array_map(static function (array $r): array {
             $billable = (int) $r['billable_seconds'];
@@ -116,13 +116,14 @@ final class Reporting
         $uuid = (string) $p['uuid'];
         $quoted = (int) $p['quoted_value'];
         $variations = (int) $p['approved_variations'];
-        $inv = $this->db()->one(
-            "SELECT COALESCE(SUM(total),0) AS invoiced, COALESCE(SUM(amount_paid),0) AS paid
-             FROM invoices WHERE project_uuid = :p AND status NOT IN ('draft','void')",
-            ['p' => $uuid]
-        );
-        $invoiced = (int) ($inv['invoiced'] ?? 0);
-        $paid = (int) ($inv['paid'] ?? 0);
+        $invoiced = 0;
+        $paid     = 0;
+        foreach ($this->platform->invoices()->forProject($uuid) as $inv) {
+            if (!in_array((string) ($inv['status'] ?? ''), ['draft', 'void'], true)) {
+                $invoiced += (int) ($inv['total'] ?? 0);
+                $paid     += (int) ($inv['amount_paid'] ?? 0);
+            }
+        }
         $time = $this->platform->time()->rollup($uuid);
 
         return [

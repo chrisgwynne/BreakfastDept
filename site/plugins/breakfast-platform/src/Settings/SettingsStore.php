@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Breakfast\Platform\Settings;
 
 use Breakfast\Platform\Support\Clock;
-use Breakfast\Platform\Support\Database;
+use Breakfast\Platform\Support\FileStore;
 
 /**
  * Key/value store for application-managed settings, with first-class support
@@ -16,35 +16,39 @@ use Breakfast\Platform\Support\Database;
  * characters) for display, or — strictly server-side, never through the API —
  * the decrypted value for use by the mail provider. The full secret is never
  * returned to a client, logged, or exposed in diagnostics.
+ *
+ * Each setting is one flat-file record keyed on a hash of its name (names carry
+ * dots the file store would otherwise flatten).
  */
 final class SettingsStore
 {
+    private const COLLECTION = 'platform_settings';
+
     public function __construct(
-        private readonly Database $db,
+        private readonly FileStore $store,
         private readonly SecretBox $box,
     ) {
     }
 
     public function get(string $name, string $default = ''): string
     {
-        $row = $this->db->one('SELECT value, is_secret FROM platform_settings WHERE name = :n', ['n' => $name]);
-        if ($row === null || (int) $row['is_secret'] === 1) {
+        $row = $this->store->find(self::COLLECTION, $this->id($name));
+        if ($row === null || (int) ($row['is_secret'] ?? 0) === 1) {
             return $default;
         }
 
-        return (string) $row['value'];
+        return (string) ($row['value'] ?? '');
     }
 
     /** @return array<string,string> Non-secret settings under a "prefix." namespace. */
     public function allWithPrefix(string $prefix): array
     {
-        $rows = $this->db->all(
-            'SELECT name, value FROM platform_settings WHERE is_secret = 0 AND name LIKE :p',
-            ['p' => $prefix . '%']
-        );
         $out = [];
-        foreach ($rows as $r) {
-            $out[(string) $r['name']] = (string) $r['value'];
+        foreach ($this->store->all(self::COLLECTION) as $r) {
+            $name = (string) ($r['name'] ?? '');
+            if ((int) ($r['is_secret'] ?? 0) === 0 && str_starts_with($name, $prefix)) {
+                $out[$name] = (string) ($r['value'] ?? '');
+            }
         }
 
         return $out;
@@ -62,12 +66,12 @@ final class SettingsStore
 
     public function clear(string $name, string $actor): void
     {
-        $this->db->run('DELETE FROM platform_settings WHERE name = :n', ['n' => $name]);
+        $this->store->delete(self::COLLECTION, $this->id($name));
     }
 
     public function has(string $name): bool
     {
-        return $this->db->one('SELECT 1 FROM platform_settings WHERE name = :n', ['n' => $name]) !== null;
+        return $this->store->exists(self::COLLECTION, $this->id($name));
     }
 
     /**
@@ -91,21 +95,29 @@ final class SettingsStore
      */
     public function revealSecret(string $name): ?string
     {
-        $row = $this->db->one('SELECT value, is_secret FROM platform_settings WHERE name = :n', ['n' => $name]);
-        if ($row === null || (int) $row['is_secret'] !== 1) {
+        $row = $this->store->find(self::COLLECTION, $this->id($name));
+        if ($row === null || (int) ($row['is_secret'] ?? 0) !== 1) {
             return null;
         }
 
-        return $this->box->decrypt((string) $row['value']);
+        return $this->box->decrypt((string) ($row['value'] ?? ''));
     }
 
     private function upsert(string $name, string $value, int $isSecret, string $actor): void
     {
-        $this->db->run(
-            'INSERT INTO platform_settings (name, value, is_secret, updated_at, updated_by)
-             VALUES (:n, :v, :s, :at, :by)
-             ON CONFLICT (name) DO UPDATE SET value = :v, is_secret = :s, updated_at = :at, updated_by = :by',
-            ['n' => $name, 'v' => $value, 's' => $isSecret, 'at' => Clock::nowIso(), 'by' => $actor]
-        );
+        $this->store->put(self::COLLECTION, [
+            'uuid'       => $this->id($name),
+            'name'       => $name,
+            'value'      => $value,
+            'is_secret'  => $isSecret,
+            'updated_at' => Clock::nowIso(),
+            'updated_by' => $actor,
+        ]);
+    }
+
+    /** Deterministic record id for a setting name (which may contain dots). */
+    private function id(string $name): string
+    {
+        return sha1($name);
     }
 }

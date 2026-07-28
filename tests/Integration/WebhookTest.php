@@ -22,7 +22,7 @@ final class WebhookTest extends PlatformTestCase
 
         $wh->dispatch('enquiry.created', ['reference' => 'ENQ-1']);
 
-        $deliveries = $this->platform->db()->all('SELECT * FROM webhook_deliveries');
+        $deliveries = $this->platform->fileStore()->all('webhook_deliveries');
         $this->assertCount(1, $deliveries);
         $this->assertSame('pending', $deliveries[0]['status']);
 
@@ -36,7 +36,7 @@ final class WebhookTest extends PlatformTestCase
         $wh->registerEndpoint('Other', 'https://example.test/hook', ['task.created']);
         $wh->dispatch('enquiry.created', ['reference' => 'ENQ-2']);
 
-        $this->assertCount(0, $this->platform->db()->all('SELECT * FROM webhook_deliveries'));
+        $this->assertCount(0, $this->platform->fileStore()->all('webhook_deliveries'));
     }
 
     public function testDeliverSignsAndMarksDelivered(): void
@@ -51,10 +51,10 @@ final class WebhookTest extends PlatformTestCase
         $wh->registerEndpoint('Hermes', 'https://example.test/hook', ['*']);
         $wh->dispatch('task.created', ['id' => 't1']);
 
-        $delivery = $this->platform->db()->one('SELECT * FROM webhook_deliveries');
+        $delivery = $this->platform->fileStore()->all('webhook_deliveries')[0];
         $wh->deliver($delivery['uuid']);
 
-        $after = $this->platform->db()->one('SELECT * FROM webhook_deliveries WHERE uuid = :u', ['u' => $delivery['uuid']]);
+        $after = $this->platform->fileStore()->find('webhook_deliveries', (string) $delivery['uuid']);
         $this->assertSame('delivered', $after['status']);
         $this->assertArrayHasKey('X-Breakfast-Signature', $captured['headers']);
         $this->assertNotEmpty($captured['headers']['X-Breakfast-Signature']);
@@ -68,7 +68,7 @@ final class WebhookTest extends PlatformTestCase
         $wh = $this->platform->webhooks();
         $endpointId = $wh->registerEndpoint('Hermes', 'https://example.test/hook', ['*']);
         $wh->dispatch('task.created', ['id' => 't1']);
-        $delivery = $this->platform->db()->one('SELECT * FROM webhook_deliveries');
+        $delivery = $this->platform->fileStore()->all('webhook_deliveries')[0];
 
         try {
             $wh->deliver($delivery['uuid']);
@@ -77,7 +77,7 @@ final class WebhookTest extends PlatformTestCase
             $this->assertStringContainsString('failed', strtolower($e->getMessage()));
         }
 
-        $endpoint = $this->platform->db()->one('SELECT * FROM webhook_endpoints WHERE uuid = :u', ['u' => $endpointId]);
+        $endpoint = $this->platform->fileStore()->find('webhook_endpoints', (string) $endpointId);
         $this->assertSame(1, (int) $endpoint['consecutive_fails']);
     }
 
@@ -98,7 +98,7 @@ final class WebhookTest extends PlatformTestCase
             }
         }
         // Nothing was persisted.
-        $this->assertCount(0, $this->platform->db()->all('SELECT * FROM webhook_endpoints'));
+        $this->assertCount(0, $this->platform->fileStore()->all('webhook_endpoints'));
     }
 
     /**
@@ -115,9 +115,15 @@ final class WebhookTest extends PlatformTestCase
         $wh = $this->platform->webhooks();
         $wh->registerEndpoint('Legit', 'https://example.test/hook', ['*']);
         // Rewrite its URL to an internal target after the fact.
-        $this->platform->db()->run("UPDATE webhook_endpoints SET url = 'http://127.0.0.1:9/x'");
+        foreach ($this->platform->fileStore()->all('webhook_endpoints') as $ep) {
+            $this->platform->fileStore()->update('webhook_endpoints', (string) $ep['uuid'], static function (array $r): array {
+                $r['url'] = 'http://127.0.0.1:9/x';
+
+                return $r;
+            });
+        }
         $wh->dispatch('task.created', ['id' => 't1']);
-        $delivery = $this->platform->db()->one('SELECT * FROM webhook_deliveries');
+        $delivery = $this->platform->fileStore()->all('webhook_deliveries')[0];
 
         // Real HTTP path (no fake client) must block, not connect → recorded as
         // a failed attempt with the blocked marker, and it throws for retry.
@@ -128,7 +134,7 @@ final class WebhookTest extends PlatformTestCase
         } catch (\RuntimeException) {
             $this->addToAssertionCount(1);
         }
-        $after = $this->platform->db()->one('SELECT * FROM webhook_deliveries WHERE uuid = :u', ['u' => $delivery['uuid']]);
+        $after = $this->platform->fileStore()->find('webhook_deliveries', (string) $delivery['uuid']);
         $this->assertSame('blocked_url', $after['last_error']);
         $this->assertNotSame('delivered', $after['status']);
     }

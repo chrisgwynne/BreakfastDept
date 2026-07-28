@@ -4,50 +4,55 @@ How to restore Breakfast from the backups described in [backups.md](backups.md),
 and — just as important — how to **test** a restore so you know the backups
 work before you need them.
 
+There is no database: all data is flat files under `storage/data/`, so a restore
+is a file copy. No schema, no migrations, no integrity-repair tooling.
+
 ## What you need
 
-- A database backup (`crm-*.sqlite`), verified with `PRAGMA integrity_check`.
-- A content + uploads archive (`breakfast-content-*.tgz`), if content also needs
-  restoring.
-- The matching `.env` (or the ability to recreate it from your secrets manager).
+- A data-tree archive (`breakfast-data-*.tgz` or `breakfast-files-*.tgz`).
+- A content + uploads archive, if content also needs restoring (may be the same
+  archive).
+- The matching `storage/vault-keys/` (needed to decrypt vaulted secrets) and
+  `.env` (or the ability to recreate them from your secrets manager).
 - A known reference to verify against — e.g. an enquiry reference such as
   `ENQ-2026-0001` that you know existed at backup time.
 
 ## Restore procedure (production)
 
 1. **Stop writers.** Put the site into maintenance and stop the queue worker
-   (`queue:work`) or pause the `queue:run` cron so nothing writes to the
-   database mid-restore.
+   (`queue:work`) or pause the `queue:run` cron so nothing writes to
+   `storage/data/` mid-restore.
 
-2. **Verify the backup first.**
-
-   ```bash
-   sqlite3 crm-2026-07-21-0300.sqlite "PRAGMA integrity_check;"   # expect: ok
-   ```
-
-3. **Restore the database.** Move the current file aside (don't delete it yet),
-   then put the backup in place, including removing stale WAL side-files:
+2. **Verify the backup first.** Confirm every record is valid JSON:
 
    ```bash
-   mv storage/database/crm.sqlite storage/database/crm.sqlite.broken 2>/dev/null || true
-   rm -f storage/database/crm.sqlite-wal storage/database/crm.sqlite-shm
-   cp crm-2026-07-21-0300.sqlite storage/database/crm.sqlite
-   chown www-data:www-data storage/database/crm.sqlite
-   chmod 0660 storage/database/crm.sqlite
+   tar xzf breakfast-data-2026-07-21-0300.tgz -C /tmp/restore-check
+   find /tmp/restore-check/storage/data -name '*.json' -exec sh -c \
+     'jq -e . "$1" >/dev/null || echo "CORRUPT: $1"' _ {} \;
+   # no output = every record parsed cleanly
    ```
 
-4. **Restore content and uploads** (only if they were lost/corrupted):
+3. **Restore the data tree.** Move the current tree aside (don't delete it yet),
+   then put the backup in place:
 
    ```bash
-   tar xzf breakfast-content-2026-07-21.tgz     # restores content/ and storage/uploads/
+   mv storage/data storage/data.broken 2>/dev/null || true
+   tar xzf breakfast-data-2026-07-21-0300.tgz     # restores storage/data/
+   chown -R www-data:www-data storage/data
+   chmod -R u+rwX,g+rwX storage/data
    ```
 
-5. **Restore `.env`** if needed, then confirm the schema is current:
+4. **Restore content, uploads and generated files** (only if they were
+   lost/corrupted) — including the vault keys, or vaulted secrets stay
+   unreadable:
 
    ```bash
-   php bin/console migrate:status   # every migration should show applied
-   php bin/console migrate          # apply any that post-date the backup
+   tar xzf breakfast-files-2026-07-21.tgz
+   # restores content/, storage/uploads/, storage/client-previews/,
+   # storage/client-files/, storage/invoices/ and storage/vault-keys/
    ```
+
+5. **Restore `.env`** if needed.
 
 6. **Boot and verify** (see the verification checklist below).
 
@@ -59,75 +64,58 @@ work before you need them.
 
 Prove the backups work without touching production.
 
-1. **Restore into an isolated staging directory**, pointing the database path at
-   the restored copy:
+1. **Restore into an isolated staging directory** and point the platform's
+   storage root at it. In the staging `.env`, set `APP_ENV=development` and start
+   the app from that directory so `storage/data/` resolves to the restored copy:
 
    ```bash
-   mkdir -p /srv/breakfast-staging/storage/database
-   sqlite3 /backups/crm-2026-07-21-0300.sqlite \
-     ".backup '/srv/breakfast-staging/storage/database/crm.sqlite'"
+   mkdir -p /srv/breakfast-staging
+   tar xzf /backups/breakfast-files-2026-07-21.tgz -C /srv/breakfast-staging
    ```
 
-   In the staging `.env`, set `CRM_DB_PATH` to that file and `APP_ENV=development`.
-
-2. **Check integrity:**
+2. **Check integrity** — every record parses:
 
    ```bash
-   sqlite3 /srv/breakfast-staging/storage/database/crm.sqlite "PRAGMA integrity_check;"
-   # expect: ok
+   find /srv/breakfast-staging/storage/data -name '*.json' -exec sh -c \
+     'jq -e . "$1" >/dev/null || echo "CORRUPT: $1"' _ {} \;
+   # no output = ok
    ```
 
-3. **Check the schema is complete:**
-
-   ```bash
-   php bin/console migrate:status
-   # every migration listed as applied — no pending rows
-   ```
-
-4. **Boot the app** against the restored data:
+3. **Boot the app** against the restored data:
 
    ```bash
    php -S localhost:8010 -t public
    ```
 
-5. **Verify a known record exists.** Confirm the reference you noted at backup
-   time is present:
+4. **Verify a known record exists.** Confirm the reference you noted at backup
+   time is present in the enquiries collection:
 
    ```bash
-   sqlite3 /srv/breakfast-staging/storage/database/crm.sqlite \
-     "SELECT reference, status, created_at FROM enquiries WHERE reference = 'ENQ-2026-0001';"
-   # expect one row
+   grep -l '"reference": *"ENQ-2026-0001"' \
+     /srv/breakfast-staging/storage/data/enquiries/*.json
+   # expect one matching file
    ```
 
-   Also sanity-check row counts against expectations:
+   Also sanity-check record counts against expectations:
 
    ```bash
-   sqlite3 .../crm.sqlite "SELECT
-     (SELECT COUNT(*) FROM enquiries)      AS enquiries,
-     (SELECT COUNT(*) FROM contacts)       AS contacts,
-     (SELECT COUNT(*) FROM opportunities)  AS opportunities;"
+   for c in enquiries contacts opportunities; do
+     printf '%-14s %s\n' "$c" "$(ls /srv/breakfast-staging/storage/data/$c/*.json 2>/dev/null | wc -l)"
+   done
    ```
 
-6. **Check the health endpoint** returns `ok` and a plausible queue depth
-   (Hermes must be enabled in the staging env for this route to respond, or
-   check via the Panel CRM dashboard):
+5. **Check the health command** reports a sane store path and queue depth:
 
-   ```
-   GET /api/breakfast/v1/health
+   ```bash
+   php bin/console health
    ```
 
-7. **Tear down** the staging copy. Record the date of the successful test.
+6. **Tear down** the staging copy. Record the date of the successful test.
 
-## If integrity_check fails
+## If a record fails to parse
 
-Do **not** put a failing database into production. Fall back to the previous
-good backup and re-run the test. A recoverable database can sometimes be salvaged
-with:
-
-```bash
-sqlite3 broken.sqlite ".recover" | sqlite3 recovered.sqlite
-sqlite3 recovered.sqlite "PRAGMA integrity_check;"
-```
-
-but treat a recovered file as suspect and prefer a clean backup where one
-exists.
+Do **not** put a corrupt tree into production. Fall back to the previous good
+backup and re-run the test. A single corrupt JSON file only affects its own
+record — the rest of the store still loads — so if just one file is bad you can
+delete it (losing that one record) or hand-repair it, then re-verify. Prefer a
+clean backup where one exists.

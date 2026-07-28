@@ -34,7 +34,7 @@ order:
 - **Timing.** Submissions faster than 3 seconds, or with a missing/tampered
   render timestamp, or older than 1 hour, are treated as bots (benign success).
 - **Rate limiting.** Per IP: 5 submissions / 10 minutes. Per email: 3
-  submissions / hour. Backed by SQLite fixed windows keyed on **hashes**, never
+  submissions / hour. Backed by flat-file fixed windows keyed on **hashes**, never
   raw IPs.
 - **Duplicate detection.** A SHA-256 fingerprint of the meaningful content;
   an identical submission within 10 minutes is treated as a (benign) duplicate.
@@ -142,18 +142,18 @@ stripping sensitive keys (including `nonce`) before writing.
 - **Debug off in production.** `APP_DEBUG` defaults off when `APP_ENV=production`
   and `config.production.php` forces `debug => false`, so stack traces and
   paths are never leaked publicly.
-- **Database errors are opaque.** `Support\Database` catches PDO connection
-  errors and rethrows a generic message so DSN/driver details never surface.
+- **Storage errors are opaque.** Record writes fail closed with a generic
+  message; filesystem paths and internals never surface in a response.
 
-## Protected storage and SQLite
+## Protected storage
 
-The SQLite database, sessions, cache, logs, queue and uploads all live under
-`storage/`, **outside the `public/` docroot**, and are therefore not reachable
-over HTTP. The web-server configuration additionally denies access to sensitive
-directories as defence in depth (see the example Nginx / Apache config in
-[deployment.md](deployment.md) and the deploy configs under `deploy/` and
-`public/.htaccess`). The database directory is created `0770` and secrets files
-should be `0600`.
+The flat-file data tree (`storage/data/`), sessions, cache, logs, queue and
+uploads all live under `storage/`, **outside the `public/` docroot**, and are
+therefore not reachable over HTTP. The web-server configuration additionally
+denies access to sensitive directories as defence in depth (see the example
+Nginx / Apache config in [deployment.md](deployment.md) and the deploy configs
+under `deploy/` and `public/.htaccess`). Storage directories are created group-
+writable for the app user and secrets files should be `0600`.
 
 ## Dependency audit
 

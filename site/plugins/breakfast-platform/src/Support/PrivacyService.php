@@ -63,17 +63,25 @@ final class PrivacyService
             return false;
         }
 
-        return $p->db()->transaction(function (Database $db) use ($p, $uuid): bool {
-            $p->contacts()->anonymise($uuid);
-            // Scrub the recipient address on delivery history (keep the hash).
-            $db->run(
-                "UPDATE outbound_messages SET recipient_email = 'anonymised', subject = NULL, params_snapshot = NULL WHERE contact_uuid = :u",
-                ['u' => $uuid]
-            );
-            $p->activities()->record('contact', $uuid, 'anonymisation', 'Contact anonymised (PII scrubbed; audit + consent history retained)', 'system');
+        $p->contacts()->anonymise($uuid);
 
-            return true;
-        });
+        // Scrub the recipient address on flat-file delivery history (keep the hash).
+        $store = $p->fileStore();
+        foreach ($store->all('outbound_messages') as $message) {
+            if (($message['contact_uuid'] ?? null) === $uuid) {
+                $store->update('outbound_messages', (string) ($message['uuid'] ?? ''), static function (array $r): array {
+                    $r['recipient_email'] = 'anonymised';
+                    $r['subject']         = null;
+                    $r['params_snapshot'] = null;
+
+                    return $r;
+                });
+            }
+        }
+
+        $p->activities()->record('contact', $uuid, 'anonymisation', 'Contact anonymised (PII scrubbed; audit + consent history retained)', 'system');
+
+        return true;
     }
 
     /**
@@ -86,21 +94,34 @@ final class PrivacyService
         $p   = $this->platform;
         $now = Clock::nowIso();
 
+        $jobCutoff     = $this->cutoff($jobDays);
+        $deliveryCutoff = $this->cutoff($eventDays);
+        $oldJob      = static fn (array $j): bool => (string) ($j['status'] ?? '') === 'done' && (string) ($j['completed_at'] ?? '') !== '' && (string) $j['completed_at'] < $jobCutoff;
+        $oldDelivery = static fn (array $d): bool => (string) ($d['status'] ?? '') === 'delivered' && (string) ($d['created_at'] ?? '') !== '' && (string) $d['created_at'] < $deliveryCutoff;
+
         $counts = [
             'email_events'      => $this->countOlder('email_events', 'received_at', $eventDays),
-            'completed_jobs'    => (int) $p->db()->scalar("SELECT COUNT(*) FROM jobs WHERE status = 'done' AND completed_at < :c", ['c' => $this->cutoff($jobDays)]),
-            'webhook_deliveries' => (int) $p->db()->scalar("SELECT COUNT(*) FROM webhook_deliveries WHERE status = 'delivered' AND created_at < :c", ['c' => $this->cutoff($eventDays)]),
-            'ip_hashes'         => (int) $p->db()->scalar('SELECT COUNT(*) FROM enquiries WHERE ip_hash IS NOT NULL AND created_at < :c', ['c' => $this->cutoff(30)]),
+            'completed_jobs'    => count(array_filter($p->fileStore()->all('jobs'), $oldJob)),
+            'webhook_deliveries' => count(array_filter($p->fileStore()->all('webhook_deliveries'), $oldDelivery)),
+            'ip_hashes'         => $this->countEnquiryIpHashes(30),
         ];
 
         if ($apply) {
             $p->outbound()->pruneEvents($eventDays);
-            $p->db()->run("DELETE FROM jobs WHERE status = 'done' AND completed_at < :c", ['c' => $this->cutoff($jobDays)]);
-            $p->db()->run("DELETE FROM webhook_deliveries WHERE status = 'delivered' AND created_at < :c", ['c' => $this->cutoff($eventDays)]);
+            foreach (array_filter($p->fileStore()->all('jobs'), $oldJob) as $j) {
+                $p->fileStore()->delete('jobs', (string) ($j['uuid'] ?? ''));
+            }
+            foreach (array_filter($p->fileStore()->all('webhook_deliveries'), $oldDelivery) as $d) {
+                $p->fileStore()->delete('webhook_deliveries', (string) ($d['uuid'] ?? ''));
+            }
             $p->enquiries()->pruneIpHashes(30);
             $p->rateLimiter()->prune();
-            (new SubmissionGuard($p->db(), $p->rateLimiter()))->pruneFingerprints();
-            $p->db()->run('DELETE FROM hermes_nonces WHERE expires_at < :now', ['now' => $now]);
+            (new SubmissionGuard($p->fileStore(), $p->rateLimiter()))->pruneFingerprints();
+            foreach ($p->fileStore()->all('hermes_nonces') as $n) {
+                if ((string) ($n['expires_at'] ?? '') < $now) {
+                    $p->fileStore()->delete('hermes_nonces', (string) ($n['uuid'] ?? ''));
+                }
+            }
         }
 
         return $counts;
@@ -111,11 +132,26 @@ final class PrivacyService
         return Clock::now()->modify('-' . $days . ' days')->format('c');
     }
 
-    private function countOlder(string $table, string $column, int $days): int
+    private function countOlder(string $collection, string $column, int $days): int
     {
-        return (int) $this->platform->db()->scalar(
-            "SELECT COUNT(*) FROM {$table} WHERE {$column} < :c",
-            ['c' => $this->cutoff($days)]
-        );
+        $cutoff = $this->cutoff($days);
+
+        return count(array_filter(
+            $this->platform->fileStore()->all($collection),
+            static fn (array $r): bool => (string) ($r[$column] ?? '') !== '' && (string) $r[$column] < $cutoff
+        ));
+    }
+
+    /**
+     * Flat-file enquiries still carrying an IP hash older than the cutoff.
+     */
+    private function countEnquiryIpHashes(int $days): int
+    {
+        $cutoff = $this->cutoff($days);
+
+        return count(array_filter(
+            $this->platform->fileStore()->all('enquiries'),
+            static fn (array $e): bool => ($e['ip_hash'] ?? null) !== null && (string) ($e['created_at'] ?? '') < $cutoff
+        ));
     }
 }

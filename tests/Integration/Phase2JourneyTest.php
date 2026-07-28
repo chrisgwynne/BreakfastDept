@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Breakfast\Tests\Integration;
 
-use Breakfast\Platform\Support\Database;
 use Breakfast\Platform\Support\Platform;
 use Kirby\Cms\App;
 use PHPUnit\Framework\TestCase;
@@ -34,9 +33,7 @@ final class Phase2JourneyTest extends TestCase
         parent::setUp();
         $base = dirname(__DIR__, 2);
         $this->tmp = sys_get_temp_dir() . '/bf-p2-journey-' . bin2hex(random_bytes(6));
-        @mkdir($this->tmp . '/database', 0777, true);
 
-        Database::reset();
         Platform::reset();
         putenv('PLATFORM_SECRET_KEY=' . base64_encode(random_bytes(32)));
 
@@ -50,14 +47,12 @@ final class Phase2JourneyTest extends TestCase
                 'sessions' => $this->tmp . '/sessions',
                 'accounts' => $this->tmp . '/accounts',
             ],
-            'options' => ['debug' => false, 'whoops' => false, 'breakfast' => ['production' => false, 'storageDir' => $this->tmp, 'dbPath' => $this->tmp . '/database/crm.sqlite', 'mail' => ['provider' => 'fake']]],
+            'options' => ['debug' => false, 'whoops' => false, 'breakfast' => ['production' => false, 'storageDir' => $this->tmp, 'mail' => ['provider' => 'fake']]],
         ]);
-        breakfast()->migrator()->migrate();
     }
 
     protected function tearDown(): void
     {
-        Database::reset();
         Platform::reset();
         putenv('PLATFORM_SECRET_KEY');
         $this->rrmdir($this->tmp);
@@ -142,8 +137,11 @@ final class Phase2JourneyTest extends TestCase
         $canary = 'HOSTING-PASS-7Q2z9';
         $item = $p->vault()->create(['label' => 'Hosting login', 'project_uuid' => $projectUuid, 'fields' => [['fkey' => 'password', 'label' => 'Password', 'value' => $canary]]], $actor);
         $vaultUuid = (string) $item['id'];
-        // The plaintext is never in the database file.
-        $dbDump = (string) file_get_contents($this->tmp . '/database/crm.sqlite');
+        // The plaintext is never in any stored record (encrypted at rest).
+        $dbDump = '';
+        foreach (glob($this->tmp . '/data/*/*.json') ?: [] as $f) {
+            $dbDump .= (string) file_get_contents($f);
+        }
         $this->assertStringNotContainsString($canary, $dbDump, 'secret is encrypted at rest');
         $p->vault()->grantReauth($actor);
         $this->assertSame($canary, $p->vault()->reveal($vaultUuid, 'password', $actor));
@@ -183,7 +181,7 @@ final class Phase2JourneyTest extends TestCase
         // 8. The connected story is on the contact's CRM timeline + audit log.
         $types = array_map(static fn (array $a): string => (string) $a['type'], $p->activities()->forEntity('contact', $contact, 100));
         $this->assertContains('change_request.approved', $types, 'client approval recorded on the timeline');
-        $auditApplied = (int) ($p->db()->one("SELECT COUNT(*) AS n FROM hermes_audit WHERE endpoint = 'change_request.applied'")['n'] ?? 0);
+        $auditApplied = count(array_filter($p->fileStore()->all('hermes_audit'), static fn (array $r): bool => (string) ($r['endpoint'] ?? '') === 'change_request.applied'));
         $this->assertGreaterThan(0, $auditApplied, 'applying the change is an immutable audit event');
     }
 

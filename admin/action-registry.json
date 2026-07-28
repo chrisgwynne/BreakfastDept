@@ -36,8 +36,7 @@
     "time",
     "retainers",
     "inbox",
-    "automation",
-    "portfolio"
+    "automation"
   ],
   "actions": [
     {
@@ -1556,72 +1555,6 @@
       "persistence": "Breakfast\\Platform\\Operations\\Automation::run",
       "audit": "automation.fired",
       "playwright": "admin-automation.spec.js",
-      "status": "implemented"
-    },
-    {
-      "id": "portfolio.create",
-      "label": "Create portfolio record",
-      "resource": "portfolio",
-      "method": "POST",
-      "permission": "portfolio.manage",
-      "persistence": "Breakfast\\Platform\\Portfolio\\Portfolio::create",
-      "audit": "portfolio.created",
-      "playwright": "admin-portfolio.spec.js",
-      "status": "implemented"
-    },
-    {
-      "id": "portfolio.update",
-      "label": "Update portfolio record",
-      "resource": "portfolio",
-      "method": "PATCH",
-      "permission": "portfolio.manage",
-      "persistence": "Breakfast\\Platform\\Portfolio\\Portfolio::update",
-      "audit": "portfolio.updated",
-      "playwright": "admin-portfolio.spec.js",
-      "status": "implemented"
-    },
-    {
-      "id": "portfolio.duplicate",
-      "label": "Duplicate portfolio record",
-      "resource": "portfolio",
-      "method": "POST",
-      "permission": "portfolio.manage",
-      "persistence": "Breakfast\\Platform\\Portfolio\\Portfolio::duplicate",
-      "audit": "portfolio.duplicated",
-      "playwright": "admin-portfolio.spec.js",
-      "status": "implemented"
-    },
-    {
-      "id": "portfolio.transition",
-      "label": "Move portfolio record through its workflow",
-      "resource": "portfolio",
-      "method": "POST",
-      "permission": "portfolio.manage",
-      "persistence": "Breakfast\\Platform\\Portfolio\\Portfolio::transition",
-      "audit": "portfolio.published",
-      "playwright": "admin-portfolio.spec.js",
-      "status": "implemented"
-    },
-    {
-      "id": "portfolio.homepage",
-      "label": "Set homepage selection",
-      "resource": "portfolio",
-      "method": "POST",
-      "permission": "portfolio.manage",
-      "persistence": "Breakfast\\Platform\\Portfolio\\Portfolio::setHomepageSelection",
-      "audit": "portfolio.homepage_set",
-      "playwright": "admin-portfolio.spec.js",
-      "status": "implemented"
-    },
-    {
-      "id": "portfolio.media_upload",
-      "label": "Upload portfolio image",
-      "resource": "portfolio",
-      "method": "POST",
-      "permission": "portfolio.manage",
-      "persistence": "Breakfast\\Platform\\Portfolio\\PortfolioMediaPipeline::process",
-      "audit": "portfolio.media_added",
-      "playwright": "admin-portfolio.spec.js",
       "status": "implemented"
     }
   ]

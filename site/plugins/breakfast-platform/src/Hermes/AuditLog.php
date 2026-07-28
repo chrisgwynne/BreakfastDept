@@ -5,17 +5,21 @@ declare(strict_types=1);
 namespace Breakfast\Platform\Hermes;
 
 use Breakfast\Platform\Support\Clock;
-use Breakfast\Platform\Support\Database;
+use Breakfast\Platform\Support\FileStore;
 use Breakfast\Platform\Support\Uuid;
 
 /**
  * Immutable audit trail for every Hermes request. Records who (credential),
  * what (method + endpoint + scope), the target, the result and safe metadata.
  * NEVER records secrets, signatures or authentication headers.
+ *
+ * Stored as flat files — one JSON record per audit entry.
  */
 final class AuditLog
 {
-    public function __construct(private readonly Database $db)
+    private const COLLECTION = 'hermes_audit';
+
+    public function __construct(private readonly FileStore $store)
     {
     }
 
@@ -34,28 +38,20 @@ final class AuditLog
         ?string $targetUuid = null,
         array $metadata = []
     ): void {
-        $this->db->run(
-            'INSERT INTO hermes_audit
-                (uuid, credential_id, scope, method, endpoint, target_type, target_uuid,
-                 request_id, result, status_code, metadata, created_at)
-             VALUES
-                (:uuid, :cred, :scope, :method, :endpoint, :ttype, :tuuid,
-                 :rid, :result, :status, :meta, :created)',
-            [
-                'uuid'     => Uuid::v4(),
-                'cred'     => $credentialId,
-                'scope'    => $scope,
-                'method'   => $method,
-                'endpoint' => $endpoint,
-                'ttype'    => $targetType,
-                'tuuid'    => $targetUuid,
-                'rid'      => $requestId,
-                'result'   => $result,
-                'status'   => $statusCode,
-                'meta'     => $this->safeMeta($metadata),
-                'created'  => Clock::nowIso(),
-            ]
-        );
+        $this->store->put(self::COLLECTION, [
+            'uuid'          => Uuid::v4(),
+            'credential_id' => $credentialId,
+            'scope'         => $scope,
+            'method'        => $method,
+            'endpoint'      => $endpoint,
+            'target_type'   => $targetType,
+            'target_uuid'   => $targetUuid,
+            'request_id'    => $requestId,
+            'result'        => $result,
+            'status_code'   => $statusCode,
+            'metadata'      => $this->safeMeta($metadata),
+            'created_at'    => Clock::nowIso(),
+        ]);
     }
 
     /**
@@ -63,7 +59,10 @@ final class AuditLog
      */
     public function recent(int $limit = 100): array
     {
-        return $this->db->all('SELECT * FROM hermes_audit ORDER BY created_at DESC LIMIT :l', ['l' => $limit]);
+        $rows = $this->store->all(self::COLLECTION);
+        usort($rows, static fn ($a, $b) => strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? '')));
+
+        return array_slice($rows, 0, $limit);
     }
 
     /**
@@ -97,8 +96,16 @@ final class AuditLog
     public function prune(int $days = 365): int
     {
         $cutoff = Clock::now()->modify('-' . max(1, $days) . ' days')->format('c');
+        $removed = 0;
+        foreach ($this->store->all(self::COLLECTION) as $row) {
+            if ((string) ($row['created_at'] ?? '') < $cutoff) {
+                if ($this->store->delete(self::COLLECTION, (string) ($row['uuid'] ?? ''))) {
+                    $removed++;
+                }
+            }
+        }
 
-        return $this->db->run('DELETE FROM hermes_audit WHERE created_at < :cut', ['cut' => $cutoff])->rowCount();
+        return $removed;
     }
 
     /** @param array<string,mixed> $metadata */

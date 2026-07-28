@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Breakfast\Platform\Operations;
 
 use Breakfast\Platform\Support\Clock;
-use Breakfast\Platform\Support\Database;
 use Breakfast\Platform\Support\Platform;
 
 /**
@@ -24,11 +23,6 @@ final class Inbox
     {
     }
 
-    private function db(): Database
-    {
-        return $this->platform->db();
-    }
-
     /**
      * Counts per category plus the grand total — cheap enough for a nav badge.
      *
@@ -36,10 +30,10 @@ final class Inbox
      */
     public function summary(): array
     {
-        $messages = (int) $this->db()->scalar("SELECT COUNT(*) FROM portal_messages WHERE sender = 'client' AND read_by_staff = 0");
-        $feedback = (int) $this->db()->scalar("SELECT COUNT(*) FROM portal_feedback WHERE status = 'open'");
-        $onboarding = (int) $this->db()->scalar("SELECT COUNT(*) FROM onboarding_instances WHERE status IN ('submitted','under_review')");
-        $changeRequests = (int) $this->db()->scalar("SELECT COUNT(*) FROM change_requests WHERE status = 'approved' AND applied = 0");
+        $messages = count($this->unreadClientMessages());
+        $feedback = count($this->openFeedback());
+        $onboarding = count($this->submittedOnboarding());
+        $changeRequests = count($this->unappliedChanges());
         $retainers = count($this->dueRetainers());
 
         return [
@@ -57,44 +51,37 @@ final class Inbox
      */
     public function items(): array
     {
-        $messages = $this->db()->all(
-            "SELECT m.uuid, m.project_uuid, m.author_name, m.body, m.created_at, p.name AS project_name
-             FROM portal_messages m JOIN projects p ON p.uuid = m.project_uuid
-             WHERE m.sender = 'client' AND m.read_by_staff = 0
-             ORDER BY m.created_at DESC LIMIT 50"
-        );
-        $feedback = $this->db()->all(
-            "SELECT f.uuid, f.project_uuid, f.author_name, f.kind, f.body, f.created_at, p.name AS project_name
-             FROM portal_feedback f JOIN projects p ON p.uuid = f.project_uuid
-             WHERE f.status = 'open' ORDER BY f.created_at DESC LIMIT 50"
-        );
-        $onboarding = $this->db()->all(
-            "SELECT o.uuid, o.project_uuid, o.status, o.submitted_at, p.name AS project_name
-             FROM onboarding_instances o JOIN projects p ON p.uuid = o.project_uuid
-             WHERE o.status IN ('submitted','under_review') ORDER BY o.submitted_at DESC LIMIT 50"
-        );
-        $changeRequests = $this->db()->all(
-            "SELECT c.uuid, c.project_uuid, c.number, c.title, c.total, c.decided_at, p.name AS project_name
-             FROM change_requests c JOIN projects p ON p.uuid = c.project_uuid
-             WHERE c.status = 'approved' AND c.applied = 0 ORDER BY c.decided_at DESC LIMIT 50"
-        );
+        // Everything the inbox derives from is flat-file; the project name is
+        // resolved from the file store per row (no cross-file JOIN).
+        $messages = $this->unreadClientMessages();
+        usort($messages, static fn ($a, $b) => strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? '')));
+        $messages = array_slice($messages, 0, 50);
+        $feedback = $this->openFeedback();
+        usort($feedback, static fn ($a, $b) => strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? '')));
+        $feedback = array_slice($feedback, 0, 50);
+        $onboarding = $this->submittedOnboarding();
+        usort($onboarding, static fn ($a, $b) => strcmp((string) ($b['submitted_at'] ?? ''), (string) ($a['submitted_at'] ?? '')));
+        $onboarding = array_slice($onboarding, 0, 50);
+        $changeRequests = $this->unappliedChanges();
+        usort($changeRequests, static fn ($a, $b) => strcmp((string) ($b['decided_at'] ?? ''), (string) ($a['decided_at'] ?? '')));
+        $changeRequests = array_slice($changeRequests, 0, 50);
 
         return [
-            'messages' => array_map(static fn (array $m): array => [
-                'project_uuid' => (string) $m['project_uuid'], 'project_name' => (string) $m['project_name'],
+            'messages' => array_map(fn (array $m): array => [
+                'project_uuid' => (string) $m['project_uuid'], 'project_name' => $this->projectName((string) $m['project_uuid']),
                 'label' => (string) $m['author_name'] . ': ' . mb_substr((string) $m['body'], 0, 90), 'at' => (string) $m['created_at'],
             ], $messages),
-            'feedback' => array_map(static fn (array $f): array => [
-                'project_uuid' => (string) $f['project_uuid'], 'project_name' => (string) $f['project_name'],
+            'feedback' => array_map(fn (array $f): array => [
+                'project_uuid' => (string) $f['project_uuid'], 'project_name' => $this->projectName((string) $f['project_uuid']),
                 'label' => (string) ($f['kind'] === 'approval' ? $f['author_name'] . ' signed off' : $f['author_name'] . ': ' . mb_substr((string) $f['body'], 0, 90)),
                 'kind' => (string) $f['kind'], 'at' => (string) $f['created_at'],
             ], $feedback),
-            'onboarding' => array_map(static fn (array $o): array => [
-                'project_uuid' => (string) $o['project_uuid'], 'project_name' => (string) $o['project_name'],
+            'onboarding' => array_map(fn (array $o): array => [
+                'project_uuid' => (string) $o['project_uuid'], 'project_name' => $this->projectName((string) $o['project_uuid']),
                 'label' => 'Onboarding ' . str_replace('_', ' ', (string) $o['status']), 'at' => (string) ($o['submitted_at'] ?? ''),
             ], $onboarding),
-            'change_requests' => array_map(static fn (array $c): array => [
-                'project_uuid' => (string) $c['project_uuid'], 'project_name' => (string) $c['project_name'],
+            'change_requests' => array_map(fn (array $c): array => [
+                'project_uuid' => (string) $c['project_uuid'], 'project_name' => $this->projectName((string) $c['project_uuid']),
                 'label' => (string) $c['number'] . ' “' . (string) $c['title'] . '” approved — ready to apply', 'total' => (int) $c['total'], 'at' => (string) ($c['decided_at'] ?? ''),
             ], $changeRequests),
             'retainers' => array_map(fn (array $r): array => [
@@ -102,6 +89,64 @@ final class Inbox
                 'label' => (string) $r['title'] . ' — period due to bill', 'at' => (string) $r['next_period_start'],
             ], $this->dueRetainers()),
         ];
+    }
+
+    /** Resolve a flat-file project's name (empty string if it's gone). */
+    private function projectName(string $projectUuid): string
+    {
+        return (string) ($this->platform->projects()->raw($projectUuid)['name'] ?? '');
+    }
+
+    /**
+     * Approved change requests that have not yet been applied (flat-file).
+     *
+     * @return list<array<string,mixed>>
+     */
+    private function unappliedChanges(): array
+    {
+        return array_values(array_filter(
+            $this->platform->fileStore()->all('change_requests'),
+            static fn (array $r): bool => (string) ($r['status'] ?? '') === 'approved' && (int) ($r['applied'] ?? 0) === 0
+        ));
+    }
+
+    /**
+     * Unread client messages across all projects (flat-file).
+     *
+     * @return list<array<string,mixed>>
+     */
+    private function unreadClientMessages(): array
+    {
+        return array_values(array_filter(
+            $this->platform->fileStore()->all('portal_messages'),
+            static fn (array $r): bool => (string) ($r['sender'] ?? '') === 'client' && (int) ($r['read_by_staff'] ?? 0) === 0
+        ));
+    }
+
+    /**
+     * Open portal feedback across all projects (flat-file).
+     *
+     * @return list<array<string,mixed>>
+     */
+    private function openFeedback(): array
+    {
+        return array_values(array_filter(
+            $this->platform->fileStore()->all('portal_feedback'),
+            static fn (array $r): bool => (string) ($r['status'] ?? '') === 'open'
+        ));
+    }
+
+    /**
+     * Onboarding instances awaiting staff review (flat-file).
+     *
+     * @return list<array<string,mixed>>
+     */
+    private function submittedOnboarding(): array
+    {
+        return array_values(array_filter(
+            $this->platform->fileStore()->all('onboarding_instances'),
+            static fn (array $r): bool => in_array((string) ($r['status'] ?? ''), ['submitted', 'under_review'], true)
+        ));
     }
 
     /**
@@ -113,7 +158,8 @@ final class Inbox
     {
         $today = substr(Clock::nowIso(), 0, 10);
         $due = [];
-        foreach ($this->db()->all("SELECT uuid, project_uuid, title, cadence, next_period_start FROM retainers WHERE status = 'active'") as $r) {
+        $active = array_filter($this->platform->fileStore()->all('retainers'), static fn (array $r): bool => (string) ($r['status'] ?? '') === 'active');
+        foreach ($active as $r) {
             $months = (string) $r['cadence'] === 'quarterly' ? 3 : 1;
             $ts = strtotime((string) $r['next_period_start']);
             if ($ts === false) {

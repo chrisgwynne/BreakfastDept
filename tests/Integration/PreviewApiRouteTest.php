@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Breakfast\Tests\Integration;
 
-use Breakfast\Platform\Support\Database;
 use Breakfast\Platform\Support\Platform;
 use Kirby\Cms\App;
 use PHPUnit\Framework\TestCase;
@@ -30,9 +29,7 @@ final class PreviewApiRouteTest extends TestCase
         parent::setUp();
         $base = dirname(__DIR__, 2);
         $this->tmp = sys_get_temp_dir() . '/bf-api-' . bin2hex(random_bytes(6));
-        @mkdir($this->tmp . '/database', 0777, true);
 
-        Database::reset();
         Platform::reset();
 
         $this->kirby = new App([
@@ -51,13 +48,11 @@ final class PreviewApiRouteTest extends TestCase
                 'breakfast' => [
                     'production' => false,
                     'storageDir' => $this->tmp,
-                    'dbPath'     => $this->tmp . '/database/crm.sqlite',
                     'previews'   => ['storageDir' => $this->tmp . '/client-previews', 'limits' => []],
                     'mail'       => ['provider' => 'fake'],
                 ],
             ],
         ]);
-        breakfast()->migrator()->migrate();
         $this->kirby->impersonate('kirby'); // almighty admin — passes PreviewGate
 
         $this->routes = require $base . '/site/plugins/breakfast-platform/api/previews.php';
@@ -66,7 +61,6 @@ final class PreviewApiRouteTest extends TestCase
     protected function tearDown(): void
     {
         $_GET = $_POST = [];
-        Database::reset();
         Platform::reset();
         $this->rrmdir($this->tmp);
         App::destroy();
@@ -123,7 +117,7 @@ final class PreviewApiRouteTest extends TestCase
         $this->assertSame('active', $published['data']['status']);
 
         // The publish actually wrote an audit row (proves event() signature).
-        $this->assertSame(1, (int) breakfast()->db()->scalar("SELECT COUNT(*) FROM hermes_audit WHERE endpoint = 'preview.publish'"));
+        $this->assertSame(1, count(array_filter(breakfast()->fileStore()->all('hermes_audit'), static fn (array $r): bool => (string) ($r['endpoint'] ?? '') === 'preview.publish')));
 
         // Password set, then detail + list must NOT expose the hash.
         breakfast()->previewPasswords()->setPassword($uuid, 'secret-pw', 'admin');

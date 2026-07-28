@@ -6,7 +6,6 @@ namespace Breakfast\Tests\Integration;
 
 use Breakfast\Platform\Projects\ProjectException;
 use Breakfast\Platform\Projects\Projects;
-use Breakfast\Platform\Support\Database;
 use Breakfast\Platform\Support\Platform;
 use Kirby\Cms\App;
 use PHPUnit\Framework\TestCase;
@@ -28,9 +27,7 @@ final class ProjectsTest extends TestCase
         parent::setUp();
         $base = dirname(__DIR__, 2);
         $this->tmp = sys_get_temp_dir() . '/bf-projects-' . bin2hex(random_bytes(6));
-        @mkdir($this->tmp . '/database', 0777, true);
 
-        Database::reset();
         Platform::reset();
 
         $this->kirby = new App([
@@ -43,15 +40,13 @@ final class ProjectsTest extends TestCase
                 'sessions' => $this->tmp . '/sessions',
                 'accounts' => $this->tmp . '/accounts',
             ],
-            'options' => ['debug' => false, 'whoops' => false, 'breakfast' => ['production' => false, 'storageDir' => $this->tmp, 'dbPath' => $this->tmp . '/database/crm.sqlite', 'mail' => ['provider' => 'fake']]],
+            'options' => ['debug' => false, 'whoops' => false, 'breakfast' => ['production' => false, 'storageDir' => $this->tmp, 'mail' => ['provider' => 'fake']]],
         ]);
-        breakfast()->migrator()->migrate();
         $this->svc = breakfast()->projects();
     }
 
     protected function tearDown(): void
     {
-        Database::reset();
         Platform::reset();
         $this->rrmdir($this->tmp);
         App::destroy();
@@ -114,7 +109,11 @@ final class ProjectsTest extends TestCase
         $uuid = (string) $p['uuid'];
         $this->svc->transition($uuid, 'awaiting_client', [], 'staff@breakfast');
         // Back-date the awaiting_since so a measurable interval accrues.
-        breakfast()->db()->run("UPDATE projects SET awaiting_since = :t WHERE uuid = :u", ['t' => date('c', time() - 3600), 'u' => $uuid]);
+        $backdated = date('c', time() - 3600);
+        breakfast()->fileStore()->update('projects', $uuid, static function (array $row) use ($backdated): array {
+            $row['awaiting_since'] = $backdated;
+            return $row;
+        });
         $resumed = $this->svc->transition($uuid, 'active', [], 'staff@breakfast');
         $this->assertGreaterThanOrEqual(3500, (int) $resumed['awaiting_seconds']);
     }
@@ -162,7 +161,7 @@ final class ProjectsTest extends TestCase
         $uuid = (string) $p['uuid'];
         // A linked, issued, part-paid invoice.
         $inv = breakfast()->invoices()->create(['bill_to_name' => 'Roberts', 'items' => [['description' => 'Deposit', 'quantity' => 1, 'unit_price' => 1000]]], 'staff@breakfast');
-        breakfast()->db()->run('UPDATE invoices SET project_uuid = :p WHERE uuid = :u', ['p' => $uuid, 'u' => $inv['uuid']]);
+        breakfast()->invoices()->assignToProject((string) $inv['uuid'], $uuid);
         breakfast()->invoices()->issue((string) $inv['uuid'], 'staff@breakfast');
         breakfast()->invoices()->recordPayment((string) $inv['uuid'], ['amount' => 400, 'method' => 'bank'], 'staff@breakfast');
 

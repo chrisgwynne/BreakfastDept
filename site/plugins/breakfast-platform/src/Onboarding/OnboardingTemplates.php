@@ -5,23 +5,28 @@ declare(strict_types=1);
 namespace Breakfast\Platform\Onboarding;
 
 use Breakfast\Platform\Support\Clock;
-use Breakfast\Platform\Support\Database;
+use Breakfast\Platform\Support\FileStore;
 use Breakfast\Platform\Support\Uuid;
 
 /**
- * Versioned onboarding templates + form builder.
+ * Versioned onboarding templates + form builder, stored as flat files.
  *
  * Publishing a version freezes its sections, questions, options, conditions and
  * mapping rules. Instances bind to an exact frozen version, so later edits (a
  * new draft version) never mutate in-flight answers. Conditions are validated
  * server-side and rejected if they reference removed questions or form a cycle.
+ *
+ * Each template is one JSON record whose versions — and each version's full
+ * frozen structure — live embedded in that record as native arrays.
  */
 final class OnboardingTemplates
 {
+    private const COLLECTION = 'onboarding_templates';
+
     /** @var list<string> */
     public const TYPES = ['short_text', 'long_text', 'email', 'phone', 'url', 'number', 'currency', 'date', 'single_choice', 'multi_choice', 'yes_no', 'address', 'file', 'image', 'info', 'heading'];
 
-    public function __construct(private readonly Database $db)
+    public function __construct(private readonly FileStore $store)
     {
     }
 
@@ -73,20 +78,27 @@ final class OnboardingTemplates
     public function seedBuiltins(): void
     {
         foreach (self::builtins() as $slug => $def) {
-            if ($this->db->one('SELECT uuid FROM onboarding_templates WHERE slug = :s', ['s' => $slug]) !== null) {
+            // Deterministic id keeps seeding idempotent without a UNIQUE(slug).
+            $uuid = sha1('onboarding-builtin:' . $slug);
+            if ($this->store->exists(self::COLLECTION, $uuid)) {
                 continue;
             }
-            $this->db->transaction(function (Database $db) use ($slug, $def): void {
-                $tUuid = Uuid::v4();
-                $now = Clock::nowIso();
-                $db->run(
-                    'INSERT INTO onboarding_templates (uuid, slug, name, description, category, project_type, current_version, builtin, created_at, updated_at)
-                     VALUES (:uuid, :slug, :name, :desc, :cat, :type, 1, 1, :now, :now)',
-                    ['uuid' => $tUuid, 'slug' => $slug, 'name' => (string) $def['name'], 'desc' => (string) ($def['description'] ?? ''), 'cat' => (string) $def['category'], 'type' => (string) $def['project_type'], 'now' => $now]
-                );
-                $vUuid = $this->insertVersion($db, $tUuid, 1, 'published', 'Built-in', 'system', $now);
-                $this->writeRows($db, $vUuid, $def);
-            });
+            $now = Clock::nowIso();
+            $version = $this->buildVersion(1, 'published', 'Built-in', 'system', $now, $def);
+            $this->store->putIfAbsent(self::COLLECTION, $uuid, [
+                'uuid'            => $uuid,
+                'slug'            => $slug,
+                'name'            => (string) $def['name'],
+                'description'     => (string) ($def['description'] ?? ''),
+                'category'        => (string) $def['category'],
+                'project_type'    => (string) $def['project_type'],
+                'current_version' => 1,
+                'builtin'         => 1,
+                'archived'        => 0,
+                'versions'        => [$version],
+                'created_at'      => $now,
+                'updated_at'      => $now,
+            ]);
         }
     }
 
@@ -98,18 +110,22 @@ final class OnboardingTemplates
     public function list(): array
     {
         $this->seedBuiltins();
+        $rows = array_values(array_filter($this->store->all(self::COLLECTION), static fn (array $t): bool => (int) ($t['archived'] ?? 0) === 0));
+        usort($rows, static fn ($a, $b) => strcasecmp((string) ($a['name'] ?? ''), (string) ($b['name'] ?? '')));
 
-        return $this->db->all('SELECT * FROM onboarding_templates WHERE archived = 0 ORDER BY name ASC');
+        return $rows;
     }
 
     /** @return array<string,mixed>|null */
     public function find(string $uuid): ?array
     {
-        $t = $this->db->one('SELECT * FROM onboarding_templates WHERE uuid = :u', ['u' => $uuid]);
+        $t = $this->store->find(self::COLLECTION, $uuid);
         if ($t === null) {
             return null;
         }
-        $t['versions'] = $this->db->all('SELECT * FROM onboarding_template_versions WHERE template_uuid = :u ORDER BY version DESC', ['u' => $uuid]);
+        $versions = is_array($t['versions'] ?? null) ? array_values($t['versions']) : [];
+        usort($versions, static fn ($a, $b) => (int) ($b['version'] ?? 0) <=> (int) ($a['version'] ?? 0));
+        $t['versions'] = $versions;
 
         return $t;
     }
@@ -121,28 +137,24 @@ final class OnboardingTemplates
      */
     public function versionStructure(string $templateUuid, int $version): ?array
     {
-        $v = $this->db->one('SELECT * FROM onboarding_template_versions WHERE template_uuid = :t AND version = :v', ['t' => $templateUuid, 'v' => $version]);
-        if ($v === null) {
+        $t = $this->store->find(self::COLLECTION, $templateUuid);
+        if ($t === null) {
             return null;
         }
-        $vUuid = (string) $v['uuid'];
-        $v['sections'] = $this->db->all('SELECT * FROM onboarding_sections WHERE version_uuid = :v ORDER BY sort_order ASC', ['v' => $vUuid]);
-        $questions = $this->db->all('SELECT * FROM onboarding_questions WHERE version_uuid = :v ORDER BY sort_order ASC', ['v' => $vUuid]);
-        foreach ($questions as &$q) {
-            $q['options'] = $this->db->all('SELECT value, label FROM onboarding_question_options WHERE question_uuid = :q ORDER BY sort_order ASC', ['q' => (string) $q['uuid']]);
+        foreach (is_array($t['versions'] ?? null) ? $t['versions'] : [] as $v) {
+            if ((int) ($v['version'] ?? 0) === $version) {
+                return $v;
+            }
         }
-        unset($q);
-        $v['questions'] = $questions;
-        $v['mappings'] = $this->db->all('SELECT * FROM onboarding_field_mappings WHERE version_uuid = :v', ['v' => $vUuid]);
 
-        return $v;
+        return null;
     }
 
     /** @return array<string,mixed>|null */
     public function publishedStructure(string $templateUuid): ?array
     {
-        $t = $this->db->one('SELECT current_version FROM onboarding_templates WHERE uuid = :u', ['u' => $templateUuid]);
-        if ($t === null || (int) $t['current_version'] === 0) {
+        $t = $this->store->find(self::COLLECTION, $templateUuid);
+        if ($t === null || (int) ($t['current_version'] ?? 0) === 0) {
             return null;
         }
 
@@ -165,18 +177,26 @@ final class OnboardingTemplates
         }
         $slug = trim((string) ($data['slug'] ?? '')) ?: preg_replace('/[^a-z0-9]+/', '_', strtolower($name));
         $slug = trim((string) $slug, '_');
-        if ($slug === '' || $this->db->one('SELECT uuid FROM onboarding_templates WHERE slug = :s', ['s' => $slug]) !== null) {
+        if ($slug === '' || $this->slugTaken((string) $slug)) {
             $slug = ($slug ?: 'template') . '_' . substr(bin2hex(random_bytes(3)), 0, 4);
         }
         $uuid = Uuid::v4();
         $now = Clock::nowIso();
-        $this->db->run(
-            'INSERT INTO onboarding_templates (uuid, slug, name, description, category, project_type, current_version, builtin, created_at, updated_at)
-             VALUES (:uuid, :slug, :name, :desc, :cat, :type, 0, 0, :now, :now)',
-            ['uuid' => $uuid, 'slug' => (string) $slug, 'name' => $name, 'desc' => (string) ($data['description'] ?? ''), 'cat' => (string) ($data['category'] ?? ''), 'type' => (string) ($data['project_type'] ?? ''), 'now' => $now]
-        );
-        $vUuid = $this->insertVersion($this->db, $uuid, 1, 'draft', '', $actor, $now);
-        $this->writeRows($this->db, $vUuid, ['sections' => $data['sections'] ?? [], 'questions' => $data['questions'] ?? [], 'mappings' => $data['mappings'] ?? []]);
+        $version = $this->buildVersion(1, 'draft', '', $actor, $now, ['sections' => $data['sections'] ?? [], 'questions' => $data['questions'] ?? [], 'mappings' => $data['mappings'] ?? []]);
+        $this->store->put(self::COLLECTION, [
+            'uuid'            => $uuid,
+            'slug'            => (string) $slug,
+            'name'            => $name,
+            'description'     => (string) ($data['description'] ?? ''),
+            'category'        => (string) ($data['category'] ?? ''),
+            'project_type'    => (string) ($data['project_type'] ?? ''),
+            'current_version' => 0,
+            'builtin'         => 0,
+            'archived'        => 0,
+            'versions'        => [$version],
+            'created_at'      => $now,
+            'updated_at'      => $now,
+        ]);
 
         return $this->find($uuid) ?? [];
     }
@@ -184,23 +204,26 @@ final class OnboardingTemplates
     /** @return array<string,mixed> */
     public function newDraftVersion(string $templateUuid, string $actor): array
     {
-        $t = $this->db->one('SELECT * FROM onboarding_templates WHERE uuid = :u', ['u' => $templateUuid]);
+        $t = $this->store->find(self::COLLECTION, $templateUuid);
         if ($t === null) {
             throw new OnboardingException(404, 'Template not found.');
         }
-        $latest = (int) $this->db->scalar('SELECT COALESCE(MAX(version),0) FROM onboarding_template_versions WHERE template_uuid = :t', ['t' => $templateUuid]);
+        $latest = 0;
+        foreach (is_array($t['versions'] ?? null) ? $t['versions'] : [] as $v) {
+            $latest = max($latest, (int) ($v['version'] ?? 0));
+        }
         $next = $latest + 1;
         $now = Clock::nowIso();
+        $prev = $latest > 0 ? $this->versionStructure($templateUuid, $latest) : null;
+        $version = $this->buildVersion($next, 'draft', '', $actor, $now, $prev !== null ? $this->structureToDef($prev) : []);
+        $this->store->update(self::COLLECTION, $templateUuid, static function (array $row) use ($version, $now): array {
+            $row['versions'][] = $version;
+            $row['updated_at'] = $now;
 
-        return $this->db->transaction(function (Database $db) use ($templateUuid, $latest, $next, $actor, $now): array {
-            $vUuid = $this->insertVersion($db, $templateUuid, $next, 'draft', '', $actor, $now);
-            if ($latest > 0) {
-                $prev = $this->versionStructure($templateUuid, $latest);
-                $this->writeRows($db, $vUuid, $this->structureToDef($prev ?? []));
-            }
-
-            return $this->find($templateUuid) ?? [];
+            return $row;
         });
+
+        return $this->find($templateUuid) ?? [];
     }
 
     /** @return array<string,mixed> */
@@ -214,9 +237,21 @@ final class OnboardingTemplates
             throw new OnboardingException(409, 'That version is already published.');
         }
         $this->validateConditions($structure);
-        $this->db->transaction(function (Database $db) use ($templateUuid, $version, $structure): void {
-            $db->run("UPDATE onboarding_template_versions SET status = 'published', published_at = :now WHERE uuid = :u", ['now' => Clock::nowIso(), 'u' => (string) $structure['uuid']]);
-            $db->run('UPDATE onboarding_templates SET current_version = :v, updated_at = :now WHERE uuid = :u', ['v' => $version, 'now' => Clock::nowIso(), 'u' => $templateUuid]);
+        $now = Clock::nowIso();
+        $this->store->update(self::COLLECTION, $templateUuid, static function (array $row) use ($version, $now): array {
+            $versions = is_array($row['versions'] ?? null) ? $row['versions'] : [];
+            foreach ($versions as &$v) {
+                if ((int) ($v['version'] ?? 0) === $version) {
+                    $v['status']       = 'published';
+                    $v['published_at'] = $now;
+                }
+            }
+            unset($v);
+            $row['versions']        = $versions;
+            $row['current_version'] = $version;
+            $row['updated_at']      = $now;
+
+            return $row;
         });
 
         return $this->find($templateUuid) ?? [];
@@ -271,67 +306,93 @@ final class OnboardingTemplates
     // Internals
     // ==================================================================
 
-    private function insertVersion(Database $db, string $templateUuid, int $version, string $status, string $notes, string $actor, string $now): string
+    private function slugTaken(string $slug): bool
     {
-        $uuid = Uuid::v4();
-        $db->run(
-            'INSERT INTO onboarding_template_versions (uuid, template_uuid, version, status, notes, published_at, created_by, created_at)
-             VALUES (:uuid, :t, :v, :status, :notes, :pub, :actor, :now)',
-            ['uuid' => $uuid, 't' => $templateUuid, 'v' => $version, 'status' => $status, 'notes' => $notes, 'pub' => $status === 'published' ? $now : null, 'actor' => $actor, 'now' => $now]
-        );
+        foreach ($this->store->all(self::COLLECTION) as $t) {
+            if ((string) ($t['slug'] ?? '') === $slug) {
+                return true;
+            }
+        }
 
-        return $uuid;
+        return false;
     }
 
-    /** @param array<string,mixed> $def */
-    private function writeRows(Database $db, string $versionUuid, array $def): void
+    /**
+     * Build a frozen version record (its structure embedded).
+     *
+     * @param array<string,mixed> $def
+     * @return array<string,mixed>
+     */
+    private function buildVersion(int $version, string $status, string $notes, string $actor, string $now, array $def): array
     {
-        $now = Clock::nowIso();
+        $structure = $this->buildStructure($def);
+
+        return [
+            'uuid'         => Uuid::v4(),
+            'version'      => $version,
+            'status'       => $status,
+            'notes'        => $notes,
+            'published_at' => $status === 'published' ? $now : null,
+            'created_by'   => $actor,
+            'created_at'   => $now,
+            'sections'     => $structure['sections'],
+            'questions'    => $structure['questions'],
+            'mappings'     => $structure['mappings'],
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $def
+     * @return array{sections:list<array<string,mixed>>,questions:list<array<string,mixed>>,mappings:list<array<string,mixed>>}
+     */
+    private function buildStructure(array $def): array
+    {
+        $sections = [];
         $order = 0;
         foreach (is_array($def['sections'] ?? null) ? $def['sections'] : [] as $s) {
             if (!is_array($s)) {
                 continue;
             }
-            $db->run(
-                'INSERT INTO onboarding_sections (uuid, version_uuid, skey, title, description, condition, sort_order, created_at)
-                 VALUES (:uuid, :v, :skey, :title, :desc, :cond, :order, :now)',
-                ['uuid' => Uuid::v4(), 'v' => $versionUuid, 'skey' => (string) ($s['key'] ?? ('s' . $order)), 'title' => (string) ($s['title'] ?? ''), 'desc' => (string) ($s['description'] ?? ''), 'cond' => $this->encodeCond($s['condition'] ?? ''), 'order' => $order++, 'now' => $now]
-            );
+            $sections[] = [
+                'uuid' => Uuid::v4(), 'skey' => (string) ($s['key'] ?? ('s' . $order)), 'title' => (string) ($s['title'] ?? ''),
+                'description' => (string) ($s['description'] ?? ''), 'condition' => $this->encodeCond($s['condition'] ?? ''), 'sort_order' => $order++,
+            ];
         }
+        $questions = [];
         $order = 0;
         foreach (is_array($def['questions'] ?? null) ? $def['questions'] : [] as $q) {
             if (!is_array($q)) {
                 continue;
             }
             $type = in_array((string) ($q['type'] ?? 'short_text'), self::TYPES, true) ? (string) $q['type'] : 'short_text';
-            $qUuid = Uuid::v4();
-            $db->run(
-                'INSERT INTO onboarding_questions (uuid, version_uuid, section_key, qkey, type, label, help, placeholder, required, internal_only, client_visible, config, condition, sort_order, created_at)
-                 VALUES (:uuid, :v, :skey, :qkey, :type, :label, :help, :ph, :req, :int, :cv, :config, :cond, :order, :now)',
-                [
-                    'uuid' => $qUuid, 'v' => $versionUuid, 'skey' => (string) ($q['section'] ?? ''), 'qkey' => (string) ($q['key'] ?? ('q' . $order)), 'type' => $type,
-                    'label' => (string) ($q['label'] ?? ''), 'help' => (string) ($q['help'] ?? ''), 'ph' => (string) ($q['placeholder'] ?? ''),
-                    'req' => !empty($q['required']) ? 1 : 0, 'int' => !empty($q['internal_only']) ? 1 : 0, 'cv' => array_key_exists('client_visible', $q) ? (!empty($q['client_visible']) ? 1 : 0) : 1,
-                    'config' => is_array($q['config'] ?? null) ? (json_encode($q['config']) ?: '') : '', 'cond' => $this->encodeCond($q['condition'] ?? ''), 'order' => $order++, 'now' => $now,
-                ]
-            );
+            $options = [];
             $oOrder = 0;
             foreach (is_array($q['options'] ?? null) ? $q['options'] : [] as $opt) {
                 $value = is_array($opt) ? (string) ($opt['value'] ?? '') : (string) $opt;
                 $label = is_array($opt) ? (string) ($opt['label'] ?? $value) : (string) $opt;
-                $db->run('INSERT INTO onboarding_question_options (uuid, question_uuid, value, label, sort_order) VALUES (:uuid, :q, :value, :label, :order)', ['uuid' => Uuid::v4(), 'q' => $qUuid, 'value' => $value, 'label' => $label, 'order' => $oOrder++]);
+                $options[] = ['value' => $value, 'label' => $label, 'sort_order' => $oOrder++];
             }
+            $questions[] = [
+                'uuid' => Uuid::v4(), 'section_key' => (string) ($q['section'] ?? ''), 'qkey' => (string) ($q['key'] ?? ('q' . $order)), 'type' => $type,
+                'label' => (string) ($q['label'] ?? ''), 'help' => (string) ($q['help'] ?? ''), 'placeholder' => (string) ($q['placeholder'] ?? ''),
+                'required' => !empty($q['required']) ? 1 : 0, 'internal_only' => !empty($q['internal_only']) ? 1 : 0,
+                'client_visible' => array_key_exists('client_visible', $q) ? (!empty($q['client_visible']) ? 1 : 0) : 1,
+                'config' => is_array($q['config'] ?? null) ? (json_encode($q['config']) ?: '') : '', 'condition' => $this->encodeCond($q['condition'] ?? ''),
+                'sort_order' => $order++, 'options' => $options,
+            ];
         }
+        $mappings = [];
         foreach (is_array($def['mappings'] ?? null) ? $def['mappings'] : [] as $m) {
             if (!is_array($m)) {
                 continue;
             }
-            $db->run(
-                'INSERT INTO onboarding_field_mappings (uuid, version_uuid, question_key, target, mode, config, created_at)
-                 VALUES (:uuid, :v, :qk, :target, :mode, :config, :now)',
-                ['uuid' => Uuid::v4(), 'v' => $versionUuid, 'qk' => (string) ($m['question'] ?? ''), 'target' => (string) ($m['target'] ?? ''), 'mode' => (string) ($m['mode'] ?? 'direct'), 'config' => is_array($m['config'] ?? null) ? (json_encode($m['config']) ?: '') : '', 'now' => $now]
-            );
+            $mappings[] = [
+                'uuid' => Uuid::v4(), 'question_key' => (string) ($m['question'] ?? ''), 'target' => (string) ($m['target'] ?? ''),
+                'mode' => (string) ($m['mode'] ?? 'direct'), 'config' => is_array($m['config'] ?? null) ? (json_encode($m['config']) ?: '') : '',
+            ];
         }
+
+        return ['sections' => $sections, 'questions' => $questions, 'mappings' => $mappings];
     }
 
     private function encodeCond(mixed $cond): string

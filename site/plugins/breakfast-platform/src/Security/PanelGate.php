@@ -416,58 +416,8 @@ final class PanelGate
         return self::canManage($user);
     }
 
-    /**
-     * Portfolio & Case Studies. Viewing / previewing / history follow CRM
-     * 'access'; creating, editing, reviewing, media, taxonomy, homepage,
-     * publishing, scheduling, unpublishing, archiving and restoring all require
-     * the 'manage' grant; overriding publication validation is admin-only.
-     * Enforced server-side on every portfolio route. Portal/Hermes callers
-     * never reach these routes.
-     */
-    public static function canViewPortfolio(?User $user): bool
-    {
-        return self::canAccess($user);
-    }
-
-    public static function canManagePortfolio(?User $user): bool
-    {
-        return self::canManage($user);
-    }
-
-    public static function canReviewPortfolio(?User $user): bool
-    {
-        return self::canManage($user);
-    }
-
-    public static function canPublishPortfolio(?User $user): bool
-    {
-        return self::canManage($user);
-    }
-
-    public static function canArchivePortfolio(?User $user): bool
-    {
-        return self::canManage($user);
-    }
-
-    public static function canManagePortfolioHomepage(?User $user): bool
-    {
-        return self::canManage($user);
-    }
-
-    public static function canPreviewPortfolio(?User $user): bool
-    {
-        return self::canAccess($user);
-    }
-
-    public static function canViewPortfolioHistory(?User $user): bool
-    {
-        return self::canAccess($user);
-    }
-
-    public static function canOverridePortfolioValidation(?User $user): bool
-    {
-        return $user !== null && $user->isAdmin();
-    }
+    // The portfolio is flat-file Kirby content now — no database module, no
+    // portfolio-specific permission gates.
 
     private static function allowed(?User $user, string $action): bool
     {

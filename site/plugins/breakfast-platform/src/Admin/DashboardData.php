@@ -82,8 +82,8 @@ final class DashboardData
     }
 
     /**
-     * Client-previews summary (counts by status). Gracefully returns zeros when
-     * the previews tables do not exist yet (migration 0004 not applied).
+     * Client-previews summary (counts by status). Returns zeros when no previews
+     * exist yet (empty flat-file store).
      *
      * @return array<string,int>
      */
@@ -95,23 +95,17 @@ final class DashboardData
             $summary[$status] = 0;
         }
 
-        if ($this->platform->db()->tableExists('client_previews') === false) {
-            return $summary;
-        }
-
-        // One grouped query instead of one COUNT per status: this runs on every
-        // dashboard (post-login) load, so collapsing the round-trips matters.
-        $rows = $this->platform->db()->all(
-            'SELECT status, COUNT(*) AS n FROM client_previews WHERE archived_at IS NULL GROUP BY status'
-        );
-        foreach ($rows as $row) {
+        // Previews are flat files: tally active (non-archived) records by status.
+        foreach ($this->platform->fileStore()->all('client_previews') as $row) {
+            if (($row['archived_at'] ?? null) !== null) {
+                continue;
+            }
             $status = (string) ($row['status'] ?? '');
             if (in_array($status, $statuses, true) === false) {
                 continue;
             }
-            $count = (int) ($row['n'] ?? 0);
-            $summary[$status] = $count;
-            $summary['total'] += $count;
+            $summary[$status]++;
+            $summary['total']++;
         }
 
         return $summary;
@@ -152,13 +146,6 @@ final class DashboardData
 
     private function previewCount(string $status): int
     {
-        if ($this->platform->db()->tableExists('client_previews') === false) {
-            return 0;
-        }
-
-        return (int) $this->platform->db()->scalar(
-            'SELECT COUNT(*) FROM client_previews WHERE status = :s AND archived_at IS NULL',
-            ['s' => $status]
-        );
+        return $this->platform->previews()->count($status);
     }
 }

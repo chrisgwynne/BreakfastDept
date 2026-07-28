@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Breakfast\Platform\Files;
 
 use Breakfast\Platform\Support\Clock;
-use Breakfast\Platform\Support\Database;
+use Breakfast\Platform\Support\FileStore;
 use Breakfast\Platform\Support\Uuid;
 
 /**
@@ -17,14 +17,20 @@ use Breakfast\Platform\Support\Uuid;
  * stored hash. Legal/financial documents (invoices, signed contracts, sent
  * proposals, receipts) are flagged immutable and cannot be replaced or deleted
  * through this library. Deleting a referenced file is blocked by default.
+ *
+ * File metadata is a flat-file record; each file's versions, links, events and
+ * access events live embedded in that record as native arrays. Only the opaque
+ * byte blobs remain on disk.
  */
 final class FileLibrary
 {
+    private const COLLECTION = 'client_files';
+
     /** @var list<string> */
     public const CATEGORIES = ['brand', 'logo', 'photography', 'copy', 'content', 'legal', 'contract', 'invoice', 'proposal', 'website', 'export', 'analytics', 'seo', 'project', 'onboarding', 'general'];
 
     public function __construct(
-        private readonly Database $db,
+        private readonly FileStore $store,
         private readonly string $storageDir,
         private readonly FileValidator $validator = new FileValidator(),
     ) {
@@ -40,41 +46,49 @@ final class FileLibrary
      */
     public function list(array $filters = []): array
     {
-        $where = ['1 = 1'];
-        $params = [];
+        $rows = $this->store->all(self::COLLECTION);
         if (empty($filters['include_archived'])) {
-            $where[] = 'archived = 0';
+            $rows = array_filter($rows, static fn (array $f): bool => (int) ($f['archived'] ?? 0) === 0);
         }
         if (!empty($filters['project_uuid'])) {
-            $where[] = 'project_uuid = :p';
-            $params['p'] = (string) $filters['project_uuid'];
+            $rows = array_filter($rows, static fn (array $f): bool => (string) ($f['project_uuid'] ?? '') === (string) $filters['project_uuid']);
         }
         if (!empty($filters['company_uuid'])) {
-            $where[] = 'company_uuid = :c';
-            $params['c'] = (string) $filters['company_uuid'];
+            $rows = array_filter($rows, static fn (array $f): bool => (string) ($f['company_uuid'] ?? '') === (string) $filters['company_uuid']);
         }
         if (!empty($filters['category'])) {
-            $where[] = 'category = :cat';
-            $params['cat'] = (string) $filters['category'];
+            $rows = array_filter($rows, static fn (array $f): bool => (string) ($f['category'] ?? '') === (string) $filters['category']);
         }
-        $params['l'] = (int) ($filters['limit'] ?? 200);
-        $rows = $this->db->all('SELECT * FROM client_files WHERE ' . implode(' AND ', $where) . ' ORDER BY updated_at DESC LIMIT :l', $params);
+        $rows = array_values($rows);
+        usort($rows, static fn ($a, $b) => strcmp((string) ($b['updated_at'] ?? ''), (string) ($a['updated_at'] ?? '')));
 
         // List endpoints never load bytes — only the current version's metadata.
-        return array_map(fn (array $f): array => $this->withCurrent($f), $rows);
+        return array_map(fn (array $f): array => $this->withCurrent($f), array_slice($rows, 0, (int) ($filters['limit'] ?? 200)));
     }
 
     /** @return array<string,mixed>|null */
     public function find(string $uuid): ?array
     {
-        $f = $this->db->one('SELECT * FROM client_files WHERE uuid = :u', ['u' => $uuid]);
+        $f = $this->store->find(self::COLLECTION, $uuid);
         if ($f === null) {
             return null;
         }
         $f = $this->withCurrent($f);
-        $f['versions'] = $this->db->all('SELECT uuid, version, original_name, extension, mime, byte_size, sha256, width, height, thumb_state, change_note, uploader, created_at FROM client_file_versions WHERE file_uuid = :u ORDER BY version DESC', ['u' => $uuid]);
-        $f['links'] = $this->db->all('SELECT entity_type, entity_uuid, created_at FROM client_file_links WHERE file_uuid = :u', ['u' => $uuid]);
-        $f['events'] = $this->db->all('SELECT type, detail, actor, created_at FROM client_file_events WHERE file_uuid = :u ORDER BY created_at DESC LIMIT 50', ['u' => $uuid]);
+        $versions = is_array($f['versions'] ?? null) ? array_values($f['versions']) : [];
+        usort($versions, static fn ($a, $b) => (int) ($b['version'] ?? 0) <=> (int) ($a['version'] ?? 0));
+        $f['versions'] = array_map(static fn (array $v): array => [
+            'uuid' => $v['uuid'] ?? '', 'version' => (int) ($v['version'] ?? 0), 'original_name' => $v['original_name'] ?? '', 'extension' => $v['extension'] ?? '',
+            'mime' => $v['mime'] ?? '', 'byte_size' => (int) ($v['byte_size'] ?? 0), 'sha256' => $v['sha256'] ?? '', 'width' => $v['width'] ?? null, 'height' => $v['height'] ?? null,
+            'thumb_state' => $v['thumb_state'] ?? '', 'change_note' => $v['change_note'] ?? '', 'uploader' => $v['uploader'] ?? '', 'created_at' => $v['created_at'] ?? '',
+        ], $versions);
+        $f['links'] = array_map(static fn (array $l): array => [
+            'entity_type' => $l['entity_type'] ?? '', 'entity_uuid' => $l['entity_uuid'] ?? '', 'created_at' => $l['created_at'] ?? '',
+        ], is_array($f['links'] ?? null) ? array_values($f['links']) : []);
+        $events = is_array($f['events'] ?? null) ? array_values($f['events']) : [];
+        usort($events, static fn ($a, $b) => strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? '')));
+        $f['events'] = array_slice(array_map(static fn (array $e): array => [
+            'type' => $e['type'] ?? '', 'detail' => $e['detail'] ?? '', 'actor' => $e['actor'] ?? '', 'created_at' => $e['created_at'] ?? '',
+        ], $events), 0, 50);
 
         return $f;
     }
@@ -94,30 +108,40 @@ final class FileLibrary
         $v = $this->validator->validate($tmpPath, $originalName, $declaredMime);
         $category = in_array((string) ($meta['category'] ?? 'general'), self::CATEGORIES, true) ? (string) $meta['category'] : 'general';
 
-        return $this->db->transaction(function (Database $db) use ($tmpPath, $originalName, $v, $meta, $category, $actor): array {
-            $uuid = Uuid::v4();
-            $now = Clock::nowIso();
-            $db->run(
-                'INSERT INTO client_files (uuid, display_name, description, category, tags, folder_uuid, company_uuid, project_uuid, current_version, source, immutable, client_visible, uploader, created_at, updated_at)
-                 VALUES (:uuid, :name, :desc, :cat, :tags, :folder, :company, :project, 1, :source, :immutable, :cv, :actor, :now, :now)',
-                [
-                    'uuid' => $uuid, 'name' => (string) ($meta['display_name'] ?? $originalName), 'desc' => (string) ($meta['description'] ?? ''),
-                    'cat' => $category, 'tags' => json_encode(is_array($meta['tags'] ?? null) ? array_values($meta['tags']) : [], JSON_UNESCAPED_SLASHES) ?: '[]',
-                    'folder' => $this->nullable($meta['folder_uuid'] ?? null), 'company' => $this->nullable($meta['company_uuid'] ?? null), 'project' => $this->nullable($meta['project_uuid'] ?? null),
-                    'source' => (string) ($meta['source'] ?? 'upload'), 'immutable' => !empty($meta['immutable']) ? 1 : 0, 'cv' => !empty($meta['client_visible']) ? 1 : 0,
-                    'actor' => $actor, 'now' => $now,
-                ]
-            );
-            $this->writeVersion($db, $uuid, 1, $tmpPath, $originalName, $v, (string) ($meta['change_note'] ?? 'Initial upload'), $actor);
-            foreach (is_array($meta['links'] ?? null) ? $meta['links'] : [] as $link) {
-                if (is_array($link) && !empty($link['entity_type']) && !empty($link['entity_uuid'])) {
-                    $this->linkInternal($db, $uuid, (string) $link['entity_type'], (string) $link['entity_uuid'], $actor);
-                }
+        $uuid = Uuid::v4();
+        $now = Clock::nowIso();
+        $version = $this->buildVersion($uuid, 1, $tmpPath, $originalName, $v, (string) ($meta['change_note'] ?? 'Initial upload'), $actor);
+        $links = [];
+        foreach (is_array($meta['links'] ?? null) ? $meta['links'] : [] as $link) {
+            if (is_array($link) && !empty($link['entity_type']) && !empty($link['entity_uuid'])) {
+                $links[] = ['uuid' => Uuid::v4(), 'entity_type' => (string) $link['entity_type'], 'entity_uuid' => (string) $link['entity_uuid'], 'created_by' => $actor, 'created_at' => $now];
             }
-            $this->event($db, $uuid, 'uploaded', 'Uploaded ' . $originalName, $actor);
+        }
+        $this->store->put(self::COLLECTION, [
+            'uuid'            => $uuid,
+            'display_name'    => (string) ($meta['display_name'] ?? $originalName),
+            'description'     => (string) ($meta['description'] ?? ''),
+            'category'        => $category,
+            'tags'            => is_array($meta['tags'] ?? null) ? array_values(array_map('strval', $meta['tags'])) : [],
+            'folder_uuid'     => $this->nullable($meta['folder_uuid'] ?? null),
+            'company_uuid'    => $this->nullable($meta['company_uuid'] ?? null),
+            'project_uuid'    => $this->nullable($meta['project_uuid'] ?? null),
+            'current_version' => 1,
+            'source'          => (string) ($meta['source'] ?? 'upload'),
+            'immutable'       => !empty($meta['immutable']) ? 1 : 0,
+            'client_visible'  => !empty($meta['client_visible']) ? 1 : 0,
+            'archived'        => 0,
+            'uploader'        => $actor,
+            'versions'        => [$version],
+            'links'           => $links,
+            'events'          => [],
+            'access_events'   => [],
+            'created_at'      => $now,
+            'updated_at'      => $now,
+        ]);
+        $this->event($uuid, 'uploaded', 'Uploaded ' . $originalName, $actor);
 
-            return $this->find($uuid) ?? [];
-        });
+        return $this->find($uuid) ?? [];
     }
 
     /**
@@ -128,7 +152,7 @@ final class FileLibrary
      */
     public function replace(string $fileUuid, string $tmpPath, string $originalName, string $declaredMime, string $changeNote, string $actor): array
     {
-        $file = $this->db->one('SELECT * FROM client_files WHERE uuid = :u', ['u' => $fileUuid]);
+        $file = $this->store->find(self::COLLECTION, $fileUuid);
         if ($file === null) {
             throw new FileException(404, 'File not found.');
         }
@@ -136,15 +160,18 @@ final class FileLibrary
             throw new FileException(409, 'This is a protected legal or financial document and cannot be replaced.');
         }
         $v = $this->validator->validate($tmpPath, $originalName, $declaredMime);
+        $next = (int) $file['current_version'] + 1;
+        $version = $this->buildVersion($fileUuid, $next, $tmpPath, $originalName, $v, $changeNote !== '' ? $changeNote : 'Replaced', $actor);
+        $this->store->update(self::COLLECTION, $fileUuid, static function (array $row) use ($version, $next): array {
+            $row['versions'][]      = $version;
+            $row['current_version'] = $next;
+            $row['updated_at']      = Clock::nowIso();
 
-        return $this->db->transaction(function (Database $db) use ($file, $fileUuid, $tmpPath, $originalName, $v, $changeNote, $actor): array {
-            $next = (int) $file['current_version'] + 1;
-            $this->writeVersion($db, $fileUuid, $next, $tmpPath, $originalName, $v, $changeNote !== '' ? $changeNote : 'Replaced', $actor);
-            $db->run('UPDATE client_files SET current_version = :v, updated_at = :now WHERE uuid = :u', ['v' => $next, 'now' => Clock::nowIso(), 'u' => $fileUuid]);
-            $this->event($db, $fileUuid, 'replaced', 'New version ' . $next, $actor);
-
-            return $this->find($fileUuid) ?? [];
+            return $row;
         });
+        $this->event($fileUuid, 'replaced', 'New version ' . $next, $actor);
+
+        return $this->find($fileUuid) ?? [];
     }
 
     /**
@@ -154,18 +181,23 @@ final class FileLibrary
      */
     public function restoreVersion(string $fileUuid, int $version, string $actor): array
     {
-        $file = $this->db->one('SELECT immutable, current_version FROM client_files WHERE uuid = :u', ['u' => $fileUuid]);
+        $file = $this->store->find(self::COLLECTION, $fileUuid);
         if ($file === null) {
             throw new FileException(404, 'File not found.');
         }
         if ((int) $file['immutable'] === 1) {
             throw new FileException(409, 'This protected document cannot be rolled back.');
         }
-        if ($this->db->one('SELECT uuid FROM client_file_versions WHERE file_uuid = :u AND version = :v', ['u' => $fileUuid, 'v' => $version]) === null) {
+        if ($this->versionRow($file, $version) === null) {
             throw new FileException(404, 'That version does not exist.');
         }
-        $this->db->run('UPDATE client_files SET current_version = :v, updated_at = :now WHERE uuid = :u', ['v' => $version, 'now' => Clock::nowIso(), 'u' => $fileUuid]);
-        $this->event($this->db, $fileUuid, 'rolled_back', 'Current set to version ' . $version, $actor);
+        $this->store->update(self::COLLECTION, $fileUuid, static function (array $row) use ($version): array {
+            $row['current_version'] = $version;
+            $row['updated_at']      = Clock::nowIso();
+
+            return $row;
+        });
+        $this->event($fileUuid, 'rolled_back', 'Current set to version ' . $version, $actor);
 
         return $this->find($fileUuid) ?? [];
     }
@@ -183,12 +215,29 @@ final class FileLibrary
     {
         $uuid = Uuid::v4();
         $now = Clock::nowIso();
-        $this->db->run(
-            'INSERT INTO client_files (uuid, display_name, description, category, tags, company_uuid, project_uuid, current_version, source, immutable, client_visible, uploader, created_at, updated_at)
-             VALUES (:uuid, :name, :desc, :cat, \'[]\', :company, :project, 1, :source, 1, :cv, :actor, :now, :now)',
-            ['uuid' => $uuid, 'name' => (string) ($meta['display_name'] ?? 'Document'), 'desc' => (string) ($meta['description'] ?? ''), 'cat' => (string) ($meta['category'] ?? 'legal'), 'company' => $this->nullable($meta['company_uuid'] ?? null), 'project' => $this->nullable($meta['project_uuid'] ?? null), 'source' => (string) ($meta['source'] ?? 'system'), 'cv' => !empty($meta['client_visible']) ? 1 : 0, 'actor' => $actor, 'now' => $now]
-        );
-        $this->event($this->db, $uuid, 'registered', 'Linked immutable document', $actor);
+        $this->store->put(self::COLLECTION, [
+            'uuid'            => $uuid,
+            'display_name'    => (string) ($meta['display_name'] ?? 'Document'),
+            'description'     => (string) ($meta['description'] ?? ''),
+            'category'        => (string) ($meta['category'] ?? 'legal'),
+            'tags'            => [],
+            'folder_uuid'     => null,
+            'company_uuid'    => $this->nullable($meta['company_uuid'] ?? null),
+            'project_uuid'    => $this->nullable($meta['project_uuid'] ?? null),
+            'current_version' => 1,
+            'source'          => (string) ($meta['source'] ?? 'system'),
+            'immutable'       => 1,
+            'client_visible'  => !empty($meta['client_visible']) ? 1 : 0,
+            'archived'        => 0,
+            'uploader'        => $actor,
+            'versions'        => [],
+            'links'           => [],
+            'events'          => [],
+            'access_events'   => [],
+            'created_at'      => $now,
+            'updated_at'      => $now,
+        ]);
+        $this->event($uuid, 'registered', 'Linked immutable document', $actor);
 
         return $this->find($uuid) ?? [];
     }
@@ -200,23 +249,31 @@ final class FileLibrary
     /** @return array<string,mixed> */
     public function link(string $fileUuid, string $entityType, string $entityUuid, string $actor): array
     {
-        if ($this->db->one('SELECT uuid FROM client_files WHERE uuid = :u', ['u' => $fileUuid]) === null) {
+        if ($this->store->find(self::COLLECTION, $fileUuid) === null) {
             throw new FileException(404, 'File not found.');
         }
-        $this->linkInternal($this->db, $fileUuid, $entityType, $entityUuid, $actor);
+        $this->linkInternal($fileUuid, $entityType, $entityUuid, $actor);
 
         return $this->find($fileUuid) ?? [];
     }
 
     public function unlink(string $fileUuid, string $entityType, string $entityUuid): void
     {
-        $this->db->run('DELETE FROM client_file_links WHERE file_uuid = :f AND entity_type = :t AND entity_uuid = :e', ['f' => $fileUuid, 't' => $entityType, 'e' => $entityUuid]);
+        $this->store->update(self::COLLECTION, $fileUuid, static function (array $row) use ($entityType, $entityUuid): array {
+            $row['links'] = array_values(array_filter(is_array($row['links'] ?? null) ? $row['links'] : [], static fn (array $l): bool => !((string) ($l['entity_type'] ?? '') === $entityType && (string) ($l['entity_uuid'] ?? '') === $entityUuid)));
+
+            return $row;
+        });
     }
 
     /** @return list<array<string,mixed>> */
     public function usage(string $fileUuid): array
     {
-        return $this->db->all('SELECT entity_type, entity_uuid, created_at FROM client_file_links WHERE file_uuid = :u', ['u' => $fileUuid]);
+        $file = $this->store->find(self::COLLECTION, $fileUuid);
+
+        return array_map(static fn (array $l): array => [
+            'entity_type' => $l['entity_type'] ?? '', 'entity_uuid' => $l['entity_uuid'] ?? '', 'created_at' => $l['created_at'] ?? '',
+        ], is_array($file['links'] ?? null) ? array_values($file['links']) : []);
     }
 
     // ==================================================================
@@ -226,11 +283,11 @@ final class FileLibrary
     /** @return array<string,mixed> */
     public function archive(string $fileUuid, string $actor): array
     {
-        if ($this->db->one('SELECT uuid FROM client_files WHERE uuid = :u', ['u' => $fileUuid]) === null) {
+        if ($this->store->find(self::COLLECTION, $fileUuid) === null) {
             throw new FileException(404, 'File not found.');
         }
-        $this->db->run('UPDATE client_files SET archived = 1, updated_at = :now WHERE uuid = :u', ['now' => Clock::nowIso(), 'u' => $fileUuid]);
-        $this->event($this->db, $fileUuid, 'archived', 'Archived', $actor);
+        $this->setArchived($fileUuid, 1);
+        $this->event($fileUuid, 'archived', 'Archived', $actor);
 
         return $this->find($fileUuid) ?? [];
     }
@@ -238,8 +295,8 @@ final class FileLibrary
     /** @return array<string,mixed> */
     public function restore(string $fileUuid, string $actor): array
     {
-        $this->db->run('UPDATE client_files SET archived = 0, updated_at = :now WHERE uuid = :u', ['now' => Clock::nowIso(), 'u' => $fileUuid]);
-        $this->event($this->db, $fileUuid, 'restored', 'Restored', $actor);
+        $this->setArchived($fileUuid, 0);
+        $this->event($fileUuid, 'restored', 'Restored', $actor);
 
         return $this->find($fileUuid) ?? [];
     }
@@ -251,14 +308,14 @@ final class FileLibrary
      */
     public function delete(string $fileUuid, string $reason, string $actor): array
     {
-        $file = $this->db->one('SELECT * FROM client_files WHERE uuid = :u', ['u' => $fileUuid]);
+        $file = $this->store->find(self::COLLECTION, $fileUuid);
         if ($file === null) {
             throw new FileException(404, 'File not found.');
         }
         if ((int) $file['immutable'] === 1) {
             throw new FileException(409, 'A protected legal or financial document cannot be deleted.');
         }
-        $refs = (int) $this->db->scalar('SELECT COUNT(*) FROM client_file_links WHERE file_uuid = :u', ['u' => $fileUuid]);
+        $refs = count(is_array($file['links'] ?? null) ? $file['links'] : []);
         if ($refs > 0) {
             throw new FileException(409, 'This file is still in use (' . $refs . ' reference(s)). Unlink it first or archive instead.');
         }
@@ -266,13 +323,13 @@ final class FileLibrary
             throw new FileException(422, 'A reason is required to permanently delete a file.');
         }
         // Remove stored bytes for every version.
-        foreach ($this->db->all('SELECT storage_key, thumb_key FROM client_file_versions WHERE file_uuid = :u', ['u' => $fileUuid]) as $ver) {
-            $this->unlinkStored((string) $ver['storage_key']);
-            if ((string) $ver['thumb_key'] !== '') {
+        foreach (is_array($file['versions'] ?? null) ? $file['versions'] : [] as $ver) {
+            $this->unlinkStored((string) ($ver['storage_key'] ?? ''));
+            if ((string) ($ver['thumb_key'] ?? '') !== '') {
                 $this->unlinkStored((string) $ver['thumb_key']);
             }
         }
-        $this->db->run('DELETE FROM client_files WHERE uuid = :u', ['u' => $fileUuid]);
+        $this->store->delete(self::COLLECTION, $fileUuid);
 
         return ['ok' => true, 'reason' => $reason];
     }
@@ -288,17 +345,21 @@ final class FileLibrary
      */
     public function download(string $fileUuid, ?int $version, string $actor, string $context = 'staff'): array
     {
-        $file = $this->db->one('SELECT * FROM client_files WHERE uuid = :u', ['u' => $fileUuid]);
+        $file = $this->store->find(self::COLLECTION, $fileUuid);
         if ($file === null) {
             throw new FileException(404, 'File not found.');
         }
         $ver = $version ?? (int) $file['current_version'];
-        $row = $this->db->one('SELECT * FROM client_file_versions WHERE file_uuid = :u AND version = :v', ['u' => $fileUuid, 'v' => $ver]);
+        $row = $this->versionRow($file, $ver);
         if ($row === null) {
             throw new FileException(404, 'That version does not exist.');
         }
         $bytes = $this->readStored((string) $row['storage_key'], (string) $row['sha256']);
-        $this->db->run('INSERT INTO client_file_access_events (uuid, file_uuid, version, actor, context, created_at) VALUES (:uuid, :f, :v, :actor, :ctx, :now)', ['uuid' => Uuid::v4(), 'f' => $fileUuid, 'v' => $ver, 'actor' => $actor, 'ctx' => $context, 'now' => Clock::nowIso()]);
+        $this->store->update(self::COLLECTION, $fileUuid, static function (array $f) use ($ver, $actor, $context): array {
+            $f['access_events'][] = ['uuid' => Uuid::v4(), 'version' => $ver, 'actor' => $actor, 'context' => $context, 'created_at' => Clock::nowIso()];
+
+            return $f;
+        });
         $safeName = preg_replace('/[^A-Za-z0-9._-]/', '_', (string) $row['original_name']) ?: ('file.' . (string) $row['extension']);
 
         return ['filename' => $safeName, 'mime' => (string) $row['detected_mime'], 'bytes' => $bytes];
@@ -307,12 +368,12 @@ final class FileLibrary
     /** @return array{filename:string,bytes:string}|null */
     public function thumbnail(string $fileUuid): ?array
     {
-        $file = $this->db->one('SELECT current_version FROM client_files WHERE uuid = :u', ['u' => $fileUuid]);
+        $file = $this->store->find(self::COLLECTION, $fileUuid);
         if ($file === null) {
             return null;
         }
-        $row = $this->db->one("SELECT thumb_key, thumb_state FROM client_file_versions WHERE file_uuid = :u AND version = :v", ['u' => $fileUuid, 'v' => (int) $file['current_version']]);
-        if ($row === null || (string) $row['thumb_state'] !== 'ready' || (string) $row['thumb_key'] === '') {
+        $row = $this->versionRow($file, (int) $file['current_version']);
+        if ($row === null || (string) ($row['thumb_state'] ?? '') !== 'ready' || (string) ($row['thumb_key'] ?? '') === '') {
             return null;
         }
         $path = $this->storageDir . '/' . (string) $row['thumb_key'];
@@ -326,17 +387,28 @@ final class FileLibrary
     /** @return array<string,mixed>|null exact-hash duplicate (any file's version) */
     public function findDuplicate(string $sha256): ?array
     {
-        $row = $this->db->one('SELECT file_uuid, version FROM client_file_versions WHERE sha256 = :h LIMIT 1', ['h' => $sha256]);
+        foreach ($this->store->all(self::COLLECTION) as $file) {
+            foreach (is_array($file['versions'] ?? null) ? $file['versions'] : [] as $ver) {
+                if ((string) ($ver['sha256'] ?? '') === $sha256) {
+                    return ['file_uuid' => (string) $file['uuid'], 'version' => (int) ($ver['version'] ?? 0)];
+                }
+            }
+        }
 
-        return $row === null ? null : ['file_uuid' => (string) $row['file_uuid'], 'version' => (int) $row['version']];
+        return null;
     }
 
     // ==================================================================
     // Internals
     // ==================================================================
 
-    /** @param array{extension:string,detected_mime:string,byte_size:int,sha256:string,width:?int,height:?int,thumbable:bool} $v */
-    private function writeVersion(Database $db, string $fileUuid, int $version, string $tmpPath, string $originalName, array $v, string $note, string $actor): void
+    /**
+     * Write a version's bytes (+ thumbnail) to disk and return the version record.
+     *
+     * @param array{extension:string,detected_mime:string,byte_size:int,sha256:string,width:?int,height:?int,thumbable:bool} $v
+     * @return array<string,mixed>
+     */
+    private function buildVersion(string $fileUuid, int $version, string $tmpPath, string $originalName, array $v, string $note, string $actor): array
     {
         $key = $fileUuid . '/' . $version . '_' . bin2hex(random_bytes(8)) . '.' . $v['extension'];
         $dest = $this->storageDir . '/' . $key;
@@ -356,15 +428,12 @@ final class FileLibrary
             $thumbState = $thumbKey !== '' ? 'ready' : 'failed';
         }
 
-        $db->run(
-            'INSERT INTO client_file_versions (uuid, file_uuid, version, original_name, extension, mime, detected_mime, byte_size, sha256, width, height, storage_key, thumb_key, thumb_state, change_note, uploader, created_at)
-             VALUES (:uuid, :f, :v, :orig, :ext, :mime, :dmime, :size, :hash, :w, :h, :key, :tkey, :tstate, :note, :actor, :now)',
-            [
-                'uuid' => Uuid::v4(), 'f' => $fileUuid, 'v' => $version, 'orig' => $originalName, 'ext' => $v['extension'],
-                'mime' => $v['detected_mime'], 'dmime' => $v['detected_mime'], 'size' => $v['byte_size'], 'hash' => $v['sha256'],
-                'w' => $v['width'], 'h' => $v['height'], 'key' => $key, 'tkey' => $thumbKey, 'tstate' => $thumbState, 'note' => $note, 'actor' => $actor, 'now' => Clock::nowIso(),
-            ]
-        );
+        return [
+            'uuid' => Uuid::v4(), 'version' => $version, 'original_name' => $originalName, 'extension' => $v['extension'],
+            'mime' => $v['detected_mime'], 'detected_mime' => $v['detected_mime'], 'byte_size' => $v['byte_size'], 'sha256' => $v['sha256'],
+            'width' => $v['width'], 'height' => $v['height'], 'storage_key' => $key, 'thumb_key' => $thumbKey, 'thumb_state' => $thumbState,
+            'change_note' => $note, 'uploader' => $actor, 'created_at' => Clock::nowIso(),
+        ];
     }
 
     private function makeThumbnail(string $sourcePath, string $fileUuid, int $version): string
@@ -426,6 +495,9 @@ final class FileLibrary
 
     private function unlinkStored(string $key): void
     {
+        if ($key === '') {
+            return;
+        }
         $base = realpath($this->storageDir);
         $real = realpath($this->storageDir . '/' . $key);
         if ($base !== false && $real !== false && strncmp($real, $base . DIRECTORY_SEPARATOR, strlen($base) + 1) === 0) {
@@ -433,13 +505,45 @@ final class FileLibrary
         }
     }
 
-    private function linkInternal(Database $db, string $fileUuid, string $entityType, string $entityUuid, string $actor): void
+    private function linkInternal(string $fileUuid, string $entityType, string $entityUuid, string $actor): void
     {
-        $db->run(
-            'INSERT INTO client_file_links (uuid, file_uuid, entity_type, entity_uuid, created_by, created_at)
-             VALUES (:uuid, :f, :t, :e, :actor, :now) ON CONFLICT (file_uuid, entity_type, entity_uuid) DO NOTHING',
-            ['uuid' => Uuid::v4(), 'f' => $fileUuid, 't' => $entityType, 'e' => $entityUuid, 'actor' => $actor, 'now' => Clock::nowIso()]
-        );
+        $this->store->update(self::COLLECTION, $fileUuid, static function (array $row) use ($entityType, $entityUuid, $actor): array {
+            $links = is_array($row['links'] ?? null) ? $row['links'] : [];
+            foreach ($links as $l) {
+                if ((string) ($l['entity_type'] ?? '') === $entityType && (string) ($l['entity_uuid'] ?? '') === $entityUuid) {
+                    return $row; // already linked (UNIQUE equivalent)
+                }
+            }
+            $links[] = ['uuid' => Uuid::v4(), 'entity_type' => $entityType, 'entity_uuid' => $entityUuid, 'created_by' => $actor, 'created_at' => Clock::nowIso()];
+            $row['links'] = $links;
+
+            return $row;
+        });
+    }
+
+    private function setArchived(string $fileUuid, int $archived): void
+    {
+        $this->store->update(self::COLLECTION, $fileUuid, static function (array $row) use ($archived): array {
+            $row['archived']   = $archived;
+            $row['updated_at'] = Clock::nowIso();
+
+            return $row;
+        });
+    }
+
+    /**
+     * @param array<string,mixed> $file
+     * @return array<string,mixed>|null
+     */
+    private function versionRow(array $file, int $version): ?array
+    {
+        foreach (is_array($file['versions'] ?? null) ? $file['versions'] : [] as $v) {
+            if ((int) ($v['version'] ?? 0) === $version) {
+                return $v;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -448,18 +552,33 @@ final class FileLibrary
      */
     private function withCurrent(array $f): array
     {
-        $cur = $this->db->one('SELECT version, original_name, extension, mime, detected_mime, byte_size, sha256, width, height, thumb_state FROM client_file_versions WHERE file_uuid = :u AND version = :v', ['u' => (string) $f['uuid'], 'v' => (int) $f['current_version']]);
-        $f['current'] = $cur ?? [];
-        $decoded = json_decode((string) ($f['tags'] ?? '[]'), true);
-        $f['tags'] = is_array($decoded) ? array_values(array_map('strval', $decoded)) : [];
-        $f['reference_count'] = (int) $this->db->scalar('SELECT COUNT(*) FROM client_file_links WHERE file_uuid = :u', ['u' => (string) $f['uuid']]);
+        $cur = $this->versionRow($f, (int) ($f['current_version'] ?? 0));
+        $f['current'] = $cur === null ? [] : [
+            'version' => (int) ($cur['version'] ?? 0), 'original_name' => $cur['original_name'] ?? '', 'extension' => $cur['extension'] ?? '',
+            'mime' => $cur['mime'] ?? '', 'detected_mime' => $cur['detected_mime'] ?? '', 'byte_size' => (int) ($cur['byte_size'] ?? 0), 'sha256' => $cur['sha256'] ?? '',
+            'width' => $cur['width'] ?? null, 'height' => $cur['height'] ?? null, 'thumb_state' => $cur['thumb_state'] ?? '',
+        ];
+        $f['tags'] = is_array($f['tags'] ?? null) ? array_values(array_map('strval', $f['tags'])) : $this->decodeTags($f['tags'] ?? '[]');
+        $f['reference_count'] = count(is_array($f['links'] ?? null) ? $f['links'] : []);
 
         return $f;
     }
 
-    private function event(Database $db, string $fileUuid, string $type, string $detail, string $actor): void
+    /** @return list<string> */
+    private function decodeTags(mixed $raw): array
     {
-        $db->run('INSERT INTO client_file_events (uuid, file_uuid, type, detail, actor, created_at) VALUES (:uuid, :f, :type, :detail, :actor, :now)', ['uuid' => Uuid::v4(), 'f' => $fileUuid, 'type' => $type, 'detail' => $detail, 'actor' => $actor, 'now' => Clock::nowIso()]);
+        $decoded = json_decode((string) $raw, true);
+
+        return is_array($decoded) ? array_values(array_map('strval', $decoded)) : [];
+    }
+
+    private function event(string $fileUuid, string $type, string $detail, string $actor): void
+    {
+        $this->store->update(self::COLLECTION, $fileUuid, static function (array $row) use ($type, $detail, $actor): array {
+            $row['events'][] = ['uuid' => Uuid::v4(), 'type' => $type, 'detail' => $detail, 'actor' => $actor, 'created_at' => Clock::nowIso()];
+
+            return $row;
+        });
     }
 
     private function nullable(mixed $value): ?string

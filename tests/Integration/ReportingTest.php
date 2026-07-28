@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Breakfast\Tests\Integration;
 
-use Breakfast\Platform\Support\Database;
 use Breakfast\Platform\Support\Platform;
 use Kirby\Cms\App;
 use PHPUnit\Framework\TestCase;
@@ -26,20 +25,16 @@ final class ReportingTest extends TestCase
         parent::setUp();
         $base = dirname(__DIR__, 2);
         $this->tmp = sys_get_temp_dir() . '/bf-reporting-' . bin2hex(random_bytes(6));
-        @mkdir($this->tmp . '/database', 0777, true);
-        Database::reset();
         Platform::reset();
         $this->kirby = new App([
             'roots' => ['index' => $base . '/public', 'base' => $base, 'site' => $base . '/site', 'content' => $base . '/content', 'storage' => $this->tmp, 'sessions' => $this->tmp . '/sessions', 'accounts' => $this->tmp . '/accounts'],
-            'options' => ['debug' => false, 'whoops' => false, 'breakfast' => ['production' => false, 'storageDir' => $this->tmp, 'dbPath' => $this->tmp . '/database/crm.sqlite', 'mail' => ['provider' => 'fake']]],
+            'options' => ['debug' => false, 'whoops' => false, 'breakfast' => ['production' => false, 'storageDir' => $this->tmp, 'mail' => ['provider' => 'fake']]],
         ]);
-        breakfast()->migrator()->migrate();
         $this->project = (string) breakfast()->projects()->create(['name' => 'Reporting project', 'quoted_value' => 3000], 'staff@breakfast')['uuid'];
     }
 
     protected function tearDown(): void
     {
-        Database::reset();
         Platform::reset();
         $this->rrmdir($this->tmp);
         App::destroy();
@@ -52,12 +47,23 @@ final class ReportingTest extends TestCase
     {
         $p = breakfast();
         // A £600 approved variation (added straight to the project).
-        $p->db()->run('UPDATE projects SET approved_variations = 60000 WHERE uuid = :u', ['u' => $this->project]);
+        $p->fileStore()->update('projects', $this->project, static function (array $row): array {
+            $row['approved_variations'] = 60000;
+            return $row;
+        });
         // 4 billable hours at £75/h = £300 unbilled.
         $p->time()->create($this->project, ['hours' => 4, 'billable' => true, 'rate' => 75], 'chris@breakfast');
         // An issued invoice of £1,200 with £500 paid.
         $inv = $p->invoices()->create(['bill_to_name' => 'Client', 'items' => [['description' => 'Deposit', 'quantity' => 1, 'unit_price' => 1200]]], 'staff@breakfast');
-        $p->db()->run("UPDATE invoices SET project_uuid = :p, status = 'issued', total = 120000, amount_paid = 50000 WHERE uuid = :u", ['p' => $this->project, 'u' => (string) $inv['uuid']]);
+        $projectUuid = $this->project;
+        $p->fileStore()->update('invoices', (string) $inv['uuid'], static function (array $row) use ($projectUuid): array {
+            $row['project_uuid'] = $projectUuid;
+            $row['status']       = 'issued';
+            $row['total']        = 120000;
+            $row['amount_paid']  = 50000;
+
+            return $row;
+        });
 
         $rows = $p->reporting()->projects();
         $row = null;

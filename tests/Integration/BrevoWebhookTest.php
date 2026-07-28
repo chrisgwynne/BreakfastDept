@@ -83,7 +83,7 @@ final class BrevoWebhookTest extends PlatformTestCase
         $this->webhook()->handle($body, $this->headers(), 'application/json');
         $this->webhook()->handle($body, $this->headers(), 'application/json');
 
-        $events = $this->platform->db()->all('SELECT * FROM email_events');
+        $events = $this->platform->fileStore()->all('email_events');
         $this->assertCount(1, $events, 'duplicate webhook deliveries are deduplicated');
     }
 

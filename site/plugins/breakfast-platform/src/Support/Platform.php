@@ -35,7 +35,6 @@ final class Platform
 {
     private static ?self $instance = null;
 
-    private ?Database $db = null;
     private ?Logger $logger = null;
 
     /** @var array<string,object> lazily built services */
@@ -85,20 +84,10 @@ final class Platform
         return $this->config('storageDir') ?? $this->baseDir . '/storage';
     }
 
-    public function dbPath(): string
-    {
-        return $this->config('dbPath') ?? $this->storageDir() . '/database/crm.sqlite';
-    }
-
     /** Web-served document root (public/), where generated public media variants live. */
     public function publicDir(): string
     {
         return $this->config('publicDir') ?? $this->baseDir . '/public';
-    }
-
-    public function migrationsDir(): string
-    {
-        return __DIR__ . '/../../migrations';
     }
 
     public function uploadsDir(): string
@@ -106,19 +95,20 @@ final class Platform
         return $this->config('uploadsDir') ?? $this->storageDir() . '/uploads';
     }
 
-    public function db(): Database
+    /**
+     * The flat-file record store — the platform's only storage engine. Every
+     * record lives under storage/data/<collection>/<uuid>.json.
+     */
+    public function fileStore(): FileStore
     {
-        return $this->db ??= Database::instance($this->dbPath());
+        return $this->service(FileStore::class, fn () => new FileStore(
+            $this->config('dataDir') ?? $this->storageDir() . '/data'
+        ));
     }
 
     public function logger(): Logger
     {
         return $this->logger ??= new Logger($this->storageDir() . '/logs');
-    }
-
-    public function migrator(): Migrator
-    {
-        return new Migrator($this->db(), $this->migrationsDir());
     }
 
     /**
@@ -133,32 +123,32 @@ final class Platform
 
     public function contacts(): ContactRepository
     {
-        return $this->service(ContactRepository::class, fn () => new ContactRepository($this->db()));
+        return $this->service(ContactRepository::class, fn () => new ContactRepository($this->fileStore()));
     }
 
     public function companies(): CompanyRepository
     {
-        return $this->service(CompanyRepository::class, fn () => new CompanyRepository($this->db()));
+        return $this->service(CompanyRepository::class, fn () => new CompanyRepository($this->fileStore()));
     }
 
     public function enquiries(): EnquiryRepository
     {
-        return $this->service(EnquiryRepository::class, fn () => new EnquiryRepository($this->db()));
+        return $this->service(EnquiryRepository::class, fn () => new EnquiryRepository($this->fileStore()));
     }
 
     public function opportunities(): OpportunityRepository
     {
-        return $this->service(OpportunityRepository::class, fn () => new OpportunityRepository($this->db()));
+        return $this->service(OpportunityRepository::class, fn () => new OpportunityRepository($this->fileStore()));
     }
 
     public function tasks(): TaskRepository
     {
-        return $this->service(TaskRepository::class, fn () => new TaskRepository($this->db()));
+        return $this->service(TaskRepository::class, fn () => new TaskRepository($this->fileStore()));
     }
 
     public function activities(): ActivityRepository
     {
-        return $this->service(ActivityRepository::class, fn () => new ActivityRepository($this->db()));
+        return $this->service(ActivityRepository::class, fn () => new ActivityRepository($this->fileStore()));
     }
 
     public function crm(): Crm
@@ -176,22 +166,22 @@ final class Platform
 
     public function queue(): Queue
     {
-        return $this->service(Queue::class, fn () => new Queue($this->db(), $this->logger()));
+        return $this->service(Queue::class, fn () => new Queue($this->fileStore(), $this->logger()));
     }
 
     public function invoices(): \Breakfast\Platform\Invoicing\Invoices
     {
-        return $this->service(\Breakfast\Platform\Invoicing\Invoices::class, fn () => new \Breakfast\Platform\Invoicing\Invoices($this->db()));
+        return $this->service(\Breakfast\Platform\Invoicing\Invoices::class, fn () => new \Breakfast\Platform\Invoicing\Invoices($this->fileStore()));
     }
 
     public function proposals(): \Breakfast\Platform\Proposals\Proposals
     {
-        return $this->service(\Breakfast\Platform\Proposals\Proposals::class, fn () => new \Breakfast\Platform\Proposals\Proposals($this->db()));
+        return $this->service(\Breakfast\Platform\Proposals\Proposals::class, fn () => new \Breakfast\Platform\Proposals\Proposals($this->fileStore()));
     }
 
     public function contracts(): \Breakfast\Platform\Contracts\Contracts
     {
-        return $this->service(\Breakfast\Platform\Contracts\Contracts::class, fn () => new \Breakfast\Platform\Contracts\Contracts($this->db()));
+        return $this->service(\Breakfast\Platform\Contracts\Contracts::class, fn () => new \Breakfast\Platform\Contracts\Contracts($this->fileStore()));
     }
 
     public function contractDocuments(): \Breakfast\Platform\Contracts\ContractDocumentService
@@ -205,7 +195,7 @@ final class Platform
 
     public function projects(): \Breakfast\Platform\Projects\Projects
     {
-        return $this->service(\Breakfast\Platform\Projects\Projects::class, fn () => new \Breakfast\Platform\Projects\Projects($this->db()));
+        return $this->service(\Breakfast\Platform\Projects\Projects::class, fn () => new \Breakfast\Platform\Projects\Projects($this->fileStore()));
     }
 
     public function projectConversion(): \Breakfast\Platform\Projects\ProjectConversion
@@ -215,38 +205,16 @@ final class Platform
 
     public function projectTemplates(): \Breakfast\Platform\Projects\ProjectTemplates
     {
-        return $this->service(\Breakfast\Platform\Projects\ProjectTemplates::class, fn () => new \Breakfast\Platform\Projects\ProjectTemplates($this->db()));
+        return $this->service(\Breakfast\Platform\Projects\ProjectTemplates::class, fn () => new \Breakfast\Platform\Projects\ProjectTemplates($this->fileStore()));
     }
 
-    public function portfolio(): \Breakfast\Platform\Portfolio\Portfolio
-    {
-        return $this->service(\Breakfast\Platform\Portfolio\Portfolio::class, fn () => new \Breakfast\Platform\Portfolio\Portfolio($this->db()));
-    }
-
-    public function portfolioMedia(): \Breakfast\Platform\Portfolio\PortfolioMediaPipeline
-    {
-        // The pipeline appends "/portfolio/..." and returns "/media/portfolio/..."
-        // URLs, so its public root must be public/media (Kirby's served media
-        // dir, which is also git-ignored) — NOT public/ itself, or the generated
-        // variant files land beside the URL they claim and 404.
-        return $this->service(
-            \Breakfast\Platform\Portfolio\PortfolioMediaPipeline::class,
-            fn () => new \Breakfast\Platform\Portfolio\PortfolioMediaPipeline($this->storageDir(), $this->publicDir() . '/media')
-        );
-    }
-
-    public function portfolioImporter(): \Breakfast\Platform\Portfolio\PortfolioImporter
-    {
-        return $this->service(
-            \Breakfast\Platform\Portfolio\PortfolioImporter::class,
-            fn () => new \Breakfast\Platform\Portfolio\PortfolioImporter($this->portfolio(), $this->baseDir . '/content')
-        );
-    }
+    // The portfolio is flat-file Kirby content (content/1_work/*), not a database
+    // module — see site/templates/work.php + project.php.
 
     public function vault(): \Breakfast\Platform\Vault\Vault
     {
         return $this->service(\Breakfast\Platform\Vault\Vault::class, fn () => new \Breakfast\Platform\Vault\Vault(
-            $this->db(),
+            $this->fileStore(),
             new \Breakfast\Platform\Vault\VaultCrypto($this->storageDir() . '/vault-keys'),
             $this->audit()
         ));
@@ -255,29 +223,29 @@ final class Platform
     public function files(): \Breakfast\Platform\Files\FileLibrary
     {
         return $this->service(\Breakfast\Platform\Files\FileLibrary::class, fn () => new \Breakfast\Platform\Files\FileLibrary(
-            $this->db(),
+            $this->fileStore(),
             $this->storageDir() . '/client-files'
         ));
     }
 
     public function onboardingTemplates(): \Breakfast\Platform\Onboarding\OnboardingTemplates
     {
-        return $this->service(\Breakfast\Platform\Onboarding\OnboardingTemplates::class, fn () => new \Breakfast\Platform\Onboarding\OnboardingTemplates($this->db()));
+        return $this->service(\Breakfast\Platform\Onboarding\OnboardingTemplates::class, fn () => new \Breakfast\Platform\Onboarding\OnboardingTemplates($this->fileStore()));
     }
 
     public function onboarding(): \Breakfast\Platform\Onboarding\Onboarding
     {
-        return $this->service(\Breakfast\Platform\Onboarding\Onboarding::class, fn () => new \Breakfast\Platform\Onboarding\Onboarding($this->db(), $this));
+        return $this->service(\Breakfast\Platform\Onboarding\Onboarding::class, fn () => new \Breakfast\Platform\Onboarding\Onboarding($this->fileStore(), $this));
     }
 
     public function milestones(): \Breakfast\Platform\Projects\Milestones
     {
-        return $this->service(\Breakfast\Platform\Projects\Milestones::class, fn () => new \Breakfast\Platform\Projects\Milestones($this->db()));
+        return $this->service(\Breakfast\Platform\Projects\Milestones::class, fn () => new \Breakfast\Platform\Projects\Milestones($this->fileStore()));
     }
 
     public function projectTasks(): \Breakfast\Platform\Projects\ProjectTasks
     {
-        return $this->service(\Breakfast\Platform\Projects\ProjectTasks::class, fn () => new \Breakfast\Platform\Projects\ProjectTasks($this->db()));
+        return $this->service(\Breakfast\Platform\Projects\ProjectTasks::class, fn () => new \Breakfast\Platform\Projects\ProjectTasks($this->fileStore()));
     }
 
     public function changeRequests(): \Breakfast\Platform\ChangeRequests\ChangeRequests
@@ -344,7 +312,6 @@ final class Platform
         return $this->service(\Breakfast\Platform\Proposals\ProposalDocumentService::class, fn () => new \Breakfast\Platform\Proposals\ProposalDocumentService(
             $this->proposals(),
             new \Breakfast\Platform\Proposals\ProposalPdfRenderer(),
-            $this->db(),
             $this->storageDir() . '/proposals'
         ));
     }
@@ -354,7 +321,7 @@ final class Platform
         return $this->service(\Breakfast\Platform\Invoicing\InvoiceDocumentService::class, fn () => new \Breakfast\Platform\Invoicing\InvoiceDocumentService(
             $this->invoices(),
             new \Breakfast\Platform\Invoicing\InvoicePdfRenderer(),
-            new \Breakfast\Platform\Invoicing\InvoiceDocumentStore($this->db(), $this->storageDir() . '/invoices'),
+            new \Breakfast\Platform\Invoicing\InvoiceDocumentStore($this->fileStore(), $this->storageDir() . '/invoices'),
             $this->activities(),
             $this->audit()
         ));
@@ -411,7 +378,7 @@ final class Platform
     {
         return $this->service(\Breakfast\Platform\Mail\AttachmentResolver::class, fn () => new \Breakfast\Platform\Mail\CompositeAttachmentResolver(
             new \Breakfast\Platform\Invoicing\InvoiceAttachmentResolver(
-                new \Breakfast\Platform\Invoicing\InvoiceDocumentStore($this->db(), $this->storageDir() . '/invoices')
+                new \Breakfast\Platform\Invoicing\InvoiceDocumentStore($this->fileStore(), $this->storageDir() . '/invoices')
             ),
             new \Breakfast\Platform\Contracts\ContractAttachmentResolver($this->contractDocuments())
         ));
@@ -419,12 +386,12 @@ final class Platform
 
     public function outbound(): OutboundMessageRepository
     {
-        return $this->service(OutboundMessageRepository::class, fn () => new OutboundMessageRepository($this->db()));
+        return $this->service(OutboundMessageRepository::class, fn () => new OutboundMessageRepository($this->fileStore()));
     }
 
     public function suppressions(): SuppressionService
     {
-        return $this->service(SuppressionService::class, fn () => new SuppressionService($this->db(), $this->activities()));
+        return $this->service(SuppressionService::class, fn () => new SuppressionService($this->fileStore(), $this->activities()));
     }
 
     public function templates(): TemplateRegistry
@@ -469,18 +436,18 @@ final class Platform
 
     public function rateLimiter(): RateLimiter
     {
-        return $this->service(RateLimiter::class, fn () => new RateLimiter($this->db()));
+        return $this->service(RateLimiter::class, fn () => new RateLimiter($this->fileStore()));
     }
 
     public function audit(): AuditLog
     {
-        return $this->service(AuditLog::class, fn () => new AuditLog($this->db()));
+        return $this->service(AuditLog::class, fn () => new AuditLog($this->fileStore()));
     }
 
     public function calendar(): \Breakfast\Platform\Calendar\CalendarService
     {
         return $this->service(\Breakfast\Platform\Calendar\CalendarService::class, fn () => new \Breakfast\Platform\Calendar\CalendarService(
-            $this->db(),
+            $this->fileStore(),
             $this->activities()
         ));
     }
@@ -488,7 +455,7 @@ final class Platform
     public function settings(): \Breakfast\Platform\Settings\SettingsStore
     {
         return $this->service(\Breakfast\Platform\Settings\SettingsStore::class, fn () => new \Breakfast\Platform\Settings\SettingsStore(
-            $this->db(),
+            $this->fileStore(),
             new \Breakfast\Platform\Settings\SecretBox($this->storageDir())
         ));
     }
@@ -505,7 +472,7 @@ final class Platform
     public function webhooks(): WebhookDispatcher
     {
         return $this->service(WebhookDispatcher::class, fn () => new WebhookDispatcher(
-            $this->db(),
+            $this->fileStore(),
             $this->queue(),
             (string) ($this->config('webhookSecret') ?? '')
         ));
@@ -550,17 +517,17 @@ final class Platform
 
     public function previews(): \Breakfast\Platform\ClientPreviews\PreviewRepository
     {
-        return $this->service(\Breakfast\Platform\ClientPreviews\PreviewRepository::class, fn () => new \Breakfast\Platform\ClientPreviews\PreviewRepository($this->db()));
+        return $this->service(\Breakfast\Platform\ClientPreviews\PreviewRepository::class, fn () => new \Breakfast\Platform\ClientPreviews\PreviewRepository($this->fileStore()));
     }
 
     public function previewVersions(): \Breakfast\Platform\ClientPreviews\PreviewVersionRepository
     {
-        return $this->service(\Breakfast\Platform\ClientPreviews\PreviewVersionRepository::class, fn () => new \Breakfast\Platform\ClientPreviews\PreviewVersionRepository($this->db()));
+        return $this->service(\Breakfast\Platform\ClientPreviews\PreviewVersionRepository::class, fn () => new \Breakfast\Platform\ClientPreviews\PreviewVersionRepository($this->fileStore()));
     }
 
     public function previewActivity(): \Breakfast\Platform\ClientPreviews\PreviewActivityRepository
     {
-        return $this->service(\Breakfast\Platform\ClientPreviews\PreviewActivityRepository::class, fn () => new \Breakfast\Platform\ClientPreviews\PreviewActivityRepository($this->db()));
+        return $this->service(\Breakfast\Platform\ClientPreviews\PreviewActivityRepository::class, fn () => new \Breakfast\Platform\ClientPreviews\PreviewActivityRepository($this->fileStore()));
     }
 
     public function previewStorage(): \Breakfast\Platform\ClientPreviews\PreviewStorage
@@ -591,7 +558,6 @@ final class Platform
             $this->previews(),
             $this->previewVersions(),
             $this->previewStorage(),
-            $this->db(),
             $this->previewConfig()
         ));
     }
@@ -676,7 +642,7 @@ final class Platform
     {
         $secret = (string) ($this->config('webhookSecret') ?? '');
 
-        return $secret !== '' ? 'preview:' . $secret : 'preview:' . hash('sha256', $this->dbPath());
+        return $secret !== '' ? 'preview:' . $secret : 'preview:' . hash('sha256', $this->storageDir());
     }
 
     /** @internal test seam */

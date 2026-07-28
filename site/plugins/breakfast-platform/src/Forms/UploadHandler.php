@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Breakfast\Platform\Forms;
 
 use Breakfast\Platform\Support\Clock;
-use Breakfast\Platform\Support\Database;
+use Breakfast\Platform\Support\FileStore;
 use Breakfast\Platform\Support\Uuid;
 
 /**
@@ -31,7 +31,7 @@ final class UploadHandler
      * @param array{enabled?:bool,maxBytes?:int,scannerCmd?:?string} $config
      */
     public function __construct(
-        private readonly Database $db,
+        private readonly FileStore $store,
         private readonly string $uploadsDir,
         private readonly array $config = []
     ) {
@@ -116,21 +116,17 @@ final class UploadHandler
         }
 
         $uuid = Uuid::v4();
-        $this->db->run(
-            'INSERT INTO uploads (uuid, enquiry_uuid, original_name, stored_name, mime, size_bytes, sha256, scan_status, created_at)
-             VALUES (:uuid, :enquiry, :orig, :stored, :mime, :size, :sha, :scan, :created)',
-            [
-                'uuid'    => $uuid,
-                'enquiry' => $enquiryUuid,
-                'orig'    => mb_substr((string) ($file['name'] ?? 'file'), 0, 200),
-                'stored'  => $storedName,
-                'mime'    => $mime,
-                'size'    => $size,
-                'sha'     => $sha,
-                'scan'    => $scanStatus,
-                'created' => Clock::nowIso(),
-            ]
-        );
+        $this->store->put('uploads', [
+            'uuid'          => $uuid,
+            'enquiry_uuid'  => $enquiryUuid,
+            'original_name' => mb_substr((string) ($file['name'] ?? 'file'), 0, 200),
+            'stored_name'   => $storedName,
+            'mime'          => $mime,
+            'size_bytes'    => $size,
+            'sha256'        => $sha,
+            'scan_status'   => $scanStatus,
+            'created_at'    => Clock::nowIso(),
+        ]);
 
         return ['ok' => true, 'upload' => [
             'uuid'        => $uuid,

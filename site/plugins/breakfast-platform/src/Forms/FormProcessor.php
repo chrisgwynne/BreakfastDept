@@ -42,7 +42,7 @@ final class FormProcessor
             );
         }
 
-        $guard = new SubmissionGuard($this->platform->db(), $this->platform->rateLimiter());
+        $guard = new SubmissionGuard($this->platform->fileStore(), $this->platform->rateLimiter());
 
         // 2. Bot signals: honeypot + timing. Respond with a benign success so bots
         //    do not learn they were caught; the lead is simply never created.
@@ -127,7 +127,9 @@ final class FormProcessor
     ): array {
         $crm = $this->platform->crm();
 
-        return $this->platform->db()->transaction(function () use ($crm, $def, $input, $payload, $context, $email, $ip): array {
+        // CRM records (companies, contacts, enquiries, activities) are flat-file,
+        // each write atomic on its own — no cross-store transaction is needed.
+        $persist = function () use ($crm, $def, $input, $payload, $context, $email, $ip): array {
             // Company (optional).
             $companyUuid = null;
             $companyName = trim((string) ($input['company'] ?? ''));
@@ -201,7 +203,9 @@ final class FormProcessor
             }
 
             return $enquiry;
-        });
+        };
+
+        return $persist();
     }
 
     /**

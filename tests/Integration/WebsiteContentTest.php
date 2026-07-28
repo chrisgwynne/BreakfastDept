@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Breakfast\Tests\Integration;
 
-use Breakfast\Platform\Support\Database;
 use Breakfast\Platform\Support\Platform;
 use Breakfast\Platform\Website\WebsiteContent;
 use Breakfast\Platform\Website\WebsiteException;
@@ -32,7 +31,6 @@ final class WebsiteContentTest extends TestCase
         parent::setUp();
         $base = dirname(__DIR__, 2);
         $this->tmp = sys_get_temp_dir() . '/bf-web-' . bin2hex(random_bytes(6));
-        @mkdir($this->tmp . '/database', 0777, true);
         @mkdir($this->tmp . '/content/home', 0777, true);
         @mkdir($this->tmp . '/site/blueprints/pages', 0777, true);
         @mkdir($this->tmp . '/site/templates', 0777, true);
@@ -68,7 +66,6 @@ final class WebsiteContentTest extends TestCase
             "title: Site\nfields:\n  tagline: { type: text }\n"
         );
 
-        Database::reset();
         Platform::reset();
         // Kirby caches blueprint definitions statically by name; clear it so this
         // temp site's blueprints aren't shadowed by another test's real ones.
@@ -90,19 +87,16 @@ final class WebsiteContentTest extends TestCase
                 'breakfast' => [
                     'production' => false,
                     'storageDir' => $this->tmp,
-                    'dbPath'     => $this->tmp . '/database/crm.sqlite',
                     'mail'       => ['provider' => 'fake'],
                 ],
             ],
         ]);
         $this->kirby->impersonate('kirby');
-        breakfast()->migrator()->migrate();
         $this->svc = new WebsiteContent($this->kirby, breakfast());
     }
 
     protected function tearDown(): void
     {
-        Database::reset();
         Platform::reset();
         \Kirby\Cms\Blueprint::$loaded = [];
         $this->rrmdir($this->tmp);

@@ -29,67 +29,9 @@ function breakfast(): Platform
         $kirby  = kirby();
         $config = $kirby->option('breakfast', []);
         Platform::boot($kirby->root('base'), is_array($config) ? $config : []);
-        breakfast_ensure_schema(Platform::instance());
     }
 
     return Platform::instance();
-}
-
-/**
- * Self-heal the database schema on boot.
- *
- * The CRM/queue/integration tables live in a SQLite database under storage/ that
- * the deploy never touches (so it can't wipe live data). On a fully-provisioned
- * host the queue cron applies pending migrations; but on an FTP-only host with no
- * cron, the schema would otherwise never be created — logins would work (Kirby
- * accounts are separate) while every data query failed. This makes the platform
- * apply its own migrations when it runs, so it "just works" after a plain sync.
- *
- * Safeguards: only runs on a fresh boot (its caller is inside the once-per-
- * process `Platform::booted()` guard); does nothing once the schema is up to date
- * (the cheap `hasPending()` common path); serialises the actual migration behind
- * an exclusive file lock so concurrent requests can't race on DDL; and isolates
- * every failure so a migration problem can never take down a page.
- */
-function breakfast_ensure_schema(Platform $platform): void
-{
-    try {
-        if ($platform->migrator()->hasPending() === false) {
-            return; // fully migrated — the common path, no lock, no work
-        }
-
-        $lockPath = $platform->storageDir() . '/database/.migrate.lock';
-        @mkdir(dirname($lockPath), 0770, true);
-        $handle = @fopen($lockPath, 'c');
-
-        if ($handle === false) {
-            // Could not open a lock file — the migration is transactional and
-            // idempotent, so attempt it anyway rather than leave the schema absent.
-            $platform->migrator()->migrate();
-
-            return;
-        }
-
-        try {
-            if (flock($handle, LOCK_EX)) {
-                // Re-check under the lock: another worker may have just migrated.
-                if ($platform->migrator()->hasPending()) {
-                    $platform->migrator()->migrate();
-                }
-                flock($handle, LOCK_UN);
-            }
-        } finally {
-            fclose($handle);
-        }
-    } catch (\Throwable $e) {
-        // A schema problem must never break a request. Log and carry on; data
-        // endpoints will still surface their own error until it is resolved.
-        try {
-            $platform->logger()->error('schema', 'Boot-time migration self-heal failed: ' . $e->getMessage());
-        } catch (\Throwable) {
-            // Logging itself must never throw into the request.
-        }
-    }
 }
 
 /**
@@ -429,68 +371,10 @@ Kirby::plugin('breakfast/platform', [
             'action'  => fn (?string $all = '') => breakfast_preview_dispatch((string) $all),
         ],
 
-        // ---- Public portfolio: /work listing + /work/{slug} case studies ----
-        // These read ONLY the published public-safe snapshots (Portfolio owns
-        // the editorial data; the website never touches internal records). Draft/
-        // ready/scheduled/unpublished/archived work is invisible here. Registered
-        // before the SPA/sitemap routes; the internal /work Kirby page stays a
-        // draft and is never served.
-        [
-            'pattern' => 'work',
-            'method'  => 'GET',
-            'action'  => function () {
-                $items = breakfast()->portfolio()->publicList();
-                $page = \Kirby\Cms\Page::factory([
-                    'slug'     => 'work',
-                    'template' => 'portfolio-work',
-                    'content'  => [
-                        'title'            => 'Selected work',
-                        'seo_title'        => 'Selected work — websites Breakfast has built | Breakfast',
-                        'meta_description' => 'A selection of clear, fast websites Breakfast has designed and built for small businesses across North Wales.',
-                        'robots'           => 'index',
-                    ],
-                ]);
-
-                return $page->render(['pfItems' => $items]);
-            },
-        ],
-        [
-            'pattern' => 'work/(:any)',
-            'method'  => 'GET',
-            'action'  => function (string $slug) {
-                $svc = breakfast()->portfolio();
-                $pf  = $svc->publicBySlug($slug);
-                if ($pf === null) {
-                    // Retired slug → safe 301 to the current one; otherwise 404.
-                    $to = $svc->redirectFor($slug);
-                    if ($to !== null) {
-                        return \Kirby\Http\Response::redirect(url('work/' . $to), 301);
-                    }
-
-                    return false;
-                }
-                $seo = is_array($pf['seo'] ?? null) ? $pf['seo'] : [];
-                $page = \Kirby\Cms\Page::factory([
-                    'slug'     => $slug,
-                    'template' => 'portfolio-case',
-                    'content'  => [
-                        'title'              => (string) ($pf['display_title'] ?? 'Case study'),
-                        'seo_title'          => (string) ($seo['title'] ?? ''),
-                        'meta_description'   => (string) ($seo['description'] ?? ''),
-                        'social_title'       => (string) ($seo['og_title'] ?? ''),
-                        'social_description' => (string) ($seo['og_description'] ?? ''),
-                        'robots'             => (string) ($seo['robots'] ?? 'index'),
-                    ],
-                ]);
-
-                return $page->render([
-                    'pf'       => $pf,
-                    'canonical' => url('work/' . $slug),
-                    'related'  => $svc->relatedFor($slug),
-                    'nextwork' => $svc->nextFor($slug),
-                ]);
-            },
-        ],
+        // Portfolio is flat-file Kirby content (content/1_work/*): /work and each
+        // /work/{slug} case study are ordinary Kirby pages served by the normal
+        // page routing, editable as files and deployed by pushing. (The old
+        // database-backed /work routes were removed with the DB portfolio module.)
 
         // The Kirby Panel is relocated to a private slug (BREAKFAST_ADMIN_SLUG)
         // and rebranded "Breakfast Admin". The well-known `/panel` entry point is
@@ -592,8 +476,8 @@ Kirby::plugin('breakfast/platform', [
                 }
 
                 $store = new CredentialStore();
-                $auth  = new Authenticator($store, $platform->db(), (int) ($platform->config('hermes')['replayWindow'] ?? 300));
-                $api   = new HermesApi($platform, $auth, new AuditLog($platform->db()), new DraftFactory());
+                $auth  = new Authenticator($store, $platform->fileStore(), (int) ($platform->config('hermes')['replayWindow'] ?? 300));
+                $api   = new HermesApi($platform, $auth, new AuditLog($platform->fileStore()), new DraftFactory());
 
                 $request = $kirby->request();
                 $headers = [];
@@ -1415,7 +1299,7 @@ Kirby::plugin('breakfast/platform', [
                 }
 
                 $platform = breakfast();
-                $row = $platform->db()->one('SELECT * FROM uploads WHERE uuid = :u', ['u' => $uuid]);
+                $row = $platform->fileStore()->find('uploads', $uuid);
                 if ($row === null) {
                     return \Kirby\Http\Response::json(['error' => 'not_found'], 404);
                 }
