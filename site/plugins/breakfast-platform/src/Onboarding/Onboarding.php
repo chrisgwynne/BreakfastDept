@@ -567,7 +567,15 @@ final class Onboarding
             return '';
         }
 
-        return (string) $this->db->scalar("SELECT {$column} FROM {$table} WHERE uuid = :u", ['u' => $id]);
+        // The CRM core (contacts, companies) is flat-file; projects are still
+        // database-backed.
+        $record = match ($table) {
+            'contacts'  => $this->platform->contacts()->find($id),
+            'companies' => $this->platform->companies()->find($id),
+            default     => $this->db->one("SELECT * FROM {$table} WHERE uuid = :u", ['u' => $id]),
+        };
+
+        return (string) ($record[$column] ?? '');
     }
 
     private function applyTarget(string $target, string $instanceUuid, string $value): void
@@ -580,7 +588,14 @@ final class Onboarding
         if ($id === '') {
             return;
         }
-        $this->db->run("UPDATE {$table} SET {$column} = :v WHERE uuid = :u", ['v' => $value, 'u' => $id]);
+
+        // The CRM core (contacts, companies) is flat-file; projects are still
+        // database-backed.
+        match ($table) {
+            'contacts'  => $this->platform->contacts()->update($id, [$column => $value]),
+            'companies' => $this->platform->companies()->update($id, [$column => $value]),
+            default     => $this->db->run("UPDATE {$table} SET {$column} = :v WHERE uuid = :u", ['v' => $value, 'u' => $id]),
+        };
     }
 
     private function targetId(string $table, string $instanceUuid): string

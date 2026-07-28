@@ -154,6 +154,24 @@ final class FileStore
     }
 
     /**
+     * Atomically increment a named counter and return the new value. Used to
+     * allocate monotonic human-readable references (e.g. ENQ-2026-0001) without
+     * a database sequence. The whole read-create-increment-write runs under the
+     * collection lock, so concurrent callers never collide on the same number.
+     */
+    public function bump(string $collection, string $id, int $by = 1): int
+    {
+        return $this->withLock($collection, function () use ($collection, $id, $by): int {
+            $file    = $this->path($collection, $id);
+            $current = is_file($file) ? json_decode((string) file_get_contents($file), true) : null;
+            $value   = (is_array($current) ? (int) ($current['value'] ?? 0) : 0) + $by;
+            $this->atomicWrite($file, ['uuid' => $id, 'value' => $value]);
+
+            return $value;
+        });
+    }
+
+    /**
      * @param array<string,mixed> $record
      */
     private function atomicWrite(string $file, array $record): void

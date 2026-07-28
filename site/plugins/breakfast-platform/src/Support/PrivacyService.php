@@ -90,7 +90,7 @@ final class PrivacyService
             'email_events'      => $this->countOlder('email_events', 'received_at', $eventDays),
             'completed_jobs'    => (int) $p->db()->scalar("SELECT COUNT(*) FROM jobs WHERE status = 'done' AND completed_at < :c", ['c' => $this->cutoff($jobDays)]),
             'webhook_deliveries' => (int) $p->db()->scalar("SELECT COUNT(*) FROM webhook_deliveries WHERE status = 'delivered' AND created_at < :c", ['c' => $this->cutoff($eventDays)]),
-            'ip_hashes'         => (int) $p->db()->scalar('SELECT COUNT(*) FROM enquiries WHERE ip_hash IS NOT NULL AND created_at < :c', ['c' => $this->cutoff(30)]),
+            'ip_hashes'         => $this->countEnquiryIpHashes(30),
         ];
 
         if ($apply) {
@@ -117,5 +117,18 @@ final class PrivacyService
             "SELECT COUNT(*) FROM {$table} WHERE {$column} < :c",
             ['c' => $this->cutoff($days)]
         );
+    }
+
+    /**
+     * Flat-file enquiries still carrying an IP hash older than the cutoff.
+     */
+    private function countEnquiryIpHashes(int $days): int
+    {
+        $cutoff = $this->cutoff($days);
+
+        return count(array_filter(
+            $this->platform->fileStore()->all('enquiries'),
+            static fn (array $e): bool => ($e['ip_hash'] ?? null) !== null && (string) ($e['created_at'] ?? '') < $cutoff
+        ));
     }
 }

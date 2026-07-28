@@ -151,7 +151,7 @@ final class VaultTest extends TestCase
     {
         $this->makeItem();
         // The global search must not surface the vault secret.
-        $results = (new \Breakfast\Platform\Crm\SearchService(breakfast()->db()))->search(self::CANARY, 20);
+        $results = (new \Breakfast\Platform\Crm\SearchService(breakfast()))->search(self::CANARY, 20);
         $this->assertStringNotContainsString(self::CANARY, json_encode($results) ?: '');
         $this->assertSame([], $results);
     }

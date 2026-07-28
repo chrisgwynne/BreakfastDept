@@ -125,7 +125,7 @@ final class OnboardingTest extends TestCase
     {
         $p = breakfast();
         // Pre-existing trusted phone on the contact.
-        breakfast()->db()->run('UPDATE contacts SET phone = :v WHERE uuid = :u', ['v' => '01111 111111', 'u' => $this->contact]);
+        $p->contacts()->update($this->contact, ['phone' => '01111 111111']);
 
         $inst = $p->onboarding()->createForProject($this->project, $this->templateUuid, [], 'staff@breakfast');
         $id = (string) $inst['uuid'];
@@ -143,20 +143,20 @@ final class OnboardingTest extends TestCase
         }
         $this->assertNotNull($phoneReview);
         $this->assertSame('pending', (string) $phoneReview['decision']);
-        $this->assertSame('01111 111111', (string) breakfast()->db()->scalar('SELECT phone FROM contacts WHERE uuid = :u', ['u' => $this->contact]));
+        $this->assertSame('01111 111111', (string) breakfast()->contacts()->find($this->contact)['phone']);
 
         // The empty company website was safely auto-populated (logged review row).
-        $this->assertSame('https://new.example', (string) breakfast()->db()->scalar('SELECT website FROM companies WHERE uuid = :u', ['u' => $this->company]));
+        $this->assertSame('https://new.example', (string) breakfast()->companies()->find($this->company)['website']);
 
         // Accepting the phone review applies the submitted value.
         $p->onboarding()->decideMapping((string) $phoneReview['uuid'], 'accepted', 'staff@breakfast');
-        $this->assertSame('02222 222222', (string) breakfast()->db()->scalar('SELECT phone FROM contacts WHERE uuid = :u', ['u' => $this->contact]));
+        $this->assertSame('02222 222222', (string) breakfast()->contacts()->find($this->contact)['phone']);
     }
 
     public function testReadinessBlocksCompletionUntilReviewsResolved(): void
     {
         $p = breakfast();
-        breakfast()->db()->run('UPDATE contacts SET phone = :v WHERE uuid = :u', ['v' => 'existing', 'u' => $this->contact]);
+        $p->contacts()->update($this->contact, ['phone' => 'existing']);
         $inst = $p->onboarding()->createForProject($this->project, $this->templateUuid, [], 'staff@breakfast');
         $id = (string) $inst['uuid'];
         $p->onboarding()->invite($id, 's@x.co', 14, 'staff@breakfast');

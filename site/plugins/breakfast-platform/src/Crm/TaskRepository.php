@@ -5,14 +5,20 @@ declare(strict_types=1);
 namespace Breakfast\Platform\Crm;
 
 use Breakfast\Platform\Support\Clock;
+use Breakfast\Platform\Support\FileRepository;
 use Breakfast\Platform\Support\Uuid;
 
-final class TaskRepository extends Repository
+final class TaskRepository extends FileRepository
 {
     private const COLUMNS = [
         'title', 'contact_uuid', 'company_uuid', 'opportunity_uuid', 'assigned_to',
         'due_date', 'priority', 'status', 'notes', 'completed_at',
     ];
+
+    protected function collection(): string
+    {
+        return 'tasks';
+    }
 
     /**
      * @param array<string,mixed> $data
@@ -20,40 +26,29 @@ final class TaskRepository extends Repository
      */
     public function create(array $data): array
     {
-        $uuid = Uuid::v4();
-        $now  = $this->now();
+        $now = $this->now();
 
-        $this->db->run(
-            'INSERT INTO tasks (
-                uuid, title, contact_uuid, company_uuid, opportunity_uuid, assigned_to,
-                due_date, priority, status, notes, created_at, updated_at
-             ) VALUES (
-                :uuid, :title, :contact_uuid, :company_uuid, :opportunity_uuid, :assigned_to,
-                :due_date, :priority, :status, :notes, :created_at, :updated_at
-             )',
-            [
-                'uuid'             => $uuid,
-                'title'            => (string) ($data['title'] ?? 'Follow up'),
-                'contact_uuid'     => $data['contact_uuid'] ?? null,
-                'company_uuid'     => $data['company_uuid'] ?? null,
-                'opportunity_uuid' => $data['opportunity_uuid'] ?? null,
-                'assigned_to'      => $data['assigned_to'] ?? null,
-                'due_date'         => $data['due_date'] ?? null,
-                'priority'         => $data['priority'] ?? 'normal',
-                'status'           => $data['status'] ?? 'open',
-                'notes'            => $data['notes'] ?? null,
-                'created_at'       => $now,
-                'updated_at'       => $now,
-            ]
-        );
-
-        return $this->find($uuid) ?? [];
+        return $this->persist([
+            'uuid'             => Uuid::v4(),
+            'title'            => (string) ($data['title'] ?? 'Follow up'),
+            'contact_uuid'     => $data['contact_uuid'] ?? null,
+            'company_uuid'     => $data['company_uuid'] ?? null,
+            'opportunity_uuid' => $data['opportunity_uuid'] ?? null,
+            'assigned_to'      => $data['assigned_to'] ?? null,
+            'due_date'         => $data['due_date'] ?? null,
+            'priority'         => $data['priority'] ?? 'normal',
+            'status'           => $data['status'] ?? 'open',
+            'notes'            => $data['notes'] ?? null,
+            'completed_at'     => null,
+            'created_at'       => $now,
+            'updated_at'       => $now,
+        ]);
     }
 
     /** @return array<string,mixed>|null */
     public function find(string $uuid): ?array
     {
-        return $this->db->one('SELECT * FROM tasks WHERE uuid = :u', ['u' => $uuid]);
+        return $this->findRecord($uuid);
     }
 
     /**
@@ -67,18 +62,7 @@ final class TaskRepository extends Repository
             $data['completed_at'] = $this->now();
         }
 
-        [$clause, $params] = $this->assignments($data, self::COLUMNS);
-
-        if ($clause !== '') {
-            $params['uuid']       = $uuid;
-            $params['updated_at'] = $this->now();
-            $this->db->run(
-                'UPDATE tasks SET ' . $clause . ', updated_at = :updated_at WHERE uuid = :uuid',
-                $params
-            );
-        }
-
-        return $this->find($uuid);
+        return $this->patch($uuid, $data, self::COLUMNS);
     }
 
     /** @return array<string,mixed>|null */
@@ -93,44 +77,40 @@ final class TaskRepository extends Repository
      */
     public function search(array $filters = []): array
     {
-        $where  = ['1 = 1'];
-        $params = [];
+        $rows          = $this->records();
+        $contacts      = $this->indexBy('contacts');
+        $opportunities = $this->indexBy('opportunities');
 
         if (!empty($filters['status'])) {
-            $where[] = 't.status = :status';
-            $params['status'] = $filters['status'];
+            $rows = array_filter($rows, fn (array $r): bool => ($r['status'] ?? null) === $filters['status']);
         }
 
         if (!empty($filters['assigned_to'])) {
-            $where[] = 't.assigned_to = :assignee';
-            $params['assignee'] = $filters['assigned_to'];
+            $rows = array_filter($rows, fn (array $r): bool => ($r['assigned_to'] ?? null) === $filters['assigned_to']);
         }
 
         if (!empty($filters['overdue'])) {
-            $where[] = "t.status = 'open' AND t.due_date IS NOT NULL AND t.due_date < :now";
-            $params['now'] = Clock::nowIso();
+            $now  = Clock::nowIso();
+            $rows = array_filter($rows, fn (array $r): bool => ($r['status'] ?? null) === 'open'
+                && ($r['due_date'] ?? null) !== null
+                && (string) $r['due_date'] < $now);
         }
 
-        $params['l'] = (int) ($filters['limit'] ?? 200);
-        $params['o'] = (int) ($filters['offset'] ?? 0);
+        // Nulls last, then ascending by due date — matches the SQL ORDER BY.
+        $rows = $this->sortBy(array_values($rows), 'due_date', 'asc');
 
-        return $this->db->all(
-            'SELECT t.*, c.display_name AS contact_name, o.title AS opportunity_title
-             FROM tasks t
-             LEFT JOIN contacts c ON c.uuid = t.contact_uuid
-             LEFT JOIN opportunities o ON o.uuid = t.opportunity_uuid
-             WHERE ' . implode(' AND ', $where) . '
-             ORDER BY (t.due_date IS NULL), t.due_date ASC LIMIT :l OFFSET :o',
-            $params
-        );
+        foreach ($rows as &$row) {
+            $row['contact_name']      = $contacts[(string) ($row['contact_uuid'] ?? '')]['display_name'] ?? null;
+            $row['opportunity_title'] = $opportunities[(string) ($row['opportunity_uuid'] ?? '')]['title'] ?? null;
+        }
+        unset($row);
+
+        return $this->paginate($rows, (int) ($filters['limit'] ?? 200), (int) ($filters['offset'] ?? 0));
     }
 
     public function countOverdue(): int
     {
-        return (int) $this->db->scalar(
-            "SELECT COUNT(*) FROM tasks WHERE status = 'open' AND due_date IS NOT NULL AND due_date < :now",
-            ['now' => Clock::nowIso()]
-        );
+        return count($this->overdue());
     }
 
     public function countUpcoming(int $days = 7): int
@@ -138,10 +118,10 @@ final class TaskRepository extends Repository
         $now   = Clock::nowIso();
         $until = Clock::now()->modify('+' . $days . ' days')->format('c');
 
-        return (int) $this->db->scalar(
-            "SELECT COUNT(*) FROM tasks WHERE status = 'open' AND due_date >= :now AND due_date <= :until",
-            ['now' => $now, 'until' => $until]
-        );
+        return count(array_filter($this->records(), fn (array $r): bool => ($r['status'] ?? null) === 'open'
+            && ($r['due_date'] ?? null) !== null
+            && (string) $r['due_date'] >= $now
+            && (string) $r['due_date'] <= $until));
     }
 
     /**
@@ -151,9 +131,26 @@ final class TaskRepository extends Repository
      */
     public function overdue(): array
     {
-        return $this->db->all(
-            "SELECT * FROM tasks WHERE status = 'open' AND due_date IS NOT NULL AND due_date < :now ORDER BY due_date ASC",
-            ['now' => Clock::nowIso()]
-        );
+        $now  = Clock::nowIso();
+        $rows = array_filter($this->records(), fn (array $r): bool => ($r['status'] ?? null) === 'open'
+            && ($r['due_date'] ?? null) !== null
+            && (string) $r['due_date'] < $now);
+
+        return $this->sortBy(array_values($rows), 'due_date', 'asc');
+    }
+
+    /**
+     * Records of a related collection keyed by uuid.
+     *
+     * @return array<string,array<string,mixed>>
+     */
+    private function indexBy(string $collection): array
+    {
+        $out = [];
+        foreach ($this->store->all($collection) as $row) {
+            $out[(string) ($row['uuid'] ?? '')] = $row;
+        }
+
+        return $out;
     }
 }

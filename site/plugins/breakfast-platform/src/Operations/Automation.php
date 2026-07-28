@@ -108,6 +108,9 @@ final class Automation
 
     public function delete(string $uuid): void
     {
+        // Remove child fires explicitly (foreign-key cascade enforcement is off
+        // during the flat-file migration), then the rule itself.
+        $this->db()->run('DELETE FROM automation_fires WHERE rule_uuid = :u', ['u' => $uuid]);
         $this->db()->run('DELETE FROM automation_rules WHERE uuid = :u', ['u' => $uuid]);
     }
 

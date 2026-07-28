@@ -272,6 +272,10 @@ final class FileLibrary
                 $this->unlinkStored((string) $ver['thumb_key']);
             }
         }
+        // Remove child rows explicitly (foreign-key cascade enforcement is off
+        // during the flat-file migration), then the file itself.
+        $this->db->run('DELETE FROM client_file_versions WHERE file_uuid = :u', ['u' => $fileUuid]);
+        $this->db->run('DELETE FROM client_file_links WHERE file_uuid = :u', ['u' => $fileUuid]);
         $this->db->run('DELETE FROM client_files WHERE uuid = :u', ['u' => $fileUuid]);
 
         return ['ok' => true, 'reason' => $reason];

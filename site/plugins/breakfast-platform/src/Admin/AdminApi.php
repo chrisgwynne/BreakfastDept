@@ -3552,7 +3552,7 @@ final class AdminApi
     private function search(): array
     {
         $q       = (string) ($this->query()['q'] ?? '');
-        $results = (new \Breakfast\Platform\Crm\SearchService($this->platform->db()))->search($q);
+        $results = (new \Breakfast\Platform\Crm\SearchService($this->platform))->search($q);
 
         return ['items' => $results, 'total' => count($results), 'query' => $q];
     }

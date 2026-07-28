@@ -145,32 +145,32 @@ final class Platform
 
     public function contacts(): ContactRepository
     {
-        return $this->service(ContactRepository::class, fn () => new ContactRepository($this->db()));
+        return $this->service(ContactRepository::class, fn () => new ContactRepository($this->fileStore()));
     }
 
     public function companies(): CompanyRepository
     {
-        return $this->service(CompanyRepository::class, fn () => new CompanyRepository($this->db()));
+        return $this->service(CompanyRepository::class, fn () => new CompanyRepository($this->fileStore()));
     }
 
     public function enquiries(): EnquiryRepository
     {
-        return $this->service(EnquiryRepository::class, fn () => new EnquiryRepository($this->db()));
+        return $this->service(EnquiryRepository::class, fn () => new EnquiryRepository($this->fileStore()));
     }
 
     public function opportunities(): OpportunityRepository
     {
-        return $this->service(OpportunityRepository::class, fn () => new OpportunityRepository($this->db()));
+        return $this->service(OpportunityRepository::class, fn () => new OpportunityRepository($this->fileStore()));
     }
 
     public function tasks(): TaskRepository
     {
-        return $this->service(TaskRepository::class, fn () => new TaskRepository($this->db()));
+        return $this->service(TaskRepository::class, fn () => new TaskRepository($this->fileStore()));
     }
 
     public function activities(): ActivityRepository
     {
-        return $this->service(ActivityRepository::class, fn () => new ActivityRepository($this->db()));
+        return $this->service(ActivityRepository::class, fn () => new ActivityRepository($this->fileStore()));
     }
 
     public function crm(): Crm

@@ -40,7 +40,7 @@ final class SearchServiceTest extends TestCase
             ]],
         ]);
         breakfast()->migrator()->migrate();
-        $this->search = new SearchService(breakfast()->db());
+        $this->search = new SearchService(breakfast());
     }
 
     protected function tearDown(): void

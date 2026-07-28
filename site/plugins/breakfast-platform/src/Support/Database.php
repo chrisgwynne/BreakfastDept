@@ -48,7 +48,14 @@ final class Database
             throw new RuntimeException('Database connection failed');
         }
 
-        $this->pdo->exec('PRAGMA foreign_keys = ON');
+        // Foreign-key enforcement is off while the platform migrates from the
+        // database to flat files: the CRM core (contacts, companies, leads,
+        // opportunities, tasks, activities) now lives as JSON files, so the
+        // remaining tables' foreign keys pointing at those tables can no longer
+        // be satisfied by the database. Referential integrity is maintained in
+        // application code (repositories, explicit child cleanup on delete)
+        // until every table has moved off the database.
+        $this->pdo->exec('PRAGMA foreign_keys = OFF');
         $this->pdo->exec('PRAGMA busy_timeout = 5000');
 
         if ($path !== ':memory:') {

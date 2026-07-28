@@ -4,11 +4,17 @@ declare(strict_types=1);
 
 namespace Breakfast\Platform\Crm;
 
+use Breakfast\Platform\Support\FileRepository;
 use Breakfast\Platform\Support\Uuid;
 
-final class CompanyRepository extends Repository
+final class CompanyRepository extends FileRepository
 {
     private const COLUMNS = ['name', 'website', 'industry', 'size_band', 'address', 'notes'];
+
+    protected function collection(): string
+    {
+        return 'companies';
+    }
 
     /**
      * @param array<string,mixed> $data
@@ -16,41 +22,39 @@ final class CompanyRepository extends Repository
      */
     public function create(array $data): array
     {
-        $uuid = Uuid::v4();
-        $now  = $this->now();
+        $now = $this->now();
 
-        $this->db->run(
-            'INSERT INTO companies (uuid, name, website, industry, size_band, address, notes, created_at, updated_at)
-             VALUES (:uuid, :name, :website, :industry, :size_band, :address, :notes, :created_at, :updated_at)',
-            [
-                'uuid'       => $uuid,
-                'name'       => (string) ($data['name'] ?? 'Unknown'),
-                'website'    => $data['website'] ?? null,
-                'industry'   => $data['industry'] ?? null,
-                'size_band'  => $data['size_band'] ?? null,
-                'address'    => $data['address'] ?? null,
-                'notes'      => $data['notes'] ?? null,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ]
-        );
-
-        return $this->find($uuid) ?? [];
+        return $this->persist([
+            'uuid'        => Uuid::v4(),
+            'name'        => (string) ($data['name'] ?? 'Unknown'),
+            'website'     => $data['website'] ?? null,
+            'industry'    => $data['industry'] ?? null,
+            'size_band'   => $data['size_band'] ?? null,
+            'address'     => $data['address'] ?? null,
+            'notes'       => $data['notes'] ?? null,
+            'archived_at' => null,
+            'created_at'  => $now,
+            'updated_at'  => $now,
+        ]);
     }
 
     /** @return array<string,mixed>|null */
     public function find(string $uuid): ?array
     {
-        return $this->db->one('SELECT * FROM companies WHERE uuid = :u', ['u' => $uuid]);
+        return $this->findRecord($uuid);
     }
 
     /** @return array<string,mixed>|null */
     public function findByName(string $name): ?array
     {
-        return $this->db->one(
-            'SELECT * FROM companies WHERE lower(name) = lower(:n) LIMIT 1',
-            ['n' => trim($name)]
-        );
+        $name = trim($name);
+        foreach ($this->records() as $row) {
+            if (strcasecmp((string) ($row['name'] ?? ''), $name) === 0) {
+                return $row;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -67,13 +71,7 @@ final class CompanyRepository extends Repository
             return [];
         }
 
-        $existing = $this->findByName($name);
-
-        if ($existing !== null) {
-            return $existing;
-        }
-
-        return $this->create(['name' => $name] + $data);
+        return $this->findByName($name) ?? $this->create(['name' => $name] + $data);
     }
 
     /**
@@ -82,18 +80,7 @@ final class CompanyRepository extends Repository
      */
     public function update(string $uuid, array $data): ?array
     {
-        [$clause, $params] = $this->assignments($data, self::COLUMNS);
-
-        if ($clause !== '') {
-            $params['uuid']       = $uuid;
-            $params['updated_at'] = $this->now();
-            $this->db->run(
-                'UPDATE companies SET ' . $clause . ', updated_at = :updated_at WHERE uuid = :uuid',
-                $params
-            );
-        }
-
-        return $this->find($uuid);
+        return $this->patch($uuid, $data, self::COLUMNS);
     }
 
     /**
@@ -101,20 +88,33 @@ final class CompanyRepository extends Repository
      */
     public function all(int $limit = 200, int $offset = 0, bool $includeArchived = false): array
     {
-        $where = $includeArchived ? '' : 'WHERE c.archived_at IS NULL';
+        $rows = $this->records();
 
-        return $this->db->all(
-            'SELECT c.*, (SELECT COUNT(*) FROM contacts WHERE company_uuid = c.uuid) AS contact_count
-             FROM companies c ' . $where . ' ORDER BY c.name COLLATE NOCASE ASC LIMIT :l OFFSET :o',
-            ['l' => $limit, 'o' => $offset]
-        );
+        if (!$includeArchived) {
+            $rows = array_values(array_filter($rows, fn (array $r): bool => ($r['archived_at'] ?? null) === null));
+        }
+
+        // Denormalise the contact count, as the SQL correlated subquery did.
+        $contacts = $this->store->all('contacts');
+        foreach ($rows as &$row) {
+            $uuid                 = (string) ($row['uuid'] ?? '');
+            $row['contact_count'] = count(array_filter(
+                $contacts,
+                fn (array $c): bool => ($c['company_uuid'] ?? null) === $uuid
+            ));
+        }
+        unset($row);
+
+        return $this->paginate($this->sortBy($rows, 'name', 'asc'), $limit, $offset);
     }
 
     public function count(bool $includeArchived = false): int
     {
-        $where = $includeArchived ? '' : 'WHERE archived_at IS NULL';
+        if ($includeArchived) {
+            return count($this->records());
+        }
 
-        return (int) $this->db->scalar('SELECT COUNT(*) FROM companies ' . $where);
+        return count(array_filter($this->records(), fn (array $r): bool => ($r['archived_at'] ?? null) === null));
     }
 
     /**
@@ -124,9 +124,12 @@ final class CompanyRepository extends Repository
      */
     public function archive(string $uuid): ?array
     {
-        $this->db->run('UPDATE companies SET archived_at = :n, updated_at = :n WHERE uuid = :u AND archived_at IS NULL', ['n' => $this->now(), 'u' => $uuid]);
+        $record = $this->findRecord($uuid);
+        if ($record !== null && ($record['archived_at'] ?? null) === null) {
+            return $this->patch($uuid, ['archived_at' => $this->now()], ['archived_at']);
+        }
 
-        return $this->find($uuid);
+        return $record;
     }
 
     /**
@@ -136,9 +139,7 @@ final class CompanyRepository extends Repository
      */
     public function restore(string $uuid): ?array
     {
-        $this->db->run('UPDATE companies SET archived_at = NULL, updated_at = :n WHERE uuid = :u', ['n' => $this->now(), 'u' => $uuid]);
-
-        return $this->find($uuid);
+        return $this->patch($uuid, ['archived_at' => null], ['archived_at']);
     }
 
     /**
@@ -148,9 +149,15 @@ final class CompanyRepository extends Repository
      */
     public function relatedCounts(string $uuid): array
     {
-        return [
-            'contacts'      => (int) $this->db->scalar('SELECT COUNT(*) FROM contacts WHERE company_uuid = :u', ['u' => $uuid]),
-            'opportunities' => (int) $this->db->scalar('SELECT COUNT(*) FROM opportunities WHERE company_uuid = :u AND archived_at IS NULL', ['u' => $uuid]),
-        ];
+        $contacts = count(array_filter(
+            $this->store->all('contacts'),
+            fn (array $c): bool => ($c['company_uuid'] ?? null) === $uuid
+        ));
+        $opportunities = count(array_filter(
+            $this->store->all('opportunities'),
+            fn (array $o): bool => ($o['company_uuid'] ?? null) === $uuid && ($o['archived_at'] ?? null) === null
+        ));
+
+        return ['contacts' => $contacts, 'opportunities' => $opportunities];
     }
 }

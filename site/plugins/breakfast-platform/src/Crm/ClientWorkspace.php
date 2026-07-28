@@ -29,22 +29,40 @@ final class ClientWorkspace
     public function forContact(array $contact): array
     {
         $db          = $this->platform->db();
+        $store       = $this->platform->fileStore();
         $contactUuid = (string) ($contact['uuid'] ?? '');
         $companyUuid = (string) ($contact['company_uuid'] ?? '');
 
         $company = $companyUuid !== '' ? $this->platform->companies()->find($companyUuid) : null;
 
-        // Related records — by contact, or by the contact's company.
-        $opportunities = $db->all(
-            'SELECT uuid, title, stage, estimated_value, probability FROM opportunities
-             WHERE contact_uuid = :c OR (:co != \'\' AND company_uuid = :co) ORDER BY created_at DESC LIMIT 50',
-            ['c' => $contactUuid, 'co' => $companyUuid]
-        );
-        $tasks = $db->all(
-            'SELECT uuid, title, status, due_date FROM tasks
-             WHERE contact_uuid = :c OR (:co != \'\' AND company_uuid = :co) ORDER BY COALESCE(due_date, created_at) ASC LIMIT 50',
-            ['c' => $contactUuid, 'co' => $companyUuid]
-        );
+        // Related records — by contact, or by the contact's company. The CRM
+        // core (opportunities, tasks) is flat-file, so it's filtered in PHP;
+        // invoices, previews and emails are still database-backed.
+        $related = fn (array $row): bool => ($row['contact_uuid'] ?? null) === $contactUuid
+            || ($companyUuid !== '' && ($row['company_uuid'] ?? null) === $companyUuid);
+
+        $opportunities = array_values(array_filter($store->all('opportunities'), $related));
+        usort($opportunities, static fn ($a, $b) => strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? '')));
+        $opportunities = array_slice(array_map(static fn (array $o): array => [
+            'uuid'            => $o['uuid'] ?? '',
+            'title'           => $o['title'] ?? '',
+            'stage'           => $o['stage'] ?? '',
+            'estimated_value' => (int) ($o['estimated_value'] ?? 0),
+            'probability'     => (int) ($o['probability'] ?? 0),
+        ], $opportunities), 0, 50);
+
+        $tasks = array_values(array_filter($store->all('tasks'), $related));
+        usort($tasks, static fn ($a, $b) => strcmp(
+            (string) ($a['due_date'] ?? $a['created_at'] ?? ''),
+            (string) ($b['due_date'] ?? $b['created_at'] ?? '')
+        ));
+        $tasks = array_slice(array_map(static fn (array $t): array => [
+            'uuid'     => $t['uuid'] ?? '',
+            'title'    => $t['title'] ?? '',
+            'status'   => $t['status'] ?? '',
+            'due_date' => $t['due_date'] ?? null,
+        ], $tasks), 0, 50);
+
         $invoices = $db->all(
             'SELECT uuid, number, status, total, amount_paid, issue_date FROM invoices
              WHERE contact_uuid = :c OR (:co != \'\' AND company_uuid = :co) ORDER BY created_at DESC LIMIT 50',
