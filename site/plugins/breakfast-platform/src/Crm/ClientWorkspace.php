@@ -63,11 +63,16 @@ final class ClientWorkspace
             'due_date' => $t['due_date'] ?? null,
         ], $tasks), 0, 50);
 
-        $invoices = $db->all(
-            'SELECT uuid, number, status, total, amount_paid, issue_date FROM invoices
-             WHERE contact_uuid = :c OR (:co != \'\' AND company_uuid = :co) ORDER BY created_at DESC LIMIT 50',
-            ['c' => $contactUuid, 'co' => $companyUuid]
-        );
+        $invoices = array_values(array_filter($store->all('invoices'), $related));
+        usort($invoices, static fn ($a, $b) => strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? '')));
+        $invoices = array_slice(array_map(static fn (array $i): array => [
+            'uuid'        => $i['uuid'] ?? '',
+            'number'      => $i['number'] ?? '',
+            'status'      => $i['status'] ?? '',
+            'total'       => (int) ($i['total'] ?? 0),
+            'amount_paid' => (int) ($i['amount_paid'] ?? 0),
+            'issue_date'  => $i['issue_date'] ?? '',
+        ], $invoices), 0, 50);
         $previews = array_values(array_filter($store->all('client_previews'), $related));
         usort($previews, static fn ($a, $b) => strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? '')));
         $previews = array_slice(array_map(static fn (array $p): array => [

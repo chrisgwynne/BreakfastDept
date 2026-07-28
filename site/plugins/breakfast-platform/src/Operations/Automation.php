@@ -180,11 +180,10 @@ final class Automation
     /** @return list<array{target_ref:string,project_uuid:string,label:string}> */
     private function overdueInvoices(string $asOf): array
     {
-        $rows = $this->db()->all(
-            "SELECT uuid, number, project_uuid FROM invoices
-             WHERE status IN ('issued','part_paid') AND due_date IS NOT NULL AND due_date <> '' AND due_date < :asof AND project_uuid IS NOT NULL",
-            ['asof' => $asOf]
-        );
+        $rows = array_values(array_filter($this->platform->fileStore()->all('invoices'), static fn (array $r): bool => in_array((string) ($r['status'] ?? ''), ['issued', 'part_paid'], true)
+            && (string) ($r['due_date'] ?? '') !== ''
+            && (string) $r['due_date'] < $asOf
+            && ($r['project_uuid'] ?? null) !== null && (string) $r['project_uuid'] !== ''));
 
         return array_map(static fn (array $r): array => [
             'target_ref' => 'invoice:' . (string) $r['uuid'], 'project_uuid' => (string) $r['project_uuid'],

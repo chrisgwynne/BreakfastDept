@@ -193,7 +193,7 @@ final class Platform
 
     public function invoices(): \Breakfast\Platform\Invoicing\Invoices
     {
-        return $this->service(\Breakfast\Platform\Invoicing\Invoices::class, fn () => new \Breakfast\Platform\Invoicing\Invoices($this->db()));
+        return $this->service(\Breakfast\Platform\Invoicing\Invoices::class, fn () => new \Breakfast\Platform\Invoicing\Invoices($this->fileStore()));
     }
 
     public function proposals(): \Breakfast\Platform\Proposals\Proposals
@@ -217,7 +217,7 @@ final class Platform
 
     public function projects(): \Breakfast\Platform\Projects\Projects
     {
-        return $this->service(\Breakfast\Platform\Projects\Projects::class, fn () => new \Breakfast\Platform\Projects\Projects($this->db()));
+        return $this->service(\Breakfast\Platform\Projects\Projects::class, fn () => new \Breakfast\Platform\Projects\Projects($this->db(), $this->fileStore()));
     }
 
     public function projectConversion(): \Breakfast\Platform\Projects\ProjectConversion
@@ -344,7 +344,7 @@ final class Platform
         return $this->service(\Breakfast\Platform\Invoicing\InvoiceDocumentService::class, fn () => new \Breakfast\Platform\Invoicing\InvoiceDocumentService(
             $this->invoices(),
             new \Breakfast\Platform\Invoicing\InvoicePdfRenderer(),
-            new \Breakfast\Platform\Invoicing\InvoiceDocumentStore($this->db(), $this->storageDir() . '/invoices'),
+            new \Breakfast\Platform\Invoicing\InvoiceDocumentStore($this->fileStore(), $this->storageDir() . '/invoices'),
             $this->activities(),
             $this->audit()
         ));
@@ -401,7 +401,7 @@ final class Platform
     {
         return $this->service(\Breakfast\Platform\Mail\AttachmentResolver::class, fn () => new \Breakfast\Platform\Mail\CompositeAttachmentResolver(
             new \Breakfast\Platform\Invoicing\InvoiceAttachmentResolver(
-                new \Breakfast\Platform\Invoicing\InvoiceDocumentStore($this->db(), $this->storageDir() . '/invoices')
+                new \Breakfast\Platform\Invoicing\InvoiceDocumentStore($this->fileStore(), $this->storageDir() . '/invoices')
             ),
             new \Breakfast\Platform\Contracts\ContractAttachmentResolver($this->contractDocuments())
         ));

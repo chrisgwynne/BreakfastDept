@@ -64,12 +64,7 @@ final class SearchService
             $out[] = $this->row('task', (string) $r['uuid'], (string) ($r['title'] ?? ''), 'Task · ' . (string) ($r['status'] ?? ''), '/tasks');
         }
 
-        $like = '%' . str_replace(['%', '_'], ['\%', '\_'], $q) . '%';
-
-        foreach ($this->platform->db()->all(
-            "SELECT uuid, number, bill_to_name, status FROM invoices WHERE number LIKE :q ESCAPE '\\' OR bill_to_name LIKE :q ESCAPE '\\' ORDER BY created_at DESC LIMIT :l",
-            ['q' => $like, 'l' => $perType]
-        ) as $r) {
+        foreach ($this->take($this->filter($store->all('invoices'), fn (array $r): bool => $this->hit($needle, $r['number'] ?? '', $r['bill_to_name'] ?? '')), 'created_at', $perType) as $r) {
             $out[] = $this->row('invoice', (string) $r['uuid'], (string) ($r['number'] ?: 'Draft invoice'), (string) ($r['bill_to_name'] ?? ''), '/invoices');
         }
 

@@ -116,13 +116,14 @@ final class Reporting
         $uuid = (string) $p['uuid'];
         $quoted = (int) $p['quoted_value'];
         $variations = (int) $p['approved_variations'];
-        $inv = $this->db()->one(
-            "SELECT COALESCE(SUM(total),0) AS invoiced, COALESCE(SUM(amount_paid),0) AS paid
-             FROM invoices WHERE project_uuid = :p AND status NOT IN ('draft','void')",
-            ['p' => $uuid]
-        );
-        $invoiced = (int) ($inv['invoiced'] ?? 0);
-        $paid = (int) ($inv['paid'] ?? 0);
+        $invoiced = 0;
+        $paid     = 0;
+        foreach ($this->platform->invoices()->forProject($uuid) as $inv) {
+            if (!in_array((string) ($inv['status'] ?? ''), ['draft', 'void'], true)) {
+                $invoiced += (int) ($inv['total'] ?? 0);
+                $paid     += (int) ($inv['amount_paid'] ?? 0);
+            }
+        }
         $time = $this->platform->time()->rollup($uuid);
 
         return [

@@ -433,12 +433,17 @@ final class Portal
              ORDER BY created_at DESC LIMIT 50",
             ['c' => $contact]
         );
-        $invoices = $this->db()->all(
-            "SELECT number, status, total, public_token FROM invoices
-             WHERE contact_uuid = :c AND public_token <> '' AND status IN ('issued','part_paid','paid','overdue','void')
-             ORDER BY created_at DESC LIMIT 50",
-            ['c' => $contact]
-        );
+        $invoiceStatuses = ['issued', 'part_paid', 'paid', 'overdue', 'void'];
+        $invoices = array_values(array_filter($this->platform->fileStore()->all('invoices'), static fn (array $r): bool => (string) ($r['contact_uuid'] ?? '') === $contact
+            && (string) ($r['public_token'] ?? '') !== ''
+            && in_array((string) ($r['status'] ?? ''), $invoiceStatuses, true)));
+        usort($invoices, static fn ($a, $b) => strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? '')));
+        $invoices = array_slice(array_map(static fn (array $r): array => [
+            'number'       => $r['number'] ?? '',
+            'status'       => $r['status'] ?? '',
+            'total'        => (int) ($r['total'] ?? 0),
+            'public_token' => $r['public_token'] ?? '',
+        ], $invoices), 0, 50);
         $base = rtrim((string) kirby()->site()->url(), '/');
 
         return [

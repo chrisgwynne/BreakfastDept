@@ -473,7 +473,13 @@ final class PaymentsService
         }
         $paid = max(0, (int) $inv['amount_paid'] - $refunded);
         $status = $paid <= 0 ? 'sent' : ($paid >= (int) $inv['total'] ? 'paid' : 'partial');
-        $this->db()->run('UPDATE invoices SET amount_paid = :p, status = :s, updated_at = :now WHERE uuid = :u', ['p' => $paid, 's' => $status, 'now' => Clock::nowIso(), 'u' => $invoiceUuid]);
+        $this->platform->fileStore()->update('invoices', $invoiceUuid, static function (array $row) use ($paid, $status): array {
+            $row['amount_paid'] = $paid;
+            $row['status']      = $status;
+            $row['updated_at']  = Clock::nowIso();
+
+            return $row;
+        });
         $this->platform->invoices()->logEvent($invoiceUuid, 'refund', 'Refund applied', 'system:stripe');
     }
 

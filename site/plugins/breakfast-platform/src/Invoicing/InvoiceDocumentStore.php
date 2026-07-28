@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Breakfast\Platform\Invoicing;
 
 use Breakfast\Platform\Support\Clock;
-use Breakfast\Platform\Support\Database;
+use Breakfast\Platform\Support\FileStore;
 use Breakfast\Platform\Support\Uuid;
 
 /**
@@ -20,7 +20,7 @@ use Breakfast\Platform\Support\Uuid;
 final class InvoiceDocumentStore
 {
     public function __construct(
-        private readonly Database $db,
+        private readonly FileStore $store,
         private readonly string $baseDir,
     ) {
     }
@@ -52,26 +52,30 @@ final class InvoiceDocumentStore
         rename($tmp, $path);
         @chmod($path, 0600);
 
-        $version = 1 + (int) $this->db->scalar(
-            'SELECT COALESCE(MAX(version), 0) FROM invoice_documents WHERE invoice_uuid = :i AND kind = :k',
-            ['i' => $invoiceUuid, 'k' => $kind]
-        );
+        $version = 1;
+        foreach ($this->store->all('invoice_documents') as $doc) {
+            if ((string) ($doc['invoice_uuid'] ?? '') === $invoiceUuid && (string) ($doc['kind'] ?? '') === $kind) {
+                $version = max($version, (int) ($doc['version'] ?? 0) + 1);
+            }
+        }
         $uuid = Uuid::v4();
-        $this->db->run(
-            'INSERT INTO invoice_documents
-                (uuid, invoice_uuid, version, kind, storage_key, filename, mime, byte_size, sha256,
-                 renderer, renderer_version, state, snapshot_version, created_by, created_at)
-             VALUES
-                (:uuid, :inv, :ver, :kind, :key, :file, :mime, :size, :hash,
-                 :renderer, :rver, \'generated\', :sver, :actor, :now)',
-            [
-                'uuid' => $uuid, 'inv' => $invoiceUuid, 'ver' => $version, 'kind' => $kind,
-                'key' => $storageKey, 'file' => $filename, 'mime' => 'application/pdf',
-                'size' => strlen($bytes), 'hash' => hash('sha256', $bytes),
-                'renderer' => InvoicePdfRenderer::RENDERER, 'rver' => $rendererVersion,
-                'sver' => $snapshotVersion, 'actor' => $actor, 'now' => Clock::nowIso(),
-            ]
-        );
+        $this->store->put('invoice_documents', [
+            'uuid'             => $uuid,
+            'invoice_uuid'     => $invoiceUuid,
+            'version'          => $version,
+            'kind'             => $kind,
+            'storage_key'      => $storageKey,
+            'filename'         => $filename,
+            'mime'             => 'application/pdf',
+            'byte_size'        => strlen($bytes),
+            'sha256'           => hash('sha256', $bytes),
+            'renderer'         => InvoicePdfRenderer::RENDERER,
+            'renderer_version' => $rendererVersion,
+            'state'            => 'generated',
+            'snapshot_version' => $snapshotVersion,
+            'created_by'       => $actor,
+            'created_at'       => Clock::nowIso(),
+        ]);
 
         return $this->find($uuid) ?? [];
     }
@@ -79,7 +83,7 @@ final class InvoiceDocumentStore
     /** @return array<string,mixed>|null */
     public function find(string $uuid): ?array
     {
-        return $this->db->one('SELECT * FROM invoice_documents WHERE uuid = :u', ['u' => $uuid]);
+        return $this->store->find('invoice_documents', $uuid);
     }
 
     /**
@@ -89,25 +93,31 @@ final class InvoiceDocumentStore
      */
     public function currentIssued(string $invoiceUuid): ?array
     {
-        return $this->db->one(
-            "SELECT * FROM invoice_documents WHERE invoice_uuid = :i AND kind = 'issued' AND state = 'generated' ORDER BY version ASC LIMIT 1",
-            ['i' => $invoiceUuid]
-        );
+        $docs = array_filter($this->store->all('invoice_documents'), static fn (array $d): bool => (string) ($d['invoice_uuid'] ?? '') === $invoiceUuid
+            && (string) ($d['kind'] ?? '') === 'issued'
+            && (string) ($d['state'] ?? '') === 'generated');
+        usort($docs, static fn ($a, $b) => (int) ($a['version'] ?? 0) <=> (int) ($b['version'] ?? 0));
+
+        return $docs[0] ?? null;
     }
 
     /** @return array<string,mixed>|null */
     public function currentDraft(string $invoiceUuid): ?array
     {
-        return $this->db->one(
-            "SELECT * FROM invoice_documents WHERE invoice_uuid = :i AND kind = 'draft' ORDER BY version DESC LIMIT 1",
-            ['i' => $invoiceUuid]
-        );
+        $docs = array_filter($this->store->all('invoice_documents'), static fn (array $d): bool => (string) ($d['invoice_uuid'] ?? '') === $invoiceUuid
+            && (string) ($d['kind'] ?? '') === 'draft');
+        usort($docs, static fn ($a, $b) => (int) ($b['version'] ?? 0) <=> (int) ($a['version'] ?? 0));
+
+        return $docs[0] ?? null;
     }
 
     /** @return list<array<string,mixed>> */
     public function versions(string $invoiceUuid): array
     {
-        return $this->db->all('SELECT * FROM invoice_documents WHERE invoice_uuid = :i ORDER BY created_at DESC', ['i' => $invoiceUuid]);
+        $docs = array_values(array_filter($this->store->all('invoice_documents'), static fn (array $d): bool => (string) ($d['invoice_uuid'] ?? '') === $invoiceUuid));
+        usort($docs, static fn ($a, $b) => strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? '')));
+
+        return $docs;
     }
 
     /**
@@ -144,15 +154,18 @@ final class InvoiceDocumentStore
 
     private function deleteDrafts(string $invoiceUuid): void
     {
-        foreach ($this->db->all("SELECT * FROM invoice_documents WHERE invoice_uuid = :i AND kind = 'draft'", ['i' => $invoiceUuid]) as $doc) {
+        foreach ($this->store->all('invoice_documents') as $doc) {
+            if ((string) ($doc['invoice_uuid'] ?? '') !== $invoiceUuid || (string) ($doc['kind'] ?? '') !== 'draft') {
+                continue;
+            }
             $path = $this->baseDir . '/' . (string) $doc['storage_key'];
             $real = realpath($path);
             $baseReal = realpath($this->baseDir);
             if ($real !== false && $baseReal !== false && strncmp($real, $baseReal . DIRECTORY_SEPARATOR, strlen($baseReal) + 1) === 0) {
                 @unlink($real);
             }
+            $this->store->delete('invoice_documents', (string) ($doc['uuid'] ?? ''));
         }
-        $this->db->run("DELETE FROM invoice_documents WHERE invoice_uuid = :i AND kind = 'draft'", ['i' => $invoiceUuid]);
     }
 
     private function dirFor(string $invoiceUuid): string

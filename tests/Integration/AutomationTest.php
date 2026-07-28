@@ -61,7 +61,14 @@ final class AutomationTest extends TestCase
     private function overdueInvoice(string $due): void
     {
         $inv = breakfast()->invoices()->create(['bill_to_name' => 'Client', 'items' => [['description' => 'Work', 'quantity' => 1, 'unit_price' => 500]]], 'staff@breakfast');
-        breakfast()->db()->run("UPDATE invoices SET project_uuid = :p, status = 'issued', due_date = :due WHERE uuid = :u", ['p' => $this->project, 'due' => $due, 'u' => (string) $inv['uuid']]);
+        $projectUuid = $this->project;
+        breakfast()->fileStore()->update('invoices', (string) $inv['uuid'], static function (array $row) use ($projectUuid, $due): array {
+            $row['project_uuid'] = $projectUuid;
+            $row['status']       = 'issued';
+            $row['due_date']     = $due;
+
+            return $row;
+        });
     }
 
     public function testOverdueInvoiceFiresFollowUpTaskOnceAndIsIdempotent(): void

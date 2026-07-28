@@ -269,7 +269,7 @@ final class Retainers
                     'project' => (string) $r['title'] . ' ' . $periodStart, 'items' => $items,
                 ], $actor);
                 $invoiceUuid = (string) ($inv['uuid'] ?? '');
-                $this->db()->run('UPDATE invoices SET project_uuid = :p WHERE uuid = :u', ['p' => $projectUuid, 'u' => $invoiceUuid]);
+                $this->platform->invoices()->assignToProject($invoiceUuid, $projectUuid);
                 // Lock the covered time so it can never be billed again.
                 if ($entryUuids !== []) {
                     $this->platform->time()->markBilled($entryUuids, $invoiceUuid, $actor);

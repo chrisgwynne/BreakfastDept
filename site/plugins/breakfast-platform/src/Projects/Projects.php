@@ -51,8 +51,10 @@ final class Projects
         'archived'        => [],       // only restore()
     ];
 
-    public function __construct(private readonly Database $db)
-    {
+    public function __construct(
+        private readonly Database $db,
+        private readonly \Breakfast\Platform\Support\FileStore $store,
+    ) {
     }
 
     // ==================================================================
@@ -448,14 +450,17 @@ final class Projects
     private function withDerived(array $r): array
     {
         $uuid = (string) $r['uuid'];
-        $fin = $this->db->one(
-            "SELECT COALESCE(SUM(CASE WHEN status <> 'void' THEN total ELSE 0 END),0) AS invoiced,
-                    COALESCE(SUM(CASE WHEN status <> 'void' THEN amount_paid ELSE 0 END),0) AS paid
-             FROM invoices WHERE project_uuid = :u",
-            ['u' => $uuid]
-        ) ?? ['invoiced' => 0, 'paid' => 0];
-        $r['invoiced_value'] = (int) $fin['invoiced'];
-        $r['paid_value']     = (int) $fin['paid'];
+        // Invoices are flat files: roll up invoiced/paid for this project.
+        $invoiced = 0;
+        $paid     = 0;
+        foreach ($this->store->all('invoices') as $inv) {
+            if ((string) ($inv['project_uuid'] ?? '') === $uuid && (string) ($inv['status'] ?? '') !== 'void') {
+                $invoiced += (int) ($inv['total'] ?? 0);
+                $paid     += (int) ($inv['amount_paid'] ?? 0);
+            }
+        }
+        $r['invoiced_value'] = $invoiced;
+        $r['paid_value']     = $paid;
         $r['tags']           = $this->decodeTags($r['tags'] ?? '[]');
 
         // Real progress, derived from delivery tasks/milestones — never a typed

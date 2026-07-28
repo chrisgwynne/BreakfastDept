@@ -57,7 +57,15 @@ final class ReportingTest extends TestCase
         $p->time()->create($this->project, ['hours' => 4, 'billable' => true, 'rate' => 75], 'chris@breakfast');
         // An issued invoice of £1,200 with £500 paid.
         $inv = $p->invoices()->create(['bill_to_name' => 'Client', 'items' => [['description' => 'Deposit', 'quantity' => 1, 'unit_price' => 1200]]], 'staff@breakfast');
-        $p->db()->run("UPDATE invoices SET project_uuid = :p, status = 'issued', total = 120000, amount_paid = 50000 WHERE uuid = :u", ['p' => $this->project, 'u' => (string) $inv['uuid']]);
+        $projectUuid = $this->project;
+        $p->fileStore()->update('invoices', (string) $inv['uuid'], static function (array $row) use ($projectUuid): array {
+            $row['project_uuid'] = $projectUuid;
+            $row['status']       = 'issued';
+            $row['total']        = 120000;
+            $row['amount_paid']  = 50000;
+
+            return $row;
+        });
 
         $rows = $p->reporting()->projects();
         $row = null;

@@ -162,7 +162,7 @@ final class ProjectsTest extends TestCase
         $uuid = (string) $p['uuid'];
         // A linked, issued, part-paid invoice.
         $inv = breakfast()->invoices()->create(['bill_to_name' => 'Roberts', 'items' => [['description' => 'Deposit', 'quantity' => 1, 'unit_price' => 1000]]], 'staff@breakfast');
-        breakfast()->db()->run('UPDATE invoices SET project_uuid = :p WHERE uuid = :u', ['p' => $uuid, 'u' => $inv['uuid']]);
+        breakfast()->invoices()->assignToProject((string) $inv['uuid'], $uuid);
         breakfast()->invoices()->issue((string) $inv['uuid'], 'staff@breakfast');
         breakfast()->invoices()->recordPayment((string) $inv['uuid'], ['amount' => 400, 'method' => 'bank'], 'staff@breakfast');
 

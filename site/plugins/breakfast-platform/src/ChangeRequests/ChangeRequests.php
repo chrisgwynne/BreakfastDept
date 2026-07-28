@@ -388,7 +388,7 @@ final class ChangeRequests
                     ]],
                 ], $actor);
                 $invoiceUuid = (string) ($inv['uuid'] ?? '');
-                $this->db()->run('UPDATE invoices SET project_uuid = :p WHERE uuid = :u', ['p' => $projectUuid, 'u' => $invoiceUuid]);
+                $this->platform->invoices()->assignToProject($invoiceUuid, $projectUuid);
             }
             $this->db()->run("UPDATE change_requests SET applied = 1, status = 'in_progress', updated_at = :now, revision = revision + 1 WHERE uuid = :u", ['now' => Clock::nowIso(), 'u' => $uuid]);
             $this->event($uuid, 'applied', $tasks . ' task(s), invoice ' . ($invoiceUuid ? 'drafted' : 'skipped'), $actor);
