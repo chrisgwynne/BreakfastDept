@@ -706,9 +706,10 @@ final class Api
         }
         $current = (string) ($preview['current_version_uuid'] ?? '');
         $version = $current !== '' ? $this->platform->previewVersions()->find($current) : null;
-        $report  = $version !== null && is_string($version['validation_report'] ?? null)
-            ? (json_decode((string) $version['validation_report'], true) ?: [])
-            : [];
+        $rawReport = $version['validation_report'] ?? null;
+        $report    = is_array($rawReport)
+            ? $rawReport
+            : (is_string($rawReport) ? (json_decode($rawReport, true) ?: []) : []);
 
         return ['body' => [
             'analysis' => [

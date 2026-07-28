@@ -540,17 +540,17 @@ final class Platform
 
     public function previews(): \Breakfast\Platform\ClientPreviews\PreviewRepository
     {
-        return $this->service(\Breakfast\Platform\ClientPreviews\PreviewRepository::class, fn () => new \Breakfast\Platform\ClientPreviews\PreviewRepository($this->db()));
+        return $this->service(\Breakfast\Platform\ClientPreviews\PreviewRepository::class, fn () => new \Breakfast\Platform\ClientPreviews\PreviewRepository($this->fileStore()));
     }
 
     public function previewVersions(): \Breakfast\Platform\ClientPreviews\PreviewVersionRepository
     {
-        return $this->service(\Breakfast\Platform\ClientPreviews\PreviewVersionRepository::class, fn () => new \Breakfast\Platform\ClientPreviews\PreviewVersionRepository($this->db()));
+        return $this->service(\Breakfast\Platform\ClientPreviews\PreviewVersionRepository::class, fn () => new \Breakfast\Platform\ClientPreviews\PreviewVersionRepository($this->fileStore()));
     }
 
     public function previewActivity(): \Breakfast\Platform\ClientPreviews\PreviewActivityRepository
     {
-        return $this->service(\Breakfast\Platform\ClientPreviews\PreviewActivityRepository::class, fn () => new \Breakfast\Platform\ClientPreviews\PreviewActivityRepository($this->db()));
+        return $this->service(\Breakfast\Platform\ClientPreviews\PreviewActivityRepository::class, fn () => new \Breakfast\Platform\ClientPreviews\PreviewActivityRepository($this->fileStore()));
     }
 
     public function previewStorage(): \Breakfast\Platform\ClientPreviews\PreviewStorage

@@ -90,12 +90,38 @@ final class RetentionService
             ];
         };
 
+        $store = $this->platform->fileStore();
+
+        // Flat-file equivalent of $timeBased: prune records in a FileStore
+        // collection whose date field is older than the cutoff.
+        $fileTimeBased = function (string $collection, string $column, ?int $days) use ($store): array {
+            if ($days === null || $days <= 0) {
+                return ['days' => $days, 'count' => static fn (): int => 0, 'apply' => static function (): void {
+                }];
+            }
+            $cutoff = Clock::now()->modify('-' . $days . ' days')->format('c');
+            $expired = static fn (): array => array_filter(
+                $store->all($collection),
+                static fn (array $r): bool => ($r[$column] ?? null) !== null && (string) $r[$column] < $cutoff
+            );
+
+            return [
+                'days'  => $days,
+                'count' => static fn (): int => count($expired()),
+                'apply' => static function () use ($store, $collection, $expired): void {
+                    foreach ($expired() as $row) {
+                        $store->delete($collection, (string) ($row['uuid'] ?? ''));
+                    }
+                },
+            ];
+        };
+
         return [
-            'crm_activities'     => $timeBased('activities', 'created_at', $this->days('activitiesDays', 730)),
-            'preview_analytics'  => $timeBased('preview_access_events', 'occurred_at', $this->days('previewAnalyticsDays', 180)),
+            'crm_activities'     => $fileTimeBased('activities', 'created_at', $this->days('activitiesDays', 730)),
+            'preview_analytics'  => $fileTimeBased('preview_access_events', 'occurred_at', $this->days('previewAnalyticsDays', 180)),
             'queue_jobs'         => $timeBased('jobs', 'completed_at', $this->days('queueDays', 30), "status = 'done'"),
             'webhook_deliveries' => $timeBased('webhook_deliveries', 'delivered_at', $this->days('webhookDays', 90), "status = 'delivered'"),
-            'email_events'       => $timeBased('email_events', 'event_at', $this->days('emailEventsDays', 90)),
+            'email_events'       => $fileTimeBased('email_events', 'event_at', $this->days('emailEventsDays', 90)),
             'audit_log'          => $timeBased('hermes_audit', 'created_at', $this->days('auditDays', 365)),
             'orphaned_uploads'   => $this->orphanedUploads(),
             'orphaned_previews'  => $this->orphanedPreviewDirs(),
@@ -155,12 +181,12 @@ final class RetentionService
      */
     private function orphanedPreviewDirs(): array
     {
-        $storage = $this->platform->previewStorage();
-        $base    = $storage->root() . '/versions';
-        $graceTs = Clock::timestamp() - ($this->graceHours() * 3600);
-        $db      = $this->platform->db();
+        $storage  = $this->platform->previewStorage();
+        $base     = $storage->root() . '/versions';
+        $graceTs  = Clock::timestamp() - ($this->graceHours() * 3600);
+        $versions = $this->platform->previewVersions();
 
-        $find = static function () use ($base, $graceTs, $db): array {
+        $find = static function () use ($base, $graceTs, $versions): array {
             if (is_dir($base) === false) {
                 return [];
             }
@@ -181,8 +207,7 @@ final class RetentionService
                     if (is_dir($vdir) === false || (filemtime($vdir) ?: 0) >= $graceTs) {
                         continue;
                     }
-                    $row = $db->one('SELECT uuid FROM preview_versions WHERE uuid = :u LIMIT 1', ['u' => $version]);
-                    if ($row === null) {
+                    if ($versions->find($version) === null) {
                         $orphans[] = $vdir;
                     }
                 }

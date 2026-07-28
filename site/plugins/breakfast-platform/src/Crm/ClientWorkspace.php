@@ -68,11 +68,15 @@ final class ClientWorkspace
              WHERE contact_uuid = :c OR (:co != \'\' AND company_uuid = :co) ORDER BY created_at DESC LIMIT 50',
             ['c' => $contactUuid, 'co' => $companyUuid]
         );
-        $previews = $db->all(
-            'SELECT uuid, name, public_slug AS slug, status, view_count FROM client_previews
-             WHERE contact_uuid = :c OR (:co != \'\' AND company_uuid = :co) ORDER BY created_at DESC LIMIT 50',
-            ['c' => $contactUuid, 'co' => $companyUuid]
-        );
+        $previews = array_values(array_filter($store->all('client_previews'), $related));
+        usort($previews, static fn ($a, $b) => strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? '')));
+        $previews = array_slice(array_map(static fn (array $p): array => [
+            'uuid'       => $p['uuid'] ?? '',
+            'name'       => $p['name'] ?? '',
+            'slug'       => $p['public_slug'] ?? '',
+            'status'     => $p['status'] ?? '',
+            'view_count' => (int) ($p['view_count'] ?? 0),
+        ], $previews), 0, 50);
         $emails = array_values(array_filter($store->all('outbound_messages'), $related));
         usort($emails, static fn ($a, $b) => strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? '')));
         $emails = array_slice(array_map(static fn (array $m): array => [

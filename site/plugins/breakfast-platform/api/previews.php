@@ -320,8 +320,12 @@ return [
             $gate('delete');
             $p = breakfast();
             $p->previewStorage()->deleteTree($p->previewStorage()->root() . '/versions/' . preg_replace('/[^a-zA-Z0-9_-]/', '', $uuid));
+            // Flat-file delete: remove the preview and its children explicitly
+            // (foreign-key cascade enforcement is off during the migration).
             $p->previewActivity()->deleteSubmissions($uuid);
-            $p->db()->run('DELETE FROM client_previews WHERE uuid = :u', ['u' => $uuid]);
+            $p->previewActivity()->deleteAccessFor($uuid);
+            $p->previewVersions()->deleteForPreview($uuid);
+            $p->previews()->delete($uuid);
             $p->audit()->event('preview.delete', 'preview', $uuid, $actor(), []);
 
             return ['data' => ['ok' => true]];

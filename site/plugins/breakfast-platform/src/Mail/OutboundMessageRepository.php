@@ -254,11 +254,13 @@ final class OutboundMessageRepository
         ?string $eventAt,
         array $metadata = []
     ): bool {
-        // The fingerprint is the uniqueness key; hash it to a filesystem-safe id.
+        // The fingerprint is the uniqueness key; hash it to a filesystem-safe id
+        // and use it as the record uuid too, so the filename always equals the
+        // uuid (delete-by-uuid works from anywhere, e.g. retention pruning).
         $id = sha1($dedupeFingerprint);
 
         return $this->store->putIfAbsent(self::EVENTS, $id, [
-            'uuid'                => Uuid::v4(),
+            'uuid'                => $id,
             'outbound_uuid'       => $outboundUuid,
             'provider'            => $provider,
             'provider_event_id'   => $providerEventId,
@@ -323,7 +325,7 @@ final class OutboundMessageRepository
 
         foreach ($this->store->all(self::EVENTS) as $event) {
             if ((string) ($event['received_at'] ?? '') < $cutoff) {
-                $this->store->delete(self::EVENTS, sha1((string) ($event['dedupe_fingerprint'] ?? '')));
+                $this->store->delete(self::EVENTS, (string) ($event['uuid'] ?? ''));
                 $pruned++;
             }
         }
