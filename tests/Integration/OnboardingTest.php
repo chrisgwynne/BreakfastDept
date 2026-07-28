@@ -179,7 +179,7 @@ final class OnboardingTest extends TestCase
         $completed = $p->onboarding()->complete($id, 'staff@breakfast');
         $this->assertSame('completed', (string) $completed['status']);
         // Token cleared on completion.
-        $this->assertSame('', (string) breakfast()->db()->scalar('SELECT token_hash FROM onboarding_instances WHERE uuid = :u', ['u' => $id]));
+        $this->assertSame('', (string) (breakfast()->fileStore()->find('onboarding_instances', $id)['token_hash'] ?? 'x'));
     }
 
     public function testExpiredInvitationCannotSubmit(): void
@@ -189,7 +189,11 @@ final class OnboardingTest extends TestCase
         $id = (string) $inst['uuid'];
         $p->onboarding()->invite($id, 's@x.co', 14, 'staff@breakfast');
         // Force expiry.
-        breakfast()->db()->run("UPDATE onboarding_instances SET expires_at = :e WHERE uuid = :u", ['e' => date('c', time() - 3600), 'u' => $id]);
+        breakfast()->fileStore()->update('onboarding_instances', $id, static function (array $row): array {
+            $row['expires_at'] = date('c', time() - 3600);
+
+            return $row;
+        });
         $this->assertNull($p->onboarding()->findByToken($p->onboarding()->find($id)['token_hash']));
         $this->assertError(410, fn () => $p->onboarding()->saveDraft($id, ['business_name' => 'X'], null, 'client'));
     }

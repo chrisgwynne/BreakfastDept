@@ -72,6 +72,22 @@ final class ProjectTasks
     }
 
     /**
+     * Look a task up by its generator's deterministic source reference. Lets
+     * flat-file callers (onboarding, automation) generate tasks idempotently.
+     *
+     * @return array<string,mixed>|null
+     */
+    public function findBySourceRef(string $sourceRef): ?array
+    {
+        if ($sourceRef === '') {
+            return null;
+        }
+        $t = $this->db->one('SELECT * FROM project_tasks WHERE source_ref = :r', ['r' => $sourceRef]);
+
+        return $t === null ? null : $this->withDerived($t);
+    }
+
+    /**
      * @param array<string,mixed> $data
      * @return array<string,mixed>
      */

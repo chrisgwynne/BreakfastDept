@@ -252,12 +252,12 @@ final class Platform
 
     public function onboardingTemplates(): \Breakfast\Platform\Onboarding\OnboardingTemplates
     {
-        return $this->service(\Breakfast\Platform\Onboarding\OnboardingTemplates::class, fn () => new \Breakfast\Platform\Onboarding\OnboardingTemplates($this->db()));
+        return $this->service(\Breakfast\Platform\Onboarding\OnboardingTemplates::class, fn () => new \Breakfast\Platform\Onboarding\OnboardingTemplates($this->fileStore()));
     }
 
     public function onboarding(): \Breakfast\Platform\Onboarding\Onboarding
     {
-        return $this->service(\Breakfast\Platform\Onboarding\Onboarding::class, fn () => new \Breakfast\Platform\Onboarding\Onboarding($this->db(), $this));
+        return $this->service(\Breakfast\Platform\Onboarding\Onboarding::class, fn () => new \Breakfast\Platform\Onboarding\Onboarding($this->fileStore(), $this));
     }
 
     public function milestones(): \Breakfast\Platform\Projects\Milestones
