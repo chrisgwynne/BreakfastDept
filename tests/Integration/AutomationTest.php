@@ -86,7 +86,7 @@ final class AutomationTest extends TestCase
         // Re-running does not create a second task (idempotent per target).
         $again = $this->svc->run('2026-02-02', 'staff@breakfast');
         $this->assertSame(0, $again['fired']);
-        $this->assertSame(1, (int) breakfast()->db()->scalar('SELECT COUNT(*) FROM automation_fires WHERE rule_uuid = :r', ['r' => (string) $rule['uuid']]));
+        $this->assertSame(1, count(array_filter(breakfast()->fileStore()->all('automation_fires'), static fn (array $f): bool => (string) ($f['rule_uuid'] ?? '') === (string) $rule['uuid'])));
     }
 
     public function testDisabledRuleNeverFires(): void

@@ -36,6 +36,11 @@ final class Automation
         return $this->platform->db();
     }
 
+    private function store(): \Breakfast\Platform\Support\FileStore
+    {
+        return $this->platform->fileStore();
+    }
+
     // ==================================================================
     // Rule CRUD
     // ==================================================================
@@ -43,13 +48,16 @@ final class Automation
     /** @return list<array<string,mixed>> */
     public function list(): array
     {
-        return $this->db()->all('SELECT * FROM automation_rules ORDER BY created_at ASC LIMIT 200');
+        $rows = $this->store()->all('automation_rules');
+        usort($rows, static fn ($a, $b) => strcmp((string) ($a['created_at'] ?? ''), (string) ($b['created_at'] ?? '')));
+
+        return array_slice($rows, 0, 200);
     }
 
     /** @return array<string,mixed>|null */
     public function find(string $uuid): ?array
     {
-        return $this->db()->one('SELECT * FROM automation_rules WHERE uuid = :u', ['u' => $uuid]);
+        return $this->store()->find('automation_rules', $uuid);
     }
 
     /**
@@ -65,11 +73,19 @@ final class Automation
         $name = trim((string) ($data['name'] ?? '')) ?: self::TRIGGERS[$trigger];
         $uuid = Uuid::v4();
         $now = Clock::nowIso();
-        $this->db()->run(
-            'INSERT INTO automation_rules (uuid, name, trigger_type, threshold_days, enabled, created_by, created_at, updated_at)
-             VALUES (:uuid, :name, :trigger, :days, :enabled, :actor, :now, :now)',
-            ['uuid' => $uuid, 'name' => $name, 'trigger' => $trigger, 'days' => max(0, (int) ($data['threshold_days'] ?? 0)), 'enabled' => !empty($data['enabled'] ?? true) ? 1 : 0, 'actor' => $actor, 'now' => $now]
-        );
+        $this->store()->put('automation_rules', [
+            'uuid'           => $uuid,
+            'name'           => $name,
+            'trigger_type'   => $trigger,
+            'threshold_days' => max(0, (int) ($data['threshold_days'] ?? 0)),
+            'enabled'        => !empty($data['enabled'] ?? true) ? 1 : 0,
+            'revision'       => 0,
+            'last_run_at'    => null,
+            'fire_count'     => 0,
+            'created_by'     => $actor,
+            'created_at'     => $now,
+            'updated_at'     => $now,
+        ]);
 
         return $this->find($uuid) ?? [];
     }
@@ -87,31 +103,34 @@ final class Automation
         if ($expectedRevision !== null && (int) $rule['revision'] !== $expectedRevision) {
             throw new AutomationException(409, 'This rule was changed by someone else. Reload and try again.');
         }
-        $sets = ['updated_at = :now', 'revision = revision + 1'];
-        $params = ['u' => $uuid, 'now' => Clock::nowIso()];
-        if (array_key_exists('name', $data)) {
-            $sets[] = 'name = :name';
-            $params['name'] = trim((string) $data['name']) ?: (string) $rule['name'];
-        }
-        if (array_key_exists('threshold_days', $data)) {
-            $sets[] = 'threshold_days = :days';
-            $params['days'] = max(0, (int) $data['threshold_days']);
-        }
-        if (array_key_exists('enabled', $data)) {
-            $sets[] = 'enabled = :enabled';
-            $params['enabled'] = !empty($data['enabled']) ? 1 : 0;
-        }
-        $this->db()->run('UPDATE automation_rules SET ' . implode(', ', $sets) . ' WHERE uuid = :u', $params);
+        $this->store()->update('automation_rules', $uuid, static function (array $row) use ($data): array {
+            if (array_key_exists('name', $data)) {
+                $row['name'] = trim((string) $data['name']) ?: (string) $row['name'];
+            }
+            if (array_key_exists('threshold_days', $data)) {
+                $row['threshold_days'] = max(0, (int) $data['threshold_days']);
+            }
+            if (array_key_exists('enabled', $data)) {
+                $row['enabled'] = !empty($data['enabled']) ? 1 : 0;
+            }
+            $row['revision']   = (int) ($row['revision'] ?? 0) + 1;
+            $row['updated_at'] = Clock::nowIso();
+
+            return $row;
+        });
 
         return $this->find($uuid) ?? [];
     }
 
     public function delete(string $uuid): void
     {
-        // Remove child fires explicitly (foreign-key cascade enforcement is off
-        // during the flat-file migration), then the rule itself.
-        $this->db()->run('DELETE FROM automation_fires WHERE rule_uuid = :u', ['u' => $uuid]);
-        $this->db()->run('DELETE FROM automation_rules WHERE uuid = :u', ['u' => $uuid]);
+        // Remove child fires explicitly, then the rule itself.
+        foreach ($this->store()->all('automation_fires') as $fire) {
+            if ((string) ($fire['rule_uuid'] ?? '') === $uuid) {
+                $this->store()->delete('automation_fires', (string) ($fire['uuid'] ?? ''));
+            }
+        }
+        $this->store()->delete('automation_rules', $uuid);
     }
 
     // ==================================================================
@@ -129,7 +148,10 @@ final class Automation
         $asOf = $this->normaliseDate($asOf) ?? substr(Clock::nowIso(), 0, 10);
         $fired = 0;
         $rules = 0;
-        foreach ($this->db()->all('SELECT * FROM automation_rules WHERE enabled = 1') as $rule) {
+        foreach ($this->store()->all('automation_rules') as $rule) {
+            if ((int) ($rule['enabled'] ?? 0) !== 1) {
+                continue;
+            }
             $rules++;
             $fired += $this->runRule($rule, $asOf, $actor);
         }
@@ -154,21 +176,38 @@ final class Automation
             if ($projectUuid === '') {
                 continue; // no project to hang a follow-up task on
             }
-            if ($this->db()->one('SELECT uuid FROM automation_fires WHERE rule_uuid = :r AND target_ref = :t', ['r' => $uuid, 't' => (string) $t['target_ref']]) !== null) {
+            $targetRef = (string) $t['target_ref'];
+            // Idempotent per (rule, target): putIfAbsent on a hash of the pair.
+            $fireId = sha1($uuid . ':' . $targetRef);
+            if ($this->store()->exists('automation_fires', $fireId)) {
                 continue; // already fired
             }
             $task = $this->platform->projectTasks()->create($projectUuid, [
                 'title' => (string) $rule['name'] . ': ' . (string) $t['label'],
-                'source' => 'automation', 'source_ref' => $uuid . ':' . (string) $t['target_ref'],
+                'source' => 'automation', 'source_ref' => $uuid . ':' . $targetRef,
             ], 'automation');
-            $this->db()->run(
-                'INSERT INTO automation_fires (uuid, rule_uuid, target_ref, project_uuid, task_uuid, detail, created_at) VALUES (:uuid, :r, :t, :p, :task, :detail, :now) ON CONFLICT (rule_uuid, target_ref) DO NOTHING',
-                ['uuid' => Uuid::v4(), 'r' => $uuid, 't' => (string) $t['target_ref'], 'p' => $projectUuid, 'task' => (string) $task['uuid'], 'detail' => (string) $t['label'], 'now' => Clock::nowIso()]
-            );
-            $this->platform->audit()->event('automation.fired', 'project', $projectUuid, $actor, ['rule' => $uuid, 'target' => (string) $t['target_ref']]);
+            $written = $this->store()->putIfAbsent('automation_fires', $fireId, [
+                'uuid'         => $fireId,
+                'rule_uuid'    => $uuid,
+                'target_ref'   => $targetRef,
+                'project_uuid' => $projectUuid,
+                'task_uuid'    => (string) $task['uuid'],
+                'detail'       => (string) $t['label'],
+                'created_at'   => Clock::nowIso(),
+            ]);
+            if (!$written) {
+                continue;
+            }
+            $this->platform->audit()->event('automation.fired', 'project', $projectUuid, $actor, ['rule' => $uuid, 'target' => $targetRef]);
             $fired++;
         }
-        $this->db()->run('UPDATE automation_rules SET last_run_at = :now, fire_count = fire_count + :n WHERE uuid = :u', ['now' => Clock::nowIso(), 'n' => $fired, 'u' => $uuid]);
+        $now = Clock::nowIso();
+        $this->store()->update('automation_rules', $uuid, static function (array $row) use ($now, $fired): array {
+            $row['last_run_at'] = $now;
+            $row['fire_count']  = (int) ($row['fire_count'] ?? 0) + $fired;
+
+            return $row;
+        });
 
         return $fired;
     }
