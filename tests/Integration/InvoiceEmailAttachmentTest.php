@@ -52,7 +52,7 @@ final class InvoiceEmailAttachmentTest extends PlatformTestCase
 
         // The queued job payload contains the reference, and definitely NOT a
         // base64 PDF blob (%PDF → "JVBERi0" once base64-encoded).
-        $payload = (string) $this->platform->db()->scalar('SELECT payload FROM jobs LIMIT 1');
+        $payload = (string) ($this->platform->fileStore()->all('jobs')[0]['payload'] ?? '');
         $this->assertStringContainsString('invoice:' . $uuid, $payload);
         $this->assertStringNotContainsString('JVBERi0', $payload, 'the queue must not carry base64 PDF bytes');
         $this->assertLessThan(4000, strlen($payload), 'a reference keeps the job payload tiny');

@@ -188,7 +188,7 @@ final class Platform
 
     public function queue(): Queue
     {
-        return $this->service(Queue::class, fn () => new Queue($this->db(), $this->logger()));
+        return $this->service(Queue::class, fn () => new Queue($this->fileStore(), $this->logger()));
     }
 
     public function invoices(): \Breakfast\Platform\Invoicing\Invoices
@@ -494,7 +494,7 @@ final class Platform
     public function webhooks(): WebhookDispatcher
     {
         return $this->service(WebhookDispatcher::class, fn () => new WebhookDispatcher(
-            $this->db(),
+            $this->fileStore(),
             $this->queue(),
             (string) ($this->config('webhookSecret') ?? '')
         ));

@@ -82,11 +82,10 @@ final class RetentionServiceTest extends PlatformTestCase
         $keep = $dir . '/kept.bin';
         file_put_contents($keep, 'y');
         touch($keep, time() - 48 * 3600);
-        $this->platform->db()->run(
-            "INSERT INTO uploads (uuid, enquiry_uuid, original_name, stored_name, mime, size_bytes, sha256, created_at)
-             VALUES (:u, NULL, 'k', 'kept.bin', 'application/octet-stream', 1, 'abc', :t)",
-            ['u' => bin2hex(random_bytes(8)), 't' => date('c')]
-        );
+        $this->platform->fileStore()->put('uploads', [
+            'uuid' => bin2hex(random_bytes(8)), 'enquiry_uuid' => null, 'original_name' => 'k', 'stored_name' => 'kept.bin',
+            'mime' => 'application/octet-stream', 'size_bytes' => 1, 'sha256' => 'abc', 'scan_status' => 'skipped', 'created_at' => date('c'),
+        ]);
 
         $plan = $this->platform->retention()->plan();
         $this->assertSame(1, $plan['orphaned_uploads']['eligible']);

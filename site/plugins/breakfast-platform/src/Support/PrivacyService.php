@@ -94,17 +94,26 @@ final class PrivacyService
         $p   = $this->platform;
         $now = Clock::nowIso();
 
+        $jobCutoff     = $this->cutoff($jobDays);
+        $deliveryCutoff = $this->cutoff($eventDays);
+        $oldJob      = static fn (array $j): bool => (string) ($j['status'] ?? '') === 'done' && (string) ($j['completed_at'] ?? '') !== '' && (string) $j['completed_at'] < $jobCutoff;
+        $oldDelivery = static fn (array $d): bool => (string) ($d['status'] ?? '') === 'delivered' && (string) ($d['created_at'] ?? '') !== '' && (string) $d['created_at'] < $deliveryCutoff;
+
         $counts = [
             'email_events'      => $this->countOlder('email_events', 'received_at', $eventDays),
-            'completed_jobs'    => (int) $p->db()->scalar("SELECT COUNT(*) FROM jobs WHERE status = 'done' AND completed_at < :c", ['c' => $this->cutoff($jobDays)]),
-            'webhook_deliveries' => (int) $p->db()->scalar("SELECT COUNT(*) FROM webhook_deliveries WHERE status = 'delivered' AND created_at < :c", ['c' => $this->cutoff($eventDays)]),
+            'completed_jobs'    => count(array_filter($p->fileStore()->all('jobs'), $oldJob)),
+            'webhook_deliveries' => count(array_filter($p->fileStore()->all('webhook_deliveries'), $oldDelivery)),
             'ip_hashes'         => $this->countEnquiryIpHashes(30),
         ];
 
         if ($apply) {
             $p->outbound()->pruneEvents($eventDays);
-            $p->db()->run("DELETE FROM jobs WHERE status = 'done' AND completed_at < :c", ['c' => $this->cutoff($jobDays)]);
-            $p->db()->run("DELETE FROM webhook_deliveries WHERE status = 'delivered' AND created_at < :c", ['c' => $this->cutoff($eventDays)]);
+            foreach (array_filter($p->fileStore()->all('jobs'), $oldJob) as $j) {
+                $p->fileStore()->delete('jobs', (string) ($j['uuid'] ?? ''));
+            }
+            foreach (array_filter($p->fileStore()->all('webhook_deliveries'), $oldDelivery) as $d) {
+                $p->fileStore()->delete('webhook_deliveries', (string) ($d['uuid'] ?? ''));
+            }
             $p->enquiries()->pruneIpHashes(30);
             $p->rateLimiter()->prune();
             (new SubmissionGuard($p->fileStore(), $p->rateLimiter()))->pruneFingerprints();

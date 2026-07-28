@@ -69,32 +69,11 @@ final class RetentionService
      */
     private function categories(): array
     {
-        $db = $this->platform->db();
-
-        $timeBased = function (string $table, string $column, ?int $days, string $extraWhere = '') use ($db): array {
-            if ($days === null || $days <= 0) {
-                $noop = static function (): void {
-                };
-
-                return ['days' => $days, 'count' => static fn (): int => 0, 'apply' => $noop];
-            }
-            $cutoff = Clock::now()->modify('-' . $days . ' days')->format('c');
-            $where  = $column . ' < :cut' . ($extraWhere !== '' ? ' AND ' . $extraWhere : '');
-
-            return [
-                'days'  => $days,
-                'count' => static fn (): int => (int) $db->scalar("SELECT COUNT(*) FROM {$table} WHERE {$where}", ['cut' => $cutoff]),
-                'apply' => static function () use ($db, $table, $where, $cutoff): void {
-                    $db->run("DELETE FROM {$table} WHERE {$where}", ['cut' => $cutoff]);
-                },
-            ];
-        };
-
         $store = $this->platform->fileStore();
 
-        // Flat-file equivalent of $timeBased: prune records in a FileStore
-        // collection whose date field is older than the cutoff.
-        $fileTimeBased = function (string $collection, string $column, ?int $days) use ($store): array {
+        // Prune records in a FileStore collection whose date field is older than
+        // the cutoff, optionally constrained by a status predicate.
+        $fileTimeBased = function (string $collection, string $column, ?int $days, ?callable $predicate = null) use ($store): array {
             if ($days === null || $days <= 0) {
                 return ['days' => $days, 'count' => static fn (): int => 0, 'apply' => static function (): void {
                 }];
@@ -102,7 +81,7 @@ final class RetentionService
             $cutoff = Clock::now()->modify('-' . $days . ' days')->format('c');
             $expired = static fn (): array => array_filter(
                 $store->all($collection),
-                static fn (array $r): bool => ($r[$column] ?? null) !== null && (string) $r[$column] < $cutoff
+                static fn (array $r): bool => ($r[$column] ?? null) !== null && (string) $r[$column] < $cutoff && ($predicate === null || $predicate($r))
             );
 
             return [
@@ -119,10 +98,10 @@ final class RetentionService
         return [
             'crm_activities'     => $fileTimeBased('activities', 'created_at', $this->days('activitiesDays', 730)),
             'preview_analytics'  => $fileTimeBased('preview_access_events', 'occurred_at', $this->days('previewAnalyticsDays', 180)),
-            'queue_jobs'         => $timeBased('jobs', 'completed_at', $this->days('queueDays', 30), "status = 'done'"),
-            'webhook_deliveries' => $timeBased('webhook_deliveries', 'delivered_at', $this->days('webhookDays', 90), "status = 'delivered'"),
+            'queue_jobs'         => $fileTimeBased('jobs', 'completed_at', $this->days('queueDays', 30), static fn (array $r): bool => (string) ($r['status'] ?? '') === 'done'),
+            'webhook_deliveries' => $fileTimeBased('webhook_deliveries', 'delivered_at', $this->days('webhookDays', 90), static fn (array $r): bool => (string) ($r['status'] ?? '') === 'delivered'),
             'email_events'       => $fileTimeBased('email_events', 'event_at', $this->days('emailEventsDays', 90)),
-            'audit_log'          => $timeBased('hermes_audit', 'created_at', $this->days('auditDays', 365)),
+            'audit_log'          => $fileTimeBased('hermes_audit', 'created_at', $this->days('auditDays', 365)),
             'orphaned_uploads'   => $this->orphanedUploads(),
             'orphaned_previews'  => $this->orphanedPreviewDirs(),
         ];
@@ -138,11 +117,16 @@ final class RetentionService
     {
         $dir     = $this->platform->uploadsDir();
         $graceTs = Clock::timestamp() - ($this->graceHours() * 3600);
-        $db      = $this->platform->db();
+        $store   = $this->platform->fileStore();
 
-        $find = static function () use ($dir, $graceTs, $db): array {
+        $find = static function () use ($dir, $graceTs, $store): array {
             if (is_dir($dir) === false) {
                 return [];
+            }
+            // Set of stored_name values that still have an uploads record.
+            $known = [];
+            foreach ($store->all('uploads') as $u) {
+                $known[(string) ($u['stored_name'] ?? '')] = true;
             }
             $orphans = [];
             foreach (scandir($dir) ?: [] as $item) {
@@ -153,8 +137,7 @@ final class RetentionService
                 if (is_file($path) === false || (filemtime($path) ?: 0) >= $graceTs) {
                     continue;
                 }
-                $row = $db->one('SELECT uuid FROM uploads WHERE stored_name = :n LIMIT 1', ['n' => $item]);
-                if ($row === null) {
+                if (!isset($known[$item])) {
                     $orphans[] = $path;
                 }
             }
