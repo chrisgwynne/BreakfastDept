@@ -45,8 +45,7 @@ final class CrmWrite
             throw new ApiException(422, 'Please fix the highlighted fields.', 'invalid', $errors);
         }
 
-        /** @var array<string,mixed> $result */
-        $result = $this->platform->db()->transaction(function () use ($in, $name, $email, $actor): array {
+        $result = (function () use ($in, $name, $email, $actor): array {
             $company = $this->resolveCompany($in, $actor);
 
             [$first, $last] = $this->splitName($name);
@@ -105,7 +104,7 @@ final class CrmWrite
             ]);
 
             return ['enquiry' => $enquiry, 'contact' => $contact, 'company' => $company];
-        });
+        })();
 
         return $result;
     }
@@ -135,8 +134,7 @@ final class CrmWrite
             throw new ApiException(422, 'Please fix the highlighted fields.', 'invalid', $errors);
         }
 
-        /** @var array<string,mixed> $result */
-        $result = $this->platform->db()->transaction(function () use ($in, $first, $last, $display, $email, $actor): array {
+        $result = (function () use ($in, $first, $last, $display, $email, $actor): array {
             $company = $this->resolveCompany($in, $actor);
 
             $contact = $this->upsertContact([
@@ -162,7 +160,7 @@ final class CrmWrite
             ]);
 
             return ['contact' => $contact, 'company' => $company];
-        });
+        })();
 
         return $result;
     }
@@ -369,8 +367,7 @@ final class CrmWrite
             $title = 'Opportunity from ' . (string) ($enquiry['reference'] ?? 'lead');
         }
 
-        /** @var array<string,mixed> $result */
-        $result = $this->platform->db()->transaction(function () use ($enquiry, $uuid, $title, $stage, $in, $actor): array {
+        $result = (function () use ($enquiry, $uuid, $title, $stage, $in, $actor): array {
             $opportunity = $this->platform->crm()->createOpportunity([
                 'title'           => $title,
                 'stage'           => $stage,
@@ -387,7 +384,7 @@ final class CrmWrite
             $this->platform->audit()->event('lead.converted', 'enquiry', $uuid, $actor, ['opportunity' => $opportunity['uuid'] ?? null]);
 
             return ['opportunity' => $opportunity, 'enquiry_uuid' => $uuid];
-        });
+        })();
 
         return $result;
     }

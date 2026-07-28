@@ -7,12 +7,11 @@ namespace Breakfast\Platform\Proposals;
 use Breakfast\Platform\Support\Platform;
 
 /**
- * Turns an accepted proposal into downstream commercial records in one
- * transactional step: mark the linked opportunity won, and raise a draft deposit
- * invoice for the agreed deposit. Each conversion is opt-in (the caller chooses
- * which to run) and idempotent-ish — re-running skips work already done — and
- * everything is recorded on the CRM timeline. Projects and contracts are wired
- * in as those modules land.
+ * Turns an accepted proposal into downstream commercial records: mark the linked
+ * opportunity won, and raise a draft deposit invoice for the agreed deposit.
+ * Each conversion is opt-in (the caller chooses which to run) and idempotent-ish
+ * — re-running skips work already done — and everything is recorded on the CRM
+ * timeline. Every record it touches is flat-file, each write atomic on its own.
  */
 final class ProposalConversion
 {
@@ -34,8 +33,7 @@ final class ProposalConversion
             throw new ProposalException(409, 'Only an accepted proposal can be converted.');
         }
 
-        /** @var array{opportunity:?string,invoice:?string,steps:list<string>} $result */
-        $result = $this->platform->db()->transaction(function () use ($proposal, $uuid, $steps, $actor): array {
+        $convert = function () use ($proposal, $uuid, $steps, $actor): array {
             $done = [];
             $oppUuid = $this->nullable($proposal['opportunity_uuid'] ?? null);
             $invoiceUuid = null;
@@ -79,7 +77,9 @@ final class ProposalConversion
             }
 
             return ['opportunity' => $oppUuid, 'invoice' => $invoiceUuid, 'steps' => $done];
-        });
+        };
+
+        $result = $convert();
 
         return $result;
     }

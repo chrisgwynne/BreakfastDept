@@ -580,7 +580,6 @@ final class Platform
             $this->previews(),
             $this->previewVersions(),
             $this->previewStorage(),
-            $this->db(),
             $this->previewConfig()
         ));
     }
