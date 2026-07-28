@@ -477,7 +477,7 @@ final class Platform
     public function settings(): \Breakfast\Platform\Settings\SettingsStore
     {
         return $this->service(\Breakfast\Platform\Settings\SettingsStore::class, fn () => new \Breakfast\Platform\Settings\SettingsStore(
-            $this->db(),
+            $this->fileStore(),
             new \Breakfast\Platform\Settings\SecretBox($this->storageDir())
         ));
     }

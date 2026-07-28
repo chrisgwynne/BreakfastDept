@@ -94,7 +94,7 @@ final class BrevoSettingsTest extends TestCase
         $this->assertStringNotContainsString('VERYLONGSECRET', json_encode($ov) ?: '');
 
         // Stored value is ciphertext, flagged secret, plaintext absent.
-        $row = breakfast()->db()->one("SELECT value, is_secret FROM platform_settings WHERE name = 'brevo.api_key'");
+        $row = breakfast()->fileStore()->find('platform_settings', sha1('brevo.api_key'));
         $this->assertSame(1, (int) $row['is_secret']);
         $this->assertStringNotContainsString('VERYLONGSECRET', (string) $row['value']);
     }
