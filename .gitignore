@@ -12,7 +12,7 @@
 /public/media/*
 !/public/media/.gitkeep
 
-# Operational storage — sessions, cache, logs, sqlite, private uploads, queue
+# Operational storage — sessions, cache, logs, flat-file data, private uploads, queue
 # Encrypted-secret master key — MUST NEVER be committed.
 /storage/secret.key
 /storage/sessions/*
@@ -20,9 +20,9 @@
 /site/cache/*
 /storage/logs/*
 /storage/accounts/*
-/storage/database/*.sqlite
-/storage/database/*.sqlite-*
-/storage/database/.migrate.lock
+# Flat-file data tree — every operational record (CRM, projects, portal, queue,
+# audit, …) lives here and MUST NEVER be committed.
+/storage/data/*
 /storage/uploads/*
 /storage/queue/*
 /storage/client-previews/*
