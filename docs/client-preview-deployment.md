@@ -15,7 +15,7 @@ gets its own browser origin, so the same-origin policy — not just cookie
 scoping — separates previews outright: one preview's JavaScript cannot read
 another's responses even if a visitor has unlocked it. Hostnames are derived
 automatically from the preview slug; there is no per-preview DNS, certificate or
-database change to make when a preview is created.
+configuration change to make when a preview is created.
 
 ## 1. DNS (wildcard)
 
@@ -96,8 +96,8 @@ the app user and excluded from backups-as-code / git (it already is).
 Nothing to migrate by hand. A preview's public hostname is **derived from its
 slug** at request time, so the moment `CLIENT_PREVIEW_WILDCARD_BASE` is set,
 every existing preview is reachable at `https://{its-slug}.preview.…/` with no
-database edit. When a slug changes, the previous slug is remembered
-(`previous_slug`, indexed by migration `0005`) and the old subdomain issues a
+configuration edit. When a slug changes, the previous slug is remembered
+(the `previous_slug` field on the preview record) and the old subdomain issues a
 **301 redirect** to the current one, so shared links keep working. CRM deep
 links and Brevo invitation links are generated from the same
 `PreviewUrlGenerator`, so they automatically use the new origin.

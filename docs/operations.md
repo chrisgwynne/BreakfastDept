@@ -145,18 +145,19 @@ See [hermes-integration.md](hermes-integration.md) for the webhook mechanics.
 
 ### Disk full
 
-A full disk breaks SQLite writes and log writes. Symptoms: form submissions and
-Panel saves fail, the queue stalls, `PRAGMA` errors in logs. Recovery:
+A full disk breaks record writes and log writes. Symptoms: form submissions and
+Panel saves fail, the queue stalls, "no space left on device" in logs. Because
+each record is written to a temp file and then `rename()`d into place, a failed
+write leaves the previous record intact — nothing is half-written. Recovery:
 
 1. Free space — rotate/remove old `storage/logs/*.log`, clear
    `storage/cache/*` (safe; Kirby rebuilds it), remove old thumbnails under
    `public/media/*` (regenerated on demand).
-2. Confirm the database is intact: `sqlite3 storage/database/crm.sqlite
-   "PRAGMA integrity_check;"` (expect `ok`).
+2. Confirm the data tree is intact — every record parses as JSON:
+   `find storage/data -name '*.json' -exec sh -c 'jq -e . "$1" >/dev/null || echo "CORRUPT: $1"' _ {} \;`
+   (no output = ok). Delete any stray `*.tmp` files left by an interrupted write.
 3. Restart the queue worker and verify `queue_depth` drains.
-4. Add disk-usage alerting so it doesn't recur. WAL files
-   (`crm.sqlite-wal`) can grow under load — a periodic
-   `PRAGMA wal_checkpoint(TRUNCATE);` keeps them in check.
+4. Add disk-usage alerting so it doesn't recur.
 
 ### The queue is not draining
 

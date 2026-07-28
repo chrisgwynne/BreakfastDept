@@ -21,9 +21,9 @@ persistence and side effects.
 
 The web server's document root is **`public/`**, not the project root. Only
 `public/index.php`, `public/assets/` and `public/media/` are reachable over
-HTTP. Everything else — `content/`, `site/`, `storage/` (SQLite, sessions,
-cache, logs, uploads, queue) and `vendor/` — lives one level up and cannot be
-requested directly.
+HTTP. Everything else — `content/`, `site/`, `storage/` (the `data/` record
+tree, sessions, cache, logs, uploads) and `vendor/` — lives one level up and
+cannot be requested directly.
 
 `public/index.php` is a thin front controller that boots Kirby with **every
 root declared explicitly**:
@@ -56,19 +56,19 @@ The plugin is PSR-4 autoloaded under `Breakfast\Platform\` and boots a single
 service container (`Support\Platform`) once per request. The container is
 constructed from the **non-secret** options Kirby resolves in
 `site/config/config.php` plus secrets read straight from the environment, and
-it lazily builds every service (database, repositories, queue, mailer, webhook
-dispatcher, and so on).
+it lazily builds every service (the flat-file store, repositories, queue,
+mailer, webhook dispatcher, and so on).
 
 ### Module responsibilities
 
 | Module | Responsibility |
 |---|---|
-| **Support** | The plumbing: `Platform` container, `Database` (PDO/SQLite wrapper), `Migrator` (forward-only SQL migrations), `Env` (.env loader), `Clock` (injectable time), `Logger` (redacting JSON-lines log), `Uuid`, `ReadingTime`, `Runtime` (per-request CSP nonce holder), `RetentionService` (one configurable data-retention policy across every table + orphaned files; read-only plan vs opt-in apply). |
+| **Support** | The plumbing: `Platform` container, `FileStore` (the atomic, per-collection-locked flat-file record engine) and `FileRepository` (its shared query base), `Env` (.env loader), `Clock` (injectable time), `Logger` (redacting JSON-lines log), `Uuid`, `ReadingTime`, `Runtime` (per-request CSP nonce holder), `RetentionService` (one configurable data-retention policy across every collection + orphaned files; read-only plan vs opt-in apply). |
 | **ClientPreviews** | Static client mock-up hosting on an isolated origin: upload validation (`PreviewPathGuard`, `PreviewSvgSanitizer`, zip-slip/zip-bomb defence), immutable versioned storage outside the docroot, publishing/rollback, the serve-time responder, and — for host isolation — `PreviewHost` (slug↔host mapping + host validation) and `PreviewUrlGenerator` (per-preview subdomain / single-host / dev-prefix URL modes). Access events store keyed hashes only. |
 | **Admin** | The branded Breakfast Admin surface: `DashboardData` (safe, non-secret read-only summaries) behind the relocated Panel slug, plus the previews/ops Panel API. |
-| **Crm** | SQLite persistence behind repositories (`Contact`, `Company`, `Enquiry`, `Opportunity`, `Task`, `Activity`) and a `Crm` service that coordinates them, enforces pipeline rules and writes the immutable activity log. |
+| **Crm** | Flat-file persistence behind repositories (`Contact`, `Company`, `Enquiry`, `Opportunity`, `Task`, `Activity`) and a `Crm` service that coordinates them, enforces pipeline rules and writes the immutable activity log. |
 | **Forms** | The submission pipeline: `Validator`, `Sanitizer`, `SubmissionGuard` (honeypot, timing, rate limiting, duplicate detection), `UploadHandler`, and `FormProcessor` which ties it all together. |
-| **Queue** | Durable, SQLite-backed outbox (`Queue`, `Job`, `Worker`) with leases, retries with backoff and idempotency keys. |
+| **Queue** | Durable, flat-file-backed outbox (`Queue`, `Job`, `Worker`) with leases, retries with backoff and idempotency keys. |
 | **Mail** | Provider-agnostic transactional email: a `MailMessage` value object, a `MailProvider` boundary (Brevo API / SMTP / Fake) selected by `MailProviderFactory`, `MailService` (queue + suppression + tracking), the `OutboundMessageRepository`, `SuppressionService`, `TemplateRegistry`, the enquiry/CRM message factories and the `BrevoWebhook` receiver. Every send is dispatched via the queue. See "Transactional email (Brevo)" below. |
 | **Hermes** | The integration boundary: a versioned, HMAC-authenticated API (`Api`, `Authenticator`, `Signer`, `Scopes`, `Credential(Store)`), the outbound `WebhookDispatcher`, `DraftFactory` and the `AuditLog`. |
 | **Security** | `SecurityHeaders` (CSP + headers), `RateLimiter`, `Hash` (keyed IP hashing), `PanelGate` (server-side CRM permission checks). |
@@ -108,32 +108,38 @@ In `Forms\FormProcessor::process()` the ordering is deliberate:
 3. Server-side validation.
 4. Rate limiting (per IP and per email).
 5. Duplicate detection.
-6. **Persist** the company, contact, enquiry and immutable activity records in
-   one database transaction.
+6. **Persist** the company, contact, enquiry and immutable activity records as
+   flat files (each write atomic on its own).
 7. **Enqueue** the side effects: internal notification email, visitor
    acknowledgement email, and the `enquiry.created` webhook fan-out.
 
-Because steps 6 and 7 are both local SQLite writes, a temporarily unavailable
+Because steps 6 and 7 are both local file writes, a temporarily unavailable
 SMTP server or webhook endpoint can never lose a lead. The queue worker
 (`Queue\Worker`, run from the CLI or cron) later performs the actual delivery
 with retries and exponential backoff. See [operations.md](operations.md).
 
-## SQLite behind repositories
+## The flat-file store
 
-All operational data lives in a single SQLite database
-(`storage/database/crm.sqlite`, outside the docroot). Every table is reached
-only through a repository that extends `Crm\Repository` or through the
-`Support\Database` wrapper, which:
+There is no database. All operational data lives as JSON files under
+`storage/data/<collection>/<uuid>.json` (outside the docroot). Every collection
+is reached only through a repository or service, all built on the one storage
+primitive, `Support\FileStore`, which:
 
-- forces `PRAGMA foreign_keys = ON`, WAL journalling and a busy timeout;
-- exposes only prepared-statement helpers (`run`, `one`, `all`, `scalar`,
-  `transaction`) so callers cannot interpolate values into SQL;
-- whitelists updatable columns in each repository's `assignments()` helper.
+- writes each record atomically (temp file + `rename()`), so a reader never sees
+  a half-written record and a failed write leaves the previous one intact;
+- serialises mutations per collection behind an exclusive `flock` lock (the
+  filesystem equivalent of a row lock), so concurrent writers can't interleave;
+- provides the primitives the repositories build on: `put`, `find`, `all`,
+  `update`, `delete`, `count`, `exists`, plus `bump()` (an atomic monotonic
+  counter for human-readable references) and `putIfAbsent()` (the equivalent of a
+  UNIQUE constraint, used for idempotent event ingestion).
 
-SQLite is a deliberate choice for a small studio: zero operational overhead,
-transactional integrity and easy backups. Because all access is funnelled
-through repositories, moving to MySQL or Postgres later is a driver swap plus
-dialect adjustments, not an application rewrite.
+Querying is "load the collection and filter/sort/paginate in PHP" — exactly how
+Kirby treats content, and more than fast enough at a solo studio's volume.
+Cross-entity joins are resolved by loading the related collection in memory.
+Flat files are a deliberate choice: zero operational overhead, portable,
+git-friendly, editable, backed up by copying a directory, and deployed by a plain
+file sync with no schema or migration step.
 
 ## Hermes as an integration identity
 
@@ -251,15 +257,15 @@ webhook's authentication is separate from Hermes.
 ## Key architectural decisions
 
 1. **Public-folder docroot.** The web root is `public/`; content, config, the
-   SQLite database, storage and `vendor/` all live above it and are
-   unreachable over HTTP. Roots are declared explicitly in the front
-   controller. This gives least-privilege file exposure and an unambiguous
-   layout across hosts.
+   `storage/` data tree and `vendor/` all live above it and are unreachable over
+   HTTP. Roots are declared explicitly in the front controller. This gives
+   least-privilege file exposure and an unambiguous layout across hosts.
 
-2. **SQLite via PDO behind repositories.** All persistence goes through a thin
-   PDO wrapper and a repository per entity, with prepared statements,
-   transactions and foreign-key pragmas. A future move to MySQL/Postgres
-   becomes a driver swap rather than an application rewrite.
+2. **Flat files behind repositories — no database.** All persistence goes
+   through `Support\FileStore` (atomic temp-file + `rename()` writes, per-
+   collection `flock` locking) and a repository/service per entity. Data is
+   portable JSON under `storage/data/`, backed up by copying a directory and
+   deployed by a plain file sync with no schema or migration step.
 
 3. **Outbox / queue for all external side effects.** A valid enquiry is written
    to the CRM (with an immutable activity record) before any email or webhook

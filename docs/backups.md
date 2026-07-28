@@ -1,80 +1,82 @@
 # Backups
 
-Breakfast keeps editorial content in flat files and all operational data in a
-single SQLite database. Both, plus a handful of supporting directories, must be
-backed up. This document says what to copy, how to copy the database safely, and
-how to keep the backups secure.
+Breakfast keeps **everything** in flat files: editorial content under `content/`
+and all operational data as JSON records under `storage/data/`. There is no
+database. Both trees, plus a handful of supporting directories, must be backed
+up. This document says what to copy, how to copy it safely, and how to keep the
+backups secure.
 
 ## What to back up
 
 | Path | Contains | Priority |
 |---|---|---|
 | `content/` | All editorial content (pages, text files, referenced media source) | Critical |
-| `storage/database/*.sqlite` (+ `-wal` / `-shm`) | The CRM, queue, webhooks and audit trail | Critical |
+| `storage/data/` | Every operational record — CRM, projects, invoicing, portal, queue, webhooks, audit trail — one JSON file per record | Critical |
 | `storage/uploads/` | Files attached to enquiries (stored outside the docroot) | Critical (if uploads are enabled) |
-| `storage/client-previews/` | Published client-preview files (the `client_previews` DB rows reference these) | Important — see note |
+| `storage/client-previews/` | Published client-preview files (the `client_previews` records reference these) | Important — see note |
+| `storage/client-files/`, `storage/invoices/`, `storage/vault-keys/` | Client file library bytes, generated invoice/contract PDFs, and the vault encryption keys | Critical |
 | `.env` | Configuration and secrets | Critical — back up **securely and separately** |
 | `storage/accounts/` (a.k.a. `site/accounts`) | Panel user accounts, if used | Important |
 | `storage/logs/` | Application + queue logs | Optional (useful for audit) |
 
 You do **not** need to back up `vendor/`, `public/media/` (Kirby regenerates
 thumbnails) or `storage/cache/` and `storage/sessions/` (transient). These are
-rebuilt from source and the database.
+rebuilt from source and the data tree.
 
-## Backing up the SQLite database safely
+## Backing up the data tree safely
 
-The database runs in **WAL** mode, so recent writes may live in the `-wal` file
-rather than the main `.sqlite` file. Do not copy `crm.sqlite` alone with a
-plain `cp` while the site is live — you may capture a torn or stale state.
-
-**Preferred — use SQLite's online backup**, which is consistent even under
-concurrent writes:
-
-```bash
-sqlite3 storage/database/crm.sqlite \
-  ".backup '/backups/crm-$(date +%F-%H%M).sqlite'"
-```
-
-**Alternative — file copy with a checkpoint.** Checkpoint the WAL into the main
-file first, then copy all three parts together:
+`storage/data/` is a directory of plain JSON files. Each record is written
+atomically (a temp file is written, then `rename()`d into place), so a file is
+never captured half-written — a filesystem-level copy of the tree is always
+consistent per record. There is no WAL, no checkpoint and no online-backup step:
+a simple archive is safe even under concurrent writes.
 
 ```bash
-sqlite3 storage/database/crm.sqlite "PRAGMA wal_checkpoint(TRUNCATE);"
-cp storage/database/crm.sqlite      /backups/crm-$(date +%F-%H%M).sqlite
-# If -wal / -shm still exist, copy them alongside the main file.
+tar czf /backups/breakfast-data-$(date +%F-%H%M).tgz storage/data
 ```
 
-The `.backup` command is simplest and safest — prefer it.
+For a point-in-time snapshot of an actively-written tree, prefer a filesystem
+snapshot (LVM/ZFS/btrfs) or `rsync --link-dest` so the whole set is coherent;
+but a plain `tar` is fine at a solo-studio's write volume.
 
-Verify each backup is well-formed before trusting it:
+Verify a backup is well-formed by confirming every file is valid JSON:
 
 ```bash
-sqlite3 /backups/crm-2026-07-21-0300.sqlite "PRAGMA integrity_check;"
-# expect: ok
+find /backups/extracted/storage/data -name '*.json' -exec sh -c \
+  'jq -e . "$1" >/dev/null || echo "CORRUPT: $1"' _ {} \;
+# no output = every record parsed cleanly
 ```
 
-## Backing up content and uploads
+## Backing up content, uploads and generated files
 
-`content/` and `storage/uploads/` are ordinary files; a filesystem-level copy is
-fine. Snapshot them together with the database backup so the set is coherent:
+`content/`, `storage/uploads/`, `storage/client-previews/`, `storage/client-files/`,
+`storage/invoices/` and `storage/vault-keys/` are ordinary files. Snapshot them
+together with the data tree so the set is coherent:
 
 ```bash
-tar czf /backups/breakfast-content-$(date +%F).tgz content storage/uploads storage/client-previews
+tar czf /backups/breakfast-files-$(date +%F).tgz \
+  content storage/data storage/uploads storage/client-previews \
+  storage/client-files storage/invoices storage/vault-keys
 ```
 
-**Client previews:** the `client_previews` table (in the database backup) points
-at version files under `storage/client-previews/`. Include that directory in the
-snapshot above so a restore is coherent. If you choose **not** to back it up
-(previews are disposable mock-ups), a restored database will have preview rows
-whose files are missing — those previews will 404 until re-uploaded. Decide which
-you want and keep the database and this directory in the same snapshot either way.
+**Vault keys are critical.** Vault secrets under `storage/data/vault_item_fields/`
+are encrypted; the keys that decrypt them live in `storage/vault-keys/`. Back up
+both together — the ciphertext is useless without the keys, and the keys are
+useless without the ciphertext. Keep them in the same snapshot.
+
+**Client previews:** the `client_previews` records point at version files under
+`storage/client-previews/`. Include that directory in the snapshot so a restore
+is coherent. If you choose **not** to back it up (previews are disposable
+mock-ups), a restored data tree will have preview records whose files are missing
+— those previews will 404 until re-uploaded. Keep the data tree and this
+directory in the same snapshot either way.
 
 ## Frequency
 
-- **Database:** at least daily; hourly is reasonable for an active pipeline.
-  Always take an extra backup **immediately before a deploy or migration**.
-- **Content + uploads:** daily, or after significant editorial work.
-- **`.env`:** whenever it changes (it changes rarely). Keep it version-tracked
+- **Data tree (`storage/data/`):** at least daily; hourly is reasonable for an
+  active pipeline. Always take an extra backup **immediately before a deploy**.
+- **Content + uploads + generated files:** daily, or after significant work.
+- **`.env` + `storage/vault-keys/`:** whenever they change (rarely). Keep them
   in a secrets manager, not in the repository.
 
 ## Offsite and retention
@@ -90,24 +92,25 @@ you want and keep the database and this directory in the same snapshot either wa
 
 ## Encryption
 
-Backups contain personal data (contacts, enquiries) and, in the case of `.env`,
-live secrets. Encrypt them at rest:
+Backups contain personal data (contacts, enquiries), the vault keys, and — in
+the case of `.env` — live secrets. Encrypt them at rest:
 
 ```bash
 # Example: age (or gpg) before uploading offsite.
-age -r <recipient-key> -o crm-2026-07-21.sqlite.age crm-2026-07-21.sqlite
+age -r <recipient-key> -o breakfast-data-2026-07-21.tgz.age breakfast-data-2026-07-21.tgz
 ```
 
-Store the `.env` backup separately from the data backups so that a single
-leaked archive does not contain both the data and the keys to it.
+Store the `.env` and `storage/vault-keys/` backups separately from the data
+backups so that a single leaked archive does not contain both the data and the
+keys to it.
 
 ## Restricting access
 
 - Restrict the backup directory to the backup user (`chmod 0700`).
 - Give the offsite bucket the narrowest possible credentials (write-only /
   append-only where the provider supports it).
-- Treat access to backups as equivalent to access to the live database — the
-  same GDPR obligations apply.
+- Treat access to backups as equivalent to access to the live data — the same
+  GDPR obligations apply.
 
 ## Test your restores
 

@@ -1,7 +1,8 @@
 # CRM
 
 The CRM is the operational heart of the platform. It stores every enquiry,
-contact, company, opportunity, task and activity in SQLite, coordinates them
+contact, company, opportunity, task and activity as flat JSON files under
+`storage/data/`, coordinates them
 through a service layer, enforces the sales pipeline and keeps an immutable
 audit trail. It is reached from three places — the public form pipeline, the
 Panel CRM area, and the Hermes API — all of which go through the same service
@@ -9,8 +10,9 @@ layer so the rules live in one place.
 
 ## Entities and their fields
 
-The schema is defined in
-`site/plugins/breakfast-platform/migrations/0001_crm_core.sql`. All timestamps
+Each entity is a collection of JSON records under `storage/data/` (one file per
+record, named by UUID); the shapes are defined by the repository classes in
+`site/plugins/breakfast-platform/src/Crm/`. All timestamps
 are ISO-8601 UTC strings and all primary keys are UUIDs.
 
 ### Contacts (`contacts`)
@@ -202,12 +204,11 @@ send. `CrmMailService::send()` additionally refuses an invalid recipient
 transactionally-suppressed recipient (`recipient_suppressed`) — returning a
 structured error rather than throwing.
 
-### The email tables
+### The email collections
 
-Introduced by
-`migrations/0003_brevo_and_email_tracking.sql` (forward-only, provider-agnostic):
+Three flat-file collections under `storage/data/` (provider-agnostic):
 
-- **`outbound_messages`** — one durable row per outbound transactional message:
+- **`outbound_messages`** — one durable record per outbound transactional message:
   the CRM correlation UUIDs (contact/company/enquiry/opportunity/task), sender,
   a keyed `recipient_hash` (for correlation without exposing the address
   alongside the retained `recipient_email`), a redacted `params_snapshot`, the

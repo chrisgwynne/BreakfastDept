@@ -4,8 +4,8 @@ A human pre-release pass to run **in addition to** the automated suite
 (`composer test`, `composer stan`, `composer cs-check`, `npm run lint`,
 `npx playwright test`) and the CLI smoke checks (`php bin/console app:check`,
 `php bin/console mail:check`). Work through it against a release candidate on a
-staging environment that mirrors production (own `.env`, own SQLite database,
-Brevo in a test/sandbox mode where possible).
+staging environment that mirrors production (own `.env`, own `storage/data/`
+tree, Brevo in a test/sandbox mode where possible).
 
 Tick every box. Anything that cannot be ticked is a release blocker until it is
 either fixed or consciously waived and recorded.
@@ -145,8 +145,8 @@ either fixed or consciously waived and recorded.
 - [ ] **Production debug disabled** — `APP_DEBUG=false` / `APP_ENV=production`;
       no stack traces or paths are exposed publicly.
 - [ ] **Secrets absent from the repository** — `.env`, `storage/accounts/` and
-      the SQLite database are gitignored and not committed; no API keys or HMAC
-      secrets appear in tracked files.
+      the `storage/data/` tree are gitignored and not committed; no API keys or
+      HMAC secrets appear in tracked files.
 
 ## Breakfast Admin & Client Previews
 - [ ] **Admin slug** — `/panel` returns 404; the admin loads at

@@ -45,8 +45,8 @@ npx playwright test
 ```
 
 Playwright drives a running instance of the site, so start the app first
-(`php -S localhost:8000 -t public`, with a migrated database) or point the
-Playwright config at your local URL.
+(`php -S localhost:8000 -t public` — the flat-file store needs no setup) or point
+the Playwright config at your local URL.
 
 ### CLI smoke checks
 
@@ -55,10 +55,10 @@ running in CI and before a release:
 
 ```bash
 php bin/console app:check     # boots Kirby + platform, renders key routes,
-                              # confirms migrations, storage, and that the Brevo
-                              # provider + webhook route are wired (never sends)
+                              # confirms the flat-file store is writable, and that
+                              # the Brevo provider + webhook route are wired (never sends)
 php bin/console mail:check    # validates mail configuration (provider, sender,
-                              # queue DB, Brevo key/template presence)
+                              # queue store, Brevo key/template presence)
 ```
 
 ### No real email is ever sent in tests
@@ -74,8 +74,8 @@ return specific outcomes to exercise the retry / permanent / unknown paths.
 
 ### Unit tests
 
-Fast, isolated tests of the platform's logic (most run against an in-memory or
-temp SQLite database):
+Fast, isolated tests of the platform's logic (each runs against a fresh temp
+flat-file store):
 
 - **Validation** — required / min / max / email / url / tel / `in` rules and
   message resolution (`Forms\Validator`).
