@@ -203,7 +203,7 @@ final class Platform
 
     public function contracts(): \Breakfast\Platform\Contracts\Contracts
     {
-        return $this->service(\Breakfast\Platform\Contracts\Contracts::class, fn () => new \Breakfast\Platform\Contracts\Contracts($this->db()));
+        return $this->service(\Breakfast\Platform\Contracts\Contracts::class, fn () => new \Breakfast\Platform\Contracts\Contracts($this->fileStore()));
     }
 
     public function contractDocuments(): \Breakfast\Platform\Contracts\ContractDocumentService

@@ -433,12 +433,18 @@ final class Portal
             'total'        => (int) ($r['total'] ?? 0),
             'public_token' => $r['public_token'] ?? '',
         ], $proposals), 0, 50);
-        $contracts = $this->db()->all(
-            "SELECT number, title, status, contract_value, public_token FROM contracts
-             WHERE contact_uuid = :c AND public_token <> '' AND status IN ('sent','viewed','signed','completed','declined')
-             ORDER BY created_at DESC LIMIT 50",
-            ['c' => $contact]
-        );
+        $contractStatuses = ['sent', 'viewed', 'signed', 'completed', 'declined'];
+        $contracts = array_values(array_filter($this->platform->fileStore()->all('contracts'), static fn (array $r): bool => (string) ($r['contact_uuid'] ?? '') === $contact
+            && (string) ($r['public_token'] ?? '') !== ''
+            && in_array((string) ($r['status'] ?? ''), $contractStatuses, true)));
+        usort($contracts, static fn ($a, $b) => strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? '')));
+        $contracts = array_slice(array_map(static fn (array $r): array => [
+            'number'         => $r['number'] ?? '',
+            'title'          => $r['title'] ?? '',
+            'status'         => $r['status'] ?? '',
+            'contract_value' => (int) ($r['contract_value'] ?? 0),
+            'public_token'   => $r['public_token'] ?? '',
+        ], $contracts), 0, 50);
         $invoiceStatuses = ['issued', 'part_paid', 'paid', 'overdue', 'void'];
         $invoices = array_values(array_filter($this->platform->fileStore()->all('invoices'), static fn (array $r): bool => (string) ($r['contact_uuid'] ?? '') === $contact
             && (string) ($r['public_token'] ?? '') !== ''

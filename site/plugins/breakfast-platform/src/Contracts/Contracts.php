@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace Breakfast\Platform\Contracts;
 
 use Breakfast\Platform\Support\Clock;
-use Breakfast\Platform\Support\Database;
+use Breakfast\Platform\Support\FileStore;
 use Breakfast\Platform\Support\Uuid;
 
 /**
  * Contracts & electronic signature — the commitment step after an accepted
- * proposal.
+ * proposal, stored as flat files.
  *
  * A draft is freely editable. SENDING freezes an immutable version (merge fields
  * resolved, parties + clause text frozen, snapshot hashed) and mints a signing
@@ -28,7 +28,7 @@ final class Contracts
     private const EDITABLE = ['draft', 'ready'];
     private const LIVE = ['sent', 'viewed'];
 
-    public function __construct(private readonly Database $db)
+    public function __construct(private readonly FileStore $store)
     {
     }
 
@@ -42,28 +42,37 @@ final class Contracts
      */
     public function list(array $filters = []): array
     {
-        $where  = ['1 = 1'];
-        $params = [];
+        $rows = $this->store->all('contracts');
         if (!empty($filters['status'])) {
-            $where[] = 'status = :status';
-            $params['status'] = (string) $filters['status'];
+            $rows = array_filter($rows, static fn (array $r): bool => (string) ($r['status'] ?? '') === (string) $filters['status']);
         }
-        $params['l'] = (int) ($filters['limit'] ?? 100);
+        $rows = array_values($rows);
+        usort($rows, static fn ($a, $b) => strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? '')));
 
-        return $this->db->all('SELECT * FROM contracts WHERE ' . implode(' AND ', $where) . ' ORDER BY created_at DESC LIMIT :l', $params);
+        return array_slice($rows, 0, (int) ($filters['limit'] ?? 100));
     }
 
     /** @return array<string,mixed>|null */
     public function find(string $uuid): ?array
     {
-        $c = $this->db->one('SELECT * FROM contracts WHERE uuid = :u', ['u' => $uuid]);
+        $c = $this->store->find('contracts', $uuid);
         if ($c === null) {
             return null;
         }
-        $c['sections_list'] = $this->decodeSections((string) $c['sections']);
-        $c['parties']       = $this->db->all('SELECT * FROM contract_parties WHERE contract_uuid = :u ORDER BY signing_order ASC', ['u' => $uuid]);
-        $c['events']        = $this->db->all('SELECT * FROM contract_events WHERE contract_uuid = :u ORDER BY created_at DESC', ['u' => $uuid]);
-        $c['signatures']    = $this->db->all('SELECT * FROM contract_signatures WHERE contract_uuid = :u ORDER BY created_at ASC', ['u' => $uuid]);
+        $c['sections_list'] = $this->decodeSections($c['sections'] ?? []);
+
+        $parties = array_values(array_filter($this->store->all('contract_parties'), static fn (array $r): bool => (string) ($r['contract_uuid'] ?? '') === $uuid));
+        usort($parties, static fn ($a, $b) => (int) ($a['signing_order'] ?? 0) <=> (int) ($b['signing_order'] ?? 0));
+
+        $events = array_values(array_filter($this->store->all('contract_events'), static fn (array $r): bool => (string) ($r['contract_uuid'] ?? '') === $uuid));
+        usort($events, static fn ($a, $b) => strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? '')));
+
+        $signatures = array_values(array_filter($this->store->all('contract_signatures'), static fn (array $r): bool => (string) ($r['contract_uuid'] ?? '') === $uuid));
+        usort($signatures, static fn ($a, $b) => strcmp((string) ($a['created_at'] ?? ''), (string) ($b['created_at'] ?? '')));
+
+        $c['parties']    = $parties;
+        $c['events']     = $events;
+        $c['signatures'] = $signatures;
 
         return $c;
     }
@@ -75,9 +84,13 @@ final class Contracts
         if ($token === '') {
             return null;
         }
-        $row = $this->db->one('SELECT uuid FROM contracts WHERE public_token = :t', ['t' => $token]);
+        foreach ($this->store->all('contracts') as $row) {
+            if ((string) ($row['public_token'] ?? '') === $token) {
+                return $this->find((string) $row['uuid']);
+            }
+        }
 
-        return $row !== null ? $this->find((string) $row['uuid']) : null;
+        return null;
     }
 
     // ==================================================================
@@ -97,44 +110,48 @@ final class Contracts
         $template    = ContractTemplates::get($templateKey) ?? ContractTemplates::get('general');
         $sections    = is_array($data['sections'] ?? null) ? $data['sections'] : ($template['sections'] ?? []);
 
-        $this->db->run(
-            'INSERT INTO contracts
-                (uuid, status, title, template_key, company_uuid, contact_uuid, opportunity_uuid, proposal_uuid, project_uuid,
-                 owner, currency, contract_value, deposit_amount, effective_date, expiry_date, revision_limit,
-                 sections, governing_law, signature_wording, internal_notes, seller_name, client_name, client_email,
-                 created_by, created_at, updated_at)
-             VALUES
-                (:uuid, \'draft\', :title, :tpl, :company, :contact, :opp, :proposal, :project,
-                 :owner, :currency, :value, :deposit, :eff, :exp, :rev,
-                 :sections, :law, :sig, :notes, :seller, :cname, :cemail,
-                 :actor, :now, :now)',
-            [
-                'uuid'     => $uuid,
-                'title'    => trim((string) ($data['title'] ?? ($template['name'] ?? 'Contract'))),
-                'tpl'      => $templateKey,
-                'company'  => $this->nullable($data['company_uuid'] ?? null),
-                'contact'  => $this->nullable($data['contact_uuid'] ?? null),
-                'opp'      => $this->nullable($data['opportunity_uuid'] ?? null),
-                'proposal' => $this->nullable($data['proposal_uuid'] ?? null),
-                'project'  => $this->nullable($data['project_uuid'] ?? null),
-                'owner'    => trim((string) ($data['owner'] ?? $actor)),
-                'currency' => (string) ($data['currency'] ?? 'GBP'),
-                'value'    => max(0, (int) round(((float) ($data['contract_value'] ?? 0)) * 100)),
-                'deposit'  => max(0, (int) round(((float) ($data['deposit_amount'] ?? 0)) * 100)),
-                'eff'      => $this->nullable($data['effective_date'] ?? null),
-                'exp'      => $this->nullable($data['expiry_date'] ?? null),
-                'rev'      => (int) ($data['revision_limit'] ?? ($template['default_revision_limit'] ?? 0)),
-                'sections' => json_encode($this->normaliseSections($sections), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '[]',
-                'law'      => (string) ($data['governing_law'] ?? 'the laws of England and Wales'),
-                'sig'      => (string) ($data['signature_wording'] ?? 'By typing my name and signing below, I confirm I have read and agree to this contract on behalf of the Client.'),
-                'notes'    => (string) ($data['internal_notes'] ?? ''),
-                'seller'   => (string) ($data['seller_name'] ?? ''),
-                'cname'    => (string) ($data['client_name'] ?? ''),
-                'cemail'   => (string) ($data['client_email'] ?? ''),
-                'actor'    => $actor,
-                'now'      => $now,
-            ]
-        );
+        $this->store->put('contracts', [
+            'uuid'              => $uuid,
+            'number'            => null,
+            'status'            => 'draft',
+            'title'             => trim((string) ($data['title'] ?? ($template['name'] ?? 'Contract'))),
+            'template_key'      => $templateKey,
+            'company_uuid'      => $this->nullable($data['company_uuid'] ?? null),
+            'contact_uuid'      => $this->nullable($data['contact_uuid'] ?? null),
+            'opportunity_uuid'  => $this->nullable($data['opportunity_uuid'] ?? null),
+            'proposal_uuid'     => $this->nullable($data['proposal_uuid'] ?? null),
+            'project_uuid'      => $this->nullable($data['project_uuid'] ?? null),
+            'owner'             => trim((string) ($data['owner'] ?? $actor)),
+            'currency'          => (string) ($data['currency'] ?? 'GBP'),
+            'contract_value'    => max(0, (int) round(((float) ($data['contract_value'] ?? 0)) * 100)),
+            'deposit_amount'    => max(0, (int) round(((float) ($data['deposit_amount'] ?? 0)) * 100)),
+            'effective_date'    => $this->nullable($data['effective_date'] ?? null),
+            'expiry_date'       => $this->nullable($data['expiry_date'] ?? null),
+            'revision_limit'    => (int) ($data['revision_limit'] ?? ($template['default_revision_limit'] ?? 0)),
+            'sections'          => $this->normaliseSections($sections),
+            'governing_law'     => (string) ($data['governing_law'] ?? 'the laws of England and Wales'),
+            'signature_wording' => (string) ($data['signature_wording'] ?? 'By typing my name and signing below, I confirm I have read and agree to this contract on behalf of the Client.'),
+            'internal_notes'    => (string) ($data['internal_notes'] ?? ''),
+            'seller_name'       => (string) ($data['seller_name'] ?? ''),
+            'client_name'       => (string) ($data['client_name'] ?? ''),
+            'client_email'      => (string) ($data['client_email'] ?? ''),
+            'public_token'      => null,
+            'snapshot'          => null,
+            'snapshot_version'  => 0,
+            'document_status'   => 'none',
+            'signed_key'        => '',
+            'signed_hash'       => '',
+            'unsigned_key'      => '',
+            'unsigned_hash'     => '',
+            'supersedes_uuid'   => null,
+            'sent_at'           => null,
+            'viewed_at'         => null,
+            'signed_at'         => null,
+            'completed_at'      => null,
+            'created_by'        => $actor,
+            'created_at'        => $now,
+            'updated_at'        => $now,
+        ]);
 
         // Default parties: the client signs first (order 1) through the hosted
         // flow, then Breakfast countersigns (order 2) in the admin.
@@ -152,7 +169,7 @@ final class Contracts
      */
     public function update(string $uuid, array $data, string $actor): array
     {
-        $c = $this->db->one('SELECT status FROM contracts WHERE uuid = :u', ['u' => $uuid]);
+        $c = $this->store->find('contracts', $uuid);
         if ($c === null) {
             throw new ContractException(404, 'Contract not found.');
         }
@@ -160,47 +177,50 @@ final class Contracts
             throw new ContractException(409, 'A sent contract can’t be edited — supersede it with a new version.');
         }
 
-        $text = ['title' => 'title', 'governing_law' => 'governing_law', 'signature_wording' => 'signature_wording', 'internal_notes' => 'internal_notes', 'client_name' => 'client_name', 'client_email' => 'client_email', 'seller_name' => 'seller_name'];
-        $refs = ['company_uuid', 'contact_uuid', 'opportunity_uuid', 'proposal_uuid', 'project_uuid', 'effective_date', 'expiry_date'];
-        $sets = [];
-        $params = ['u' => $uuid, 'now' => Clock::nowIso()];
-        foreach ($text as $in => $col) {
-            if (array_key_exists($in, $data)) {
-                $sets[] = "$col = :$col";
-                $params[$col] = (string) $data[$in];
+        $this->store->update('contracts', $uuid, function (array $row) use ($data): array {
+            foreach (['title', 'governing_law', 'signature_wording', 'internal_notes', 'client_name', 'client_email', 'seller_name'] as $col) {
+                if (array_key_exists($col, $data)) {
+                    $row[$col] = (string) $data[$col];
+                }
             }
-        }
-        foreach ($refs as $col) {
-            if (array_key_exists($col, $data)) {
-                $sets[] = "$col = :$col";
-                $params[$col] = $this->nullable($data[$col]);
+            foreach (['company_uuid', 'contact_uuid', 'opportunity_uuid', 'proposal_uuid', 'project_uuid', 'effective_date', 'expiry_date'] as $col) {
+                if (array_key_exists($col, $data)) {
+                    $row[$col] = $this->nullable($data[$col]);
+                }
             }
-        }
-        if (array_key_exists('contract_value', $data)) {
-            $sets[] = 'contract_value = :cv';
-            $params['cv'] = max(0, (int) round(((float) $data['contract_value']) * 100));
-        }
-        if (array_key_exists('deposit_amount', $data)) {
-            $sets[] = 'deposit_amount = :dep';
-            $params['dep'] = max(0, (int) round(((float) $data['deposit_amount']) * 100));
-        }
-        if (array_key_exists('revision_limit', $data)) {
-            $sets[] = 'revision_limit = :rev';
-            $params['rev'] = (int) $data['revision_limit'];
-        }
-        if (array_key_exists('sections', $data) && is_array($data['sections'])) {
-            $sets[] = 'sections = :sections';
-            $params['sections'] = json_encode($this->normaliseSections($data['sections']), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '[]';
-        }
-        if ($sets !== []) {
-            $this->db->run('UPDATE contracts SET ' . implode(', ', $sets) . ', updated_at = :now WHERE uuid = :u', $params);
-        }
+            if (array_key_exists('contract_value', $data)) {
+                $row['contract_value'] = max(0, (int) round(((float) $data['contract_value']) * 100));
+            }
+            if (array_key_exists('deposit_amount', $data)) {
+                $row['deposit_amount'] = max(0, (int) round(((float) $data['deposit_amount']) * 100));
+            }
+            if (array_key_exists('revision_limit', $data)) {
+                $row['revision_limit'] = (int) $data['revision_limit'];
+            }
+            if (array_key_exists('sections', $data) && is_array($data['sections'])) {
+                $row['sections'] = $this->normaliseSections($data['sections']);
+            }
+            $row['updated_at'] = Clock::nowIso();
+
+            return $row;
+        });
+
         // Keep the client party in sync with client_name/email while editable.
         if (array_key_exists('client_name', $data) || array_key_exists('client_email', $data)) {
-            $this->db->run(
-                "UPDATE contract_parties SET name = COALESCE(:n, name), email = COALESCE(:e, email) WHERE contract_uuid = :u AND role = 'client'",
-                ['n' => array_key_exists('client_name', $data) ? (string) $data['client_name'] : null, 'e' => array_key_exists('client_email', $data) ? (string) $data['client_email'] : null, 'u' => $uuid]
-            );
+            foreach ($this->store->all('contract_parties') as $party) {
+                if ((string) ($party['contract_uuid'] ?? '') === $uuid && (string) ($party['role'] ?? '') === 'client') {
+                    $this->store->update('contract_parties', (string) $party['uuid'], static function (array $row) use ($data): array {
+                        if (array_key_exists('client_name', $data)) {
+                            $row['name'] = (string) $data['client_name'];
+                        }
+                        if (array_key_exists('client_email', $data)) {
+                            $row['email'] = (string) $data['client_email'];
+                        }
+
+                        return $row;
+                    });
+                }
+            }
         }
 
         return $this->find($uuid) ?? [];
@@ -227,61 +247,75 @@ final class Contracts
      */
     public function send(string $uuid, string $actor, array $mergeValues, string $prefix = 'CTR'): array
     {
-        return $this->db->transaction(function (Database $db) use ($uuid, $actor, $mergeValues, $prefix): array {
-            $c = $db->one('SELECT * FROM contracts WHERE uuid = :u', ['u' => $uuid]);
-            if ($c === null) {
-                throw new ContractException(404, 'Contract not found.');
-            }
-            if (!in_array((string) $c['status'], ['draft', 'ready'], true)) {
-                throw new ContractException(409, 'This contract has already been sent.');
-            }
+        $c = $this->store->find('contracts', $uuid);
+        if ($c === null) {
+            throw new ContractException(404, 'Contract not found.');
+        }
+        if (!in_array((string) $c['status'], ['draft', 'ready'], true)) {
+            throw new ContractException(409, 'This contract has already been sent.');
+        }
 
-            // Resolve merge fields across enabled sections; collect any missing.
-            $sections = $this->decodeSections((string) $c['sections']);
-            $resolved = [];
-            $missing  = [];
-            foreach ($sections as $s) {
-                if (($s['optional'] ?? false) && !($s['enabled'] ?? true)) {
-                    continue;
-                }
-                $m = ContractTemplates::merge((string) ($s['body'] ?? ''), $mergeValues);
-                $missing = array_merge($missing, $m['missing']);
-                $resolved[] = ['key' => $s['key'] ?? '', 'heading' => (string) ($s['heading'] ?? ''), 'body' => $m['text']];
+        // Resolve merge fields across enabled sections; collect any missing.
+        $sections = $this->decodeSections($c['sections'] ?? []);
+        $resolved = [];
+        $missing  = [];
+        foreach ($sections as $s) {
+            if (($s['optional'] ?? false) && !($s['enabled'] ?? true)) {
+                continue;
             }
-            $missing = array_values(array_unique($missing));
-            if ($missing !== []) {
-                throw new ContractException(422, 'Please resolve these details before sending: ' . implode(', ', $missing) . '.');
-            }
-            // Every required client party needs an email to be reachable.
-            $noEmail = (int) $db->scalar("SELECT COUNT(*) FROM contract_parties WHERE contract_uuid = :u AND role LIKE 'client%' AND required = 1 AND TRIM(email) = ''", ['u' => $uuid]);
-            if ($noEmail > 0) {
+            $m = ContractTemplates::merge((string) ($s['body'] ?? ''), $mergeValues);
+            $missing = array_merge($missing, $m['missing']);
+            $resolved[] = ['key' => $s['key'] ?? '', 'heading' => (string) ($s['heading'] ?? ''), 'body' => $m['text']];
+        }
+        $missing = array_values(array_unique($missing));
+        if ($missing !== []) {
+            throw new ContractException(422, 'Please resolve these details before sending: ' . implode(', ', $missing) . '.');
+        }
+
+        $parties = array_values(array_filter($this->store->all('contract_parties'), static fn (array $r): bool => (string) ($r['contract_uuid'] ?? '') === $uuid));
+        usort($parties, static fn ($a, $b) => (int) ($a['signing_order'] ?? 0) <=> (int) ($b['signing_order'] ?? 0));
+        // Every required client party needs an email to be reachable.
+        foreach ($parties as $party) {
+            if (str_starts_with((string) ($party['role'] ?? ''), 'client') && (int) ($party['required'] ?? 0) === 1 && trim((string) ($party['email'] ?? '')) === '') {
                 throw new ContractException(422, 'Add the client’s email before sending.');
             }
+        }
 
-            $number = $c['number'] ?: $this->allocateNumber($db, $prefix, (int) date('Y'));
-            $token  = (string) ($c['public_token'] ?: bin2hex(random_bytes(20)));
-            $snapshot = ContractSnapshot::build($c, $resolved, $mergeValues, $db->all('SELECT * FROM contract_parties WHERE contract_uuid = :u ORDER BY signing_order ASC', ['u' => $uuid]));
+        $number = ($c['number'] ?? null) ?: $this->allocateNumber($prefix, (int) date('Y'));
+        $token  = (string) (($c['public_token'] ?? null) ?: bin2hex(random_bytes(20)));
+        $snapshot = ContractSnapshot::build($c, $resolved, $mergeValues, $parties);
+        $now = Clock::nowIso();
 
-            $db->run(
-                "UPDATE contracts SET number = :num, status = 'sent', public_token = :tok, snapshot = :snap,
-                    snapshot_version = :sv, document_status = 'pending', sent_at = COALESCE(sent_at, :now), updated_at = :now
-                 WHERE uuid = :u",
-                ['num' => $number, 'tok' => $token, 'snap' => json_encode($snapshot, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '', 'sv' => ContractSnapshot::VERSION, 'now' => Clock::nowIso(), 'u' => $uuid]
-            );
-            $this->event($uuid, 'sent', 'Sent as ' . $number, $actor);
+        $this->store->update('contracts', $uuid, static function (array $row) use ($number, $token, $snapshot, $now): array {
+            $row['number']           = $number;
+            $row['status']           = 'sent';
+            $row['public_token']     = $token;
+            $row['snapshot']         = $snapshot;
+            $row['snapshot_version'] = ContractSnapshot::VERSION;
+            $row['document_status']  = 'pending';
+            $row['sent_at']          = $row['sent_at'] ?? $now;
+            $row['updated_at']       = $now;
 
-            return $this->find($uuid) ?? [];
+            return $row;
         });
+        $this->event($uuid, 'sent', 'Sent as ' . $number, $actor);
+
+        return $this->find($uuid) ?? [];
     }
 
     /** A signer opened the contract link — a view, never a signature. */
     public function markViewed(string $uuid): void
     {
-        $this->db->run(
-            "UPDATE contracts SET status = CASE WHEN status = 'sent' THEN 'viewed' ELSE status END,
-                viewed_at = COALESCE(viewed_at, :now), updated_at = :now WHERE uuid = :u",
-            ['now' => Clock::nowIso(), 'u' => $uuid]
-        );
+        $now = Clock::nowIso();
+        $this->store->update('contracts', $uuid, static function (array $row) use ($now): array {
+            if ((string) ($row['status'] ?? '') === 'sent') {
+                $row['status'] = 'viewed';
+            }
+            $row['viewed_at']  = $row['viewed_at'] ?? $now;
+            $row['updated_at'] = $now;
+
+            return $row;
+        });
         $this->event($uuid, 'viewed', 'Opened by a signer', 'client');
     }
 
@@ -299,78 +333,99 @@ final class Contracts
      */
     public function sign(string $uuid, string $partyUuid, array $evidence): array
     {
-        return $this->db->transaction(function (Database $db) use ($uuid, $partyUuid, $evidence): array {
-            $c = $db->one('SELECT * FROM contracts WHERE uuid = :u', ['u' => $uuid]);
-            if ($c === null) {
-                throw new ContractException(404, 'Contract not found.');
-            }
-            if (in_array((string) $c['status'], ['void', 'declined', 'expired', 'withdrawn', 'superseded'], true)) {
-                throw new ContractException(409, 'This contract can no longer be signed.');
-            }
-            if ($c['expiry_date'] !== null && $c['expiry_date'] !== '' && (string) $c['expiry_date'] < date('Y-m-d')) {
-                throw new ContractException(410, 'This contract has expired.');
-            }
-            $party = $db->one('SELECT * FROM contract_parties WHERE uuid = :p AND contract_uuid = :u', ['p' => $partyUuid, 'u' => $uuid]);
-            if ($party === null) {
-                throw new ContractException(404, 'Signer not found.');
-            }
-            if ((string) $party['status'] === 'signed') {
-                throw new ContractException(409, 'This party has already signed.');
-            }
-            // Ordered signing: all earlier required parties must have signed.
-            $earlier = (int) $db->scalar(
-                "SELECT COUNT(*) FROM contract_parties WHERE contract_uuid = :u AND required = 1 AND status <> 'signed' AND signing_order < :o",
-                ['u' => $uuid, 'o' => (int) $party['signing_order']]
-            );
-            if ($earlier > 0) {
-                throw new ContractException(409, 'An earlier signatory needs to sign first.');
-            }
-            $name = trim((string) ($evidence['name'] ?? ''));
-            if ($name === '') {
-                throw new ContractException(422, 'Please enter your name to sign.');
-            }
+        $c = $this->store->find('contracts', $uuid);
+        if ($c === null) {
+            throw new ContractException(404, 'Contract not found.');
+        }
+        if (in_array((string) $c['status'], ['void', 'declined', 'expired', 'withdrawn', 'superseded'], true)) {
+            throw new ContractException(409, 'This contract can no longer be signed.');
+        }
+        if (($c['expiry_date'] ?? null) !== null && (string) $c['expiry_date'] !== '' && (string) $c['expiry_date'] < date('Y-m-d')) {
+            throw new ContractException(410, 'This contract has expired.');
+        }
+        $party = $this->store->find('contract_parties', $partyUuid);
+        if ($party === null || (string) ($party['contract_uuid'] ?? '') !== $uuid) {
+            throw new ContractException(404, 'Signer not found.');
+        }
+        if ((string) $party['status'] === 'signed') {
+            throw new ContractException(409, 'This party has already signed.');
+        }
+        // Ordered signing: all earlier required parties must have signed.
+        $order = (int) ($party['signing_order'] ?? 0);
+        $earlier = count(array_filter($this->store->all('contract_parties'), static fn (array $r): bool => (string) ($r['contract_uuid'] ?? '') === $uuid
+            && (int) ($r['required'] ?? 0) === 1
+            && (string) ($r['status'] ?? '') !== 'signed'
+            && (int) ($r['signing_order'] ?? 0) < $order));
+        if ($earlier > 0) {
+            throw new ContractException(409, 'An earlier signatory needs to sign first.');
+        }
+        $name = trim((string) ($evidence['name'] ?? ''));
+        if ($name === '') {
+            throw new ContractException(422, 'Please enter your name to sign.');
+        }
 
-            $snapshot = (string) $c['snapshot'];
-            $hash     = hash('sha256', $snapshot);
-            $now      = Clock::nowIso();
-            $method   = in_array(($evidence['method'] ?? 'typed'), ['typed', 'drawn'], true) ? (string) ($evidence['method'] ?? 'typed') : 'typed';
+        $snapshot = $c['snapshot'] ?? null;
+        $snapJson = is_array($snapshot) ? (json_encode($snapshot, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '') : (string) $snapshot;
+        $hash     = hash('sha256', $snapJson);
+        $now      = Clock::nowIso();
+        $method   = in_array(($evidence['method'] ?? 'typed'), ['typed', 'drawn'], true) ? (string) ($evidence['method'] ?? 'typed') : 'typed';
 
-            $db->run(
-                'INSERT INTO contract_signatures
-                    (uuid, contract_uuid, party_uuid, snapshot_version, signer_name, signer_email, signer_role, contact_uuid,
-                     method, wording, ip_hash, user_agent, token_id, document_hash, signed_at, created_at)
-                 VALUES (:uuid, :c, :p, :sv, :name, :email, :role, :contact, :method, :wording, :ip, :ua, :tok, :hash, :now, :now)',
-                [
-                    'uuid' => Uuid::v4(), 'c' => $uuid, 'p' => $partyUuid, 'sv' => (int) $c['snapshot_version'],
-                    'name' => $name, 'email' => trim((string) ($evidence['email'] ?? (string) $party['email'])),
-                    'role' => (string) $party['role'], 'contact' => $this->nullable($c['contact_uuid'] ?? null),
-                    'method' => $method,
-                    'wording' => mb_substr((string) ($evidence['wording'] ?? (string) $c['signature_wording']), 0, 1000),
-                    'ip' => (string) ($evidence['ip_hash'] ?? ''), 'ua' => mb_substr((string) ($evidence['user_agent'] ?? ''), 0, 200),
-                    'tok' => (string) ($evidence['token_id'] ?? ''), 'hash' => $hash, 'now' => $now,
-                ]
-            );
-            $db->run("UPDATE contract_parties SET status = 'signed', signed_at = :now WHERE uuid = :p", ['now' => $now, 'p' => $partyUuid]);
+        $this->store->put('contract_signatures', [
+            'uuid'             => Uuid::v4(),
+            'contract_uuid'    => $uuid,
+            'party_uuid'       => $partyUuid,
+            'snapshot_version' => (int) ($c['snapshot_version'] ?? 0),
+            'signer_name'      => $name,
+            'signer_email'     => trim((string) ($evidence['email'] ?? (string) $party['email'])),
+            'signer_role'      => (string) $party['role'],
+            'contact_uuid'     => $this->nullable($c['contact_uuid'] ?? null),
+            'method'           => $method,
+            'wording'          => mb_substr((string) ($evidence['wording'] ?? (string) $c['signature_wording']), 0, 1000),
+            'ip_hash'          => (string) ($evidence['ip_hash'] ?? ''),
+            'user_agent'       => mb_substr((string) ($evidence['user_agent'] ?? ''), 0, 200),
+            'token_id'         => (string) ($evidence['token_id'] ?? ''),
+            'document_hash'    => $hash,
+            'signed_at'        => $now,
+            'created_at'       => $now,
+        ]);
+        $this->store->update('contract_parties', $partyUuid, static function (array $row) use ($now): array {
+            $row['status']    = 'signed';
+            $row['signed_at'] = $now;
 
-            $role = (string) $party['role'];
-            if ($role === 'breakfast') {
-                $this->event($uuid, 'countersigned', 'Countersigned by ' . $name, $name);
-            } else {
-                $this->event($uuid, 'signed_by_client', 'Signed by ' . $name, 'client');
-                if ((string) $c['status'] !== 'signed') {
-                    $db->run("UPDATE contracts SET status = 'signed', signed_at = COALESCE(signed_at, :now), updated_at = :now WHERE uuid = :u", ['now' => $now, 'u' => $uuid]);
-                }
-            }
-
-            $pending = (int) $db->scalar("SELECT COUNT(*) FROM contract_parties WHERE contract_uuid = :u AND required = 1 AND status <> 'signed'", ['u' => $uuid]);
-            $completed = $pending === 0;
-            if ($completed) {
-                $db->run("UPDATE contracts SET completed_at = COALESCE(completed_at, :now), updated_at = :now WHERE uuid = :u", ['now' => $now, 'u' => $uuid]);
-                $this->event($uuid, 'completed', 'All required parties have signed', 'system');
-            }
-
-            return ['contract' => $this->find($uuid) ?? [], 'completed' => $completed];
+            return $row;
         });
+
+        $role = (string) $party['role'];
+        if ($role === 'breakfast') {
+            $this->event($uuid, 'countersigned', 'Countersigned by ' . $name, $name);
+        } else {
+            $this->event($uuid, 'signed_by_client', 'Signed by ' . $name, 'client');
+            if ((string) $c['status'] !== 'signed') {
+                $this->store->update('contracts', $uuid, static function (array $row) use ($now): array {
+                    $row['status']     = 'signed';
+                    $row['signed_at']  = $row['signed_at'] ?? $now;
+                    $row['updated_at'] = $now;
+
+                    return $row;
+                });
+            }
+        }
+
+        $pending = count(array_filter($this->store->all('contract_parties'), static fn (array $r): bool => (string) ($r['contract_uuid'] ?? '') === $uuid
+            && (int) ($r['required'] ?? 0) === 1
+            && (string) ($r['status'] ?? '') !== 'signed'));
+        $completed = $pending === 0;
+        if ($completed) {
+            $this->store->update('contracts', $uuid, static function (array $row) use ($now): array {
+                $row['completed_at'] = $row['completed_at'] ?? $now;
+                $row['updated_at']   = $now;
+
+                return $row;
+            });
+            $this->event($uuid, 'completed', 'All required parties have signed', 'system');
+        }
+
+        return ['contract' => $this->find($uuid) ?? [], 'completed' => $completed];
     }
 
     /**
@@ -381,19 +436,20 @@ final class Contracts
      */
     public function signInternal(string $uuid, array $evidence): array
     {
-        $party = $this->db->one("SELECT uuid FROM contract_parties WHERE contract_uuid = :u AND role = 'breakfast' LIMIT 1", ['u' => $uuid]);
-        if ($party === null) {
-            throw new ContractException(404, 'No Breakfast signatory on this contract.');
+        foreach ($this->store->all('contract_parties') as $party) {
+            if ((string) ($party['contract_uuid'] ?? '') === $uuid && (string) ($party['role'] ?? '') === 'breakfast') {
+                return $this->sign($uuid, (string) $party['uuid'], $evidence);
+            }
         }
 
-        return $this->sign($uuid, (string) $party['uuid'], $evidence);
+        throw new ContractException(404, 'No Breakfast signatory on this contract.');
     }
 
     /** @return array<string,mixed> */
     public function decline(string $uuid, string $reason, string $actorType = 'client'): array
     {
         $this->assertStatus($uuid, self::LIVE, 'Only a live contract can be declined.');
-        $this->db->run("UPDATE contracts SET status = 'declined', updated_at = :now WHERE uuid = :u", ['now' => Clock::nowIso(), 'u' => $uuid]);
+        $this->setStatus($uuid, 'declined');
         $this->event($uuid, 'declined', trim($reason) !== '' ? 'Declined: ' . trim($reason) : 'Declined', $actorType);
 
         return $this->find($uuid) ?? [];
@@ -403,7 +459,7 @@ final class Contracts
     public function withdraw(string $uuid, string $actor): array
     {
         $this->assertStatus($uuid, ['sent', 'viewed', 'ready'], 'Only an open contract can be withdrawn.');
-        $this->db->run("UPDATE contracts SET status = 'withdrawn', updated_at = :now WHERE uuid = :u", ['now' => Clock::nowIso(), 'u' => $uuid]);
+        $this->setStatus($uuid, 'withdrawn');
         $this->event($uuid, 'withdrawn', 'Withdrawn by ' . $actor, $actor);
 
         return $this->find($uuid) ?? [];
@@ -416,13 +472,13 @@ final class Contracts
      */
     public function void(string $uuid, string $reason, string $actor): array
     {
-        if ($this->db->one('SELECT uuid FROM contracts WHERE uuid = :u', ['u' => $uuid]) === null) {
+        if ($this->store->find('contracts', $uuid) === null) {
             throw new ContractException(404, 'Contract not found.');
         }
         if (trim($reason) === '') {
             throw new ContractException(422, 'A reason is required to void a contract.');
         }
-        $this->db->run("UPDATE contracts SET status = 'void', updated_at = :now WHERE uuid = :u", ['now' => Clock::nowIso(), 'u' => $uuid]);
+        $this->setStatus($uuid, 'void');
         $this->event($uuid, 'voided', 'Voided: ' . trim($reason), $actor);
 
         return $this->find($uuid) ?? [];
@@ -454,14 +510,19 @@ final class Contracts
             'seller_name' => $c['seller_name'], 'client_name' => $c['client_name'], 'client_email' => $c['client_email'],
             'effective_date' => $c['effective_date'], 'expiry_date' => $c['expiry_date'],
         ], $actor);
-        $this->db->run('UPDATE contracts SET supersedes_uuid = :old WHERE uuid = :new', ['old' => $uuid, 'new' => $copy['uuid']]);
+        $copyUuid = (string) $copy['uuid'];
+        $this->store->update('contracts', $copyUuid, static function (array $row) use ($uuid): array {
+            $row['supersedes_uuid'] = $uuid;
+
+            return $row;
+        });
 
         if (in_array((string) $c['status'], ['sent', 'viewed', 'ready', 'signed'], true)) {
-            $this->db->run("UPDATE contracts SET status = 'superseded', updated_at = :now WHERE uuid = :u", ['now' => Clock::nowIso(), 'u' => $uuid]);
+            $this->setStatus($uuid, 'superseded');
             $this->event($uuid, 'superseded', 'Superseded: ' . trim($reason), $actor);
         }
 
-        return $this->find((string) $copy['uuid']) ?? [];
+        return $this->find($copyUuid) ?? [];
     }
 
     // ==================================================================
@@ -471,27 +532,33 @@ final class Contracts
     /** @return array<string,mixed>|null */
     public function snapshot(string $uuid): ?array
     {
-        $raw = (string) $this->db->scalar('SELECT snapshot FROM contracts WHERE uuid = :u', ['u' => $uuid]);
-        if ($raw === '') {
-            return null;
-        }
-        $decoded = json_decode($raw, true);
+        $c = $this->store->find('contracts', $uuid);
+        $snap = $c['snapshot'] ?? null;
 
-        return is_array($decoded) ? $decoded : null;
+        return is_array($snap) && $snap !== [] ? $snap : null;
     }
 
     public function setDocument(string $uuid, string $which, string $key, string $hash, string $status): void
     {
         $col = $which === 'signed' ? 'signed' : 'unsigned';
-        $this->db->run(
-            "UPDATE contracts SET {$col}_key = :k, {$col}_hash = :h, document_status = :s, updated_at = :n WHERE uuid = :u",
-            ['k' => $key, 'h' => $hash, 's' => $status, 'n' => Clock::nowIso(), 'u' => $uuid]
-        );
+        $this->store->update('contracts', $uuid, static function (array $row) use ($col, $key, $hash, $status): array {
+            $row[$col . '_key']    = $key;
+            $row[$col . '_hash']   = $hash;
+            $row['document_status'] = $status;
+            $row['updated_at']      = Clock::nowIso();
+
+            return $row;
+        });
     }
 
     public function setDocumentStatus(string $uuid, string $status): void
     {
-        $this->db->run('UPDATE contracts SET document_status = :s, updated_at = :n WHERE uuid = :u', ['s' => $status, 'n' => Clock::nowIso(), 'u' => $uuid]);
+        $this->store->update('contracts', $uuid, static function (array $row) use ($status): array {
+            $row['document_status'] = $status;
+            $row['updated_at']      = Clock::nowIso();
+
+            return $row;
+        });
     }
 
     public function logEvent(string $uuid, string $type, string $detail, string $actor): void
@@ -505,19 +572,29 @@ final class Contracts
 
     private function addParty(string $contractUuid, string $role, string $name, string $email, int $order, bool $required): void
     {
-        $this->db->run(
-            'INSERT INTO contract_parties (uuid, contract_uuid, role, name, email, signing_order, required, status, created_at)
-             VALUES (:uuid, :c, :role, :name, :email, :ord, :req, \'pending\', :now)',
-            ['uuid' => Uuid::v4(), 'c' => $contractUuid, 'role' => $role, 'name' => $name, 'email' => $email, 'ord' => $order, 'req' => $required ? 1 : 0, 'now' => Clock::nowIso()]
-        );
+        $this->store->put('contract_parties', [
+            'uuid'          => Uuid::v4(),
+            'contract_uuid' => $contractUuid,
+            'role'          => $role,
+            'name'          => $name,
+            'email'         => $email,
+            'signing_order' => $order,
+            'required'      => $required ? 1 : 0,
+            'status'        => 'pending',
+            'signed_at'     => null,
+            'created_at'    => Clock::nowIso(),
+        ]);
     }
 
     /**
-     * @param array<int,mixed> $sections
+     * @param mixed $sections
      * @return list<array{key:string,heading:string,body:string,optional:bool,enabled:bool}>
      */
-    private function normaliseSections(array $sections): array
+    private function normaliseSections(mixed $sections): array
     {
+        if (!is_array($sections)) {
+            return [];
+        }
         $out = [];
         foreach ($sections as $s) {
             if (!is_array($s)) {
@@ -535,22 +612,22 @@ final class Contracts
         return $out;
     }
 
-    /** @return list<array{key:string,heading:string,body:string,optional:bool,enabled:bool}> */
-    private function decodeSections(string $json): array
+    /**
+     * @param mixed $sections native array (from the file) or a legacy JSON string
+     * @return list<array{key:string,heading:string,body:string,optional:bool,enabled:bool}>
+     */
+    private function decodeSections(mixed $sections): array
     {
-        $decoded = json_decode($json, true);
+        if (is_string($sections)) {
+            $sections = json_decode($sections, true);
+        }
 
-        return is_array($decoded) ? $this->normaliseSections($decoded) : [];
+        return $this->normaliseSections($sections);
     }
 
-    private function allocateNumber(Database $db, string $prefix, int $year): string
+    private function allocateNumber(string $prefix, int $year): string
     {
-        $db->run(
-            'INSERT INTO contract_sequences (prefix, year, next_seq) VALUES (:p, :y, 2)
-             ON CONFLICT(prefix, year) DO UPDATE SET next_seq = next_seq + 1',
-            ['p' => $prefix, 'y' => $year]
-        );
-        $seq = (int) $db->scalar('SELECT next_seq - 1 FROM contract_sequences WHERE prefix = :p AND year = :y', ['p' => $prefix, 'y' => $year]);
+        $seq = $this->store->bump('contract_sequences', $prefix . '-' . $year);
 
         return sprintf('%s-%d-%04d', $prefix, $year, $seq);
     }
@@ -558,29 +635,43 @@ final class Contracts
     /** @param list<string> $allowed */
     private function assertStatus(string $uuid, array $allowed, string $message): void
     {
-        $status = (string) $this->db->scalar('SELECT status FROM contracts WHERE uuid = :u', ['u' => $uuid]);
-        if ($status === '') {
+        $c = $this->store->find('contracts', $uuid);
+        if ($c === null) {
             throw new ContractException(404, 'Contract not found.');
         }
-        if (!in_array($status, $allowed, true)) {
+        if (!in_array((string) ($c['status'] ?? ''), $allowed, true)) {
             throw new ContractException(409, $message);
         }
+    }
+
+    private function setStatus(string $uuid, string $status): void
+    {
+        $this->store->update('contracts', $uuid, static function (array $row) use ($status): array {
+            $row['status']     = $status;
+            $row['updated_at'] = Clock::nowIso();
+
+            return $row;
+        });
     }
 
     /** @param list<string> $from */
     private function transition(string $uuid, array $from, string $to, string $eventType, string $detail, string $actor): void
     {
         $this->assertStatus($uuid, $from, 'This contract can’t change to ' . $to . ' from its current state.');
-        $this->db->run('UPDATE contracts SET status = :s, updated_at = :now WHERE uuid = :u', ['s' => $to, 'now' => Clock::nowIso(), 'u' => $uuid]);
+        $this->setStatus($uuid, $to);
         $this->event($uuid, $eventType, $detail, $actor);
     }
 
     private function event(string $uuid, string $type, string $detail, string $actor): void
     {
-        $this->db->run(
-            'INSERT INTO contract_events (uuid, contract_uuid, type, detail, actor, created_at) VALUES (:uuid, :c, :t, :d, :a, :now)',
-            ['uuid' => Uuid::v4(), 'c' => $uuid, 't' => $type, 'd' => $detail, 'a' => $actor, 'now' => Clock::nowIso()]
-        );
+        $this->store->put('contract_events', [
+            'uuid'          => Uuid::v4(),
+            'contract_uuid' => $uuid,
+            'type'          => $type,
+            'detail'        => $detail,
+            'actor'         => $actor,
+            'created_at'    => Clock::nowIso(),
+        ]);
     }
 
     private function nullable(mixed $value): ?string
