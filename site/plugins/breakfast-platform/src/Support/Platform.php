@@ -236,7 +236,7 @@ final class Platform
     public function vault(): \Breakfast\Platform\Vault\Vault
     {
         return $this->service(\Breakfast\Platform\Vault\Vault::class, fn () => new \Breakfast\Platform\Vault\Vault(
-            $this->db(),
+            $this->fileStore(),
             new \Breakfast\Platform\Vault\VaultCrypto($this->storageDir() . '/vault-keys'),
             $this->audit()
         ));

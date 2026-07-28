@@ -63,13 +63,17 @@ final class VaultTest extends TestCase
     public function testSecretEncryptedAtRestAndCanaryNeverInDatabase(): void
     {
         $this->makeItem();
-        // The raw ciphertext column must not contain the plaintext.
-        $cipher = (string) breakfast()->db()->scalar('SELECT ciphertext FROM vault_item_fields LIMIT 1');
+        // The stored ciphertext must not contain the plaintext.
+        $fields = breakfast()->fileStore()->all('vault_item_fields');
+        $cipher = (string) ($fields[0]['ciphertext'] ?? '');
         $this->assertNotSame('', $cipher);
         $this->assertStringNotContainsString(self::CANARY, $cipher);
-        // A full dump of the SQLite file must not contain the canary anywhere.
-        $dump = (string) file_get_contents($this->tmp . '/database/crm.sqlite');
-        $this->assertStringNotContainsString(self::CANARY, $dump, 'canary must never touch the database in plaintext');
+        // A full dump of every stored vault file must not contain the canary anywhere.
+        $dump = '';
+        foreach (glob($this->tmp . '/data/vault_*/*.json') ?: [] as $f) {
+            $dump .= (string) file_get_contents($f);
+        }
+        $this->assertStringNotContainsString(self::CANARY, $dump, 'canary must never touch storage in plaintext');
     }
 
     public function testListAndFindAreMaskedOnly(): void
@@ -101,7 +105,15 @@ final class VaultTest extends TestCase
         $id = $this->makeItem();
         breakfast()->vault()->grantReauth('admin@breakfast');
         // Force the session to have expired.
-        breakfast()->db()->run("UPDATE vault_reauth_sessions SET expires_at = :e WHERE user_email = 'admin@breakfast'", ['e' => date('c', time() - 60)]);
+        foreach (breakfast()->fileStore()->all('vault_reauth_sessions') as $s) {
+            if ((string) ($s['user_email'] ?? '') === 'admin@breakfast') {
+                breakfast()->fileStore()->update('vault_reauth_sessions', (string) $s['uuid'], static function (array $r): array {
+                    $r['expires_at'] = date('c', time() - 60);
+
+                    return $r;
+                });
+            }
+        }
         $this->assertFalse(breakfast()->vault()->hasValidReauth('admin@breakfast'));
         $this->assertError(401, fn () => breakfast()->vault()->reveal($id, 'password', 'admin@breakfast'));
     }
@@ -126,7 +138,7 @@ final class VaultTest extends TestCase
     {
         $id = $this->makeItem();
         breakfast()->vault()->setSecret($id, 'password', 'Password', 'a-new-value', 'admin@breakfast');
-        $versions = (int) breakfast()->db()->scalar('SELECT COUNT(*) FROM vault_item_versions WHERE item_uuid = :u', ['u' => $id]);
+        $versions = count(array_filter(breakfast()->fileStore()->all('vault_item_versions'), static fn (array $v): bool => (string) ($v['item_uuid'] ?? '') === $id));
         $this->assertSame(1, $versions, 'the previous encrypted value is snapshotted');
         // The current value is the new one.
         breakfast()->vault()->grantReauth('admin@breakfast');
@@ -136,11 +148,12 @@ final class VaultTest extends TestCase
     public function testKeyRotationReEncryptsAndOldCiphertextStillReadable(): void
     {
         $id = $this->makeItem();
-        $before = (int) breakfast()->db()->scalar('SELECT key_version FROM vault_item_fields WHERE item_uuid = :u', ['u' => $id]);
+        $keyVersion = static fn (string $item): int => (int) (array_values(array_filter(breakfast()->fileStore()->all('vault_item_fields'), static fn (array $f): bool => (string) ($f['item_uuid'] ?? '') === $item))[0]['key_version'] ?? 0);
+        $before = $keyVersion($id);
         $result = breakfast()->vault()->rotateKeys('admin@breakfast');
         $this->assertGreaterThan($before, $result['version']);
         $this->assertSame(1, $result['rotated']);
-        $after = (int) breakfast()->db()->scalar('SELECT key_version FROM vault_item_fields WHERE item_uuid = :u', ['u' => $id]);
+        $after = $keyVersion($id);
         $this->assertSame($result['version'], $after);
         // Still decrypts to the same plaintext after rotation.
         breakfast()->vault()->grantReauth('admin@breakfast');
