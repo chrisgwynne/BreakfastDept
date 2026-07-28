@@ -122,17 +122,14 @@ final class Worker
     private function housekeeping(): void
     {
         $this->platform->rateLimiter()->prune();
-        (new SubmissionGuard($this->platform->db(), $this->platform->rateLimiter()))->pruneFingerprints();
+        (new SubmissionGuard($this->platform->fileStore(), $this->platform->rateLimiter()))->pruneFingerprints();
         $this->platform->enquiries()->pruneIpHashes(30);
         $this->platform->outbound()->pruneEvents(90);
         $this->platform->audit()->prune(365);
 
         // Client Previews: expire due previews and prune preview access-event
-        // history to its retention window. Guarded so a database predating the
-        // previews migration (0004) never breaks the worker.
-        if ($this->platform->db()->tableExists('client_previews')) {
-            $this->platform->previewExpiry()->expireDue();
-            $this->platform->previewAnalytics()->prune();
-        }
+        // history to its retention window (flat-file store).
+        $this->platform->previewExpiry()->expireDue();
+        $this->platform->previewAnalytics()->prune();
     }
 }

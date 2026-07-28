@@ -413,7 +413,7 @@ final class Platform
 
     public function suppressions(): SuppressionService
     {
-        return $this->service(SuppressionService::class, fn () => new SuppressionService($this->db(), $this->activities()));
+        return $this->service(SuppressionService::class, fn () => new SuppressionService($this->fileStore(), $this->activities()));
     }
 
     public function templates(): TemplateRegistry
@@ -458,7 +458,7 @@ final class Platform
 
     public function rateLimiter(): RateLimiter
     {
-        return $this->service(RateLimiter::class, fn () => new RateLimiter($this->db()));
+        return $this->service(RateLimiter::class, fn () => new RateLimiter($this->fileStore()));
     }
 
     public function audit(): AuditLog

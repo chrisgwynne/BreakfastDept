@@ -7,19 +7,22 @@ namespace Breakfast\Platform\Forms;
 use Breakfast\Platform\Security\Hash;
 use Breakfast\Platform\Security\RateLimiter;
 use Breakfast\Platform\Support\Clock;
-use Breakfast\Platform\Support\Database;
+use Breakfast\Platform\Support\FileStore;
 
 /**
  * Anti-abuse checks applied before a submission is accepted:
  * honeypot, time-to-submit, IP/email rate limiting and duplicate detection.
  *
  * Every failure returns a machine reason for private logging while the caller
- * shows the visitor a single generic message.
+ * shows the visitor a single generic message. Duplicate fingerprints are held
+ * as flat files keyed on the fingerprint hash.
  */
 final class SubmissionGuard
 {
+    private const COLLECTION = 'form_fingerprints';
+
     public function __construct(
-        private readonly Database $db,
+        private readonly FileStore $store,
         private readonly RateLimiter $rateLimiter
     ) {
     }
@@ -86,26 +89,18 @@ final class SubmissionGuard
         ksort($content);
         $fingerprint = hash('sha256', $formType . '|' . json_encode($content));
 
-        $existing = $this->db->scalar(
-            'SELECT fingerprint FROM form_fingerprints WHERE fingerprint = :f AND expires_at > :now',
-            ['f' => $fingerprint, 'now' => Clock::nowIso()]
-        );
-
-        if ($existing !== null) {
+        $existing = $this->store->find(self::COLLECTION, $fingerprint);
+        if ($existing !== null && (string) ($existing['expires_at'] ?? '') > Clock::nowIso()) {
             return true;
         }
 
-        $this->db->run(
-            'INSERT INTO form_fingerprints (fingerprint, form_type, created_at, expires_at)
-             VALUES (:f, :t, :c, :e)
-             ON CONFLICT(fingerprint) DO UPDATE SET expires_at = :e',
-            [
-                'f' => $fingerprint,
-                't' => $formType,
-                'c' => Clock::nowIso(),
-                'e' => Clock::now()->modify('+' . $windowSeconds . ' seconds')->format('c'),
-            ]
-        );
+        $this->store->put(self::COLLECTION, [
+            'uuid'       => $fingerprint,
+            'fingerprint' => $fingerprint,
+            'form_type'  => $formType,
+            'created_at' => Clock::nowIso(),
+            'expires_at' => Clock::now()->modify('+' . $windowSeconds . ' seconds')->format('c'),
+        ]);
 
         return false;
     }
@@ -113,9 +108,16 @@ final class SubmissionGuard
     /** Sweep expired fingerprints. */
     public function pruneFingerprints(): int
     {
-        return $this->db->run(
-            'DELETE FROM form_fingerprints WHERE expires_at < :now',
-            ['now' => Clock::nowIso()]
-        )->rowCount();
+        $now     = Clock::nowIso();
+        $removed = 0;
+        foreach ($this->store->all(self::COLLECTION) as $row) {
+            if ((string) ($row['expires_at'] ?? '') < $now) {
+                if ($this->store->delete(self::COLLECTION, (string) ($row['uuid'] ?? ''))) {
+                    $removed++;
+                }
+            }
+        }
+
+        return $removed;
     }
 }

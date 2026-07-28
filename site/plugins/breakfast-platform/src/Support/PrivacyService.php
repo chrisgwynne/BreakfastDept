@@ -107,8 +107,12 @@ final class PrivacyService
             $p->db()->run("DELETE FROM webhook_deliveries WHERE status = 'delivered' AND created_at < :c", ['c' => $this->cutoff($eventDays)]);
             $p->enquiries()->pruneIpHashes(30);
             $p->rateLimiter()->prune();
-            (new SubmissionGuard($p->db(), $p->rateLimiter()))->pruneFingerprints();
-            $p->db()->run('DELETE FROM hermes_nonces WHERE expires_at < :now', ['now' => $now]);
+            (new SubmissionGuard($p->fileStore(), $p->rateLimiter()))->pruneFingerprints();
+            foreach ($p->fileStore()->all('hermes_nonces') as $n) {
+                if ((string) ($n['expires_at'] ?? '') < $now) {
+                    $p->fileStore()->delete('hermes_nonces', (string) ($n['uuid'] ?? ''));
+                }
+            }
         }
 
         return $counts;
@@ -119,12 +123,14 @@ final class PrivacyService
         return Clock::now()->modify('-' . $days . ' days')->format('c');
     }
 
-    private function countOlder(string $table, string $column, int $days): int
+    private function countOlder(string $collection, string $column, int $days): int
     {
-        return (int) $this->platform->db()->scalar(
-            "SELECT COUNT(*) FROM {$table} WHERE {$column} < :c",
-            ['c' => $this->cutoff($days)]
-        );
+        $cutoff = $this->cutoff($days);
+
+        return count(array_filter(
+            $this->platform->fileStore()->all($collection),
+            static fn (array $r): bool => (string) ($r[$column] ?? '') !== '' && (string) $r[$column] < $cutoff
+        ));
     }
 
     /**
