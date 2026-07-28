@@ -1,7 +1,7 @@
 const { test, expect } = require("@playwright/test");
 
-// Note: the concept-work portfolio is unpublished (drafts) until real client
-// projects exist, so there is deliberately no public /work section.
+// Note: /work is flat-file Kirby content (content/1_work/*). The LocalMarkers
+// project is live; concept pieces stay in content/_drafts until they're ready.
 
 test("journal lists articles and article opens", async ({ page }) => {
   await page.goto("/journal");

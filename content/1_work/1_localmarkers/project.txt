@@ -1,0 +1,85 @@
+Title: LocalMarkers
+
+----
+
+Project_status: internal
+
+----
+
+Client: In-house project
+
+----
+
+Summary: A done-for-you Google Business Profile service for UK tradespeople, built end to end.
+
+----
+
+Challenge: UK tradespeople rely on Google Business Profile for local enquiries, and almost none of them have the time to manage one properly. LocalMarkers turns that into a service someone else runs for them.
+
+It needed a site that could sell to fifty-six different trades without feeling like fifty-six templates, and a back end that could actually run the service day to day.
+
+----
+
+Approach: I built it end to end:
+
+- A fifty-six page trade section, each page written for the specific trade rather than spun from a template.
+- A matching free audit landing page for every trade, so paid and organic traffic each have somewhere to land.
+- A client portal where customers see what's being done to their profile.
+- An admin CRM for running the service side.
+- A fifty-point Google Business Profile audit framework that the whole service is built around.
+
+----
+
+Strategy:
+
+----
+
+Design_explanation:
+
+----
+
+Build_explanation: The stack: Kirby CMS, PHP, SQLite, vanilla CSS and JavaScript. No frameworks, no build step.
+
+----
+
+Outcome: This is the same approach behind everything I build. Words first, then the design around them. Fast by default, because there's nothing loaded that isn't doing a job.
+
+----
+
+Technology: Kirby CMS, PHP, SQLite, Vanilla CSS & JavaScript
+
+----
+
+Project_url: https://localmarkers.co.uk
+
+----
+
+Hero_image:
+
+- cover.jpg
+
+----
+
+Card_image:
+
+- cover.jpg
+
+----
+
+Featured: true
+
+----
+
+Date: 2026-07-28
+
+----
+
+Seo_title: LocalMarkers — Google Business Profile service, built end to end
+
+----
+
+Meta_description: I built LocalMarkers end to end — a done-for-you Google Business Profile service for UK tradespeople. Kirby, PHP and vanilla CSS.
+
+----
+
+Uuid: work-localmarkers

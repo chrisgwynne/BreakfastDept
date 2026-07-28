@@ -68,7 +68,7 @@ foreach ($routes as $slug) {
     $check('Route /' . $slug . ' renders', $ok);
 }
 // A representative case study / service / article.
-foreach (['work/passo', 'services/new-website', 'journal/five-second-test'] as $deep) {
+foreach (['work/localmarkers', 'services/new-website', 'journal/five-second-test'] as $deep) {
     $page = $kirby->page($deep);
     $check('Route /' . $deep . ' resolves', $page !== null);
 }

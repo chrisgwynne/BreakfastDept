@@ -1,0 +1,21 @@
+Title: Work
+
+----
+
+Intro: A selection of the work — real projects and the thinking behind them. Each one started with the same question: what does a visitor most need to do?
+
+----
+
+Filters_enabled: false
+
+----
+
+Uuid: work
+
+----
+
+Seo_title: Selected work — websites I've designed and built | Breakfast
+
+----
+
+Meta_description: A selection of clear, fast websites I've designed and built for small businesses across North Wales.
