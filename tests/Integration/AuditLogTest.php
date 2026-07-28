@@ -19,7 +19,7 @@ final class AuditLogTest extends PlatformTestCase
     {
         $this->platform->audit()->event('preview.publish', 'preview', 'uuid-123', 'studio@example.com', ['version' => 'v-9']);
 
-        $row = $this->platform->db()->one("SELECT * FROM hermes_audit WHERE endpoint = 'preview.publish'");
+        $row = array_values(array_filter($this->platform->fileStore()->all('hermes_audit'), static fn (array $r): bool => (string) ($r['endpoint'] ?? '') === 'preview.publish'))[0] ?? null;
         $this->assertNotNull($row);
         $this->assertSame('PANEL', $row['method']);
         $this->assertSame('preview', $row['target_type']);
@@ -33,7 +33,7 @@ final class AuditLogTest extends PlatformTestCase
     {
         $this->platform->audit()->event('preview.disable_all', 'system', null, null, ['count' => 3]);
 
-        $row = $this->platform->db()->one("SELECT * FROM hermes_audit WHERE endpoint = 'preview.disable_all'");
+        $row = array_values(array_filter($this->platform->fileStore()->all('hermes_audit'), static fn (array $r): bool => (string) ($r['endpoint'] ?? '') === 'preview.disable_all'))[0] ?? null;
         $this->assertNotNull($row);
         $this->assertSame('panel:system', $row['credential_id']);
         $this->assertNull($row['target_uuid']);
@@ -49,6 +49,6 @@ final class AuditLogTest extends PlatformTestCase
 
         $removed = $this->platform->audit()->prune(365);
         $this->assertSame(1, $removed);
-        $this->assertSame(1, (int) $this->platform->db()->scalar('SELECT COUNT(*) FROM hermes_audit'));
+        $this->assertSame(1, count($this->platform->fileStore()->all('hermes_audit')));
     }
 }

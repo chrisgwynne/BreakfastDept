@@ -103,7 +103,7 @@ final class HermesAdminTest extends TestCase
         // The generated secret must not be findable in the audit trail.
         $secret = explode('|', (string) $gen['env_line'])[1] ?? '';
         $this->assertNotSame('', $secret);
-        $rows = breakfast()->db()->all('SELECT * FROM hermes_audit');
+        $rows = breakfast()->fileStore()->all('hermes_audit');
         $auditJson = json_encode($rows);
         $this->assertIsString($auditJson);
         $this->assertStringNotContainsString($secret, $auditJson, 'A generated secret must never be written to the audit log');

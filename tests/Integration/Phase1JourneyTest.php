@@ -176,7 +176,7 @@ final class Phase1JourneyTest extends TestCase
         $this->assertContains('payment.received', $types, 'verified payment recorded on the contact timeline');
 
         // And the audit log records the reconciliation as an immutable event.
-        $reconciled = $p->db()->one("SELECT COUNT(*) AS n FROM hermes_audit WHERE endpoint = 'payment.reconciled'");
+        $reconciled = ['n' => count(array_filter($p->fileStore()->all('hermes_audit'), static fn (array $r): bool => (string) ($r['endpoint'] ?? '') === 'payment.reconciled'))];
         $this->assertGreaterThan(0, (int) ($reconciled['n'] ?? 0));
     }
 

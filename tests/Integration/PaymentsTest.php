@@ -199,7 +199,7 @@ final class PaymentsTest extends TestCase
         // Provider reports a different amount than we expected — must warn.
         $this->svc->handleEvent($this->checkoutCompletedEvent('evt_mism', 'cs_test_5', $invoiceUuid, $paymentUuid, 55000));
 
-        $anomaly = breakfast()->db()->one("SELECT COUNT(*) AS n FROM hermes_audit WHERE endpoint = 'payment.anomaly'");
+        $anomaly = ['n' => count(array_filter(breakfast()->fileStore()->all('hermes_audit'), static fn (array $r): bool => (string) ($r['endpoint'] ?? '') === 'payment.anomaly'))];
         $this->assertGreaterThan(0, (int) ($anomaly['n'] ?? 0));
     }
 

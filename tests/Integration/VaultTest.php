@@ -129,7 +129,7 @@ final class VaultTest extends TestCase
         $this->assertContains('reveal', $actions);
         $this->assertContains('copy', $actions);
         // The audit log (hermes_audit) records the action but never the value.
-        $auditDump = json_encode(breakfast()->db()->all("SELECT * FROM hermes_audit")) ?: '';
+        $auditDump = json_encode(breakfast()->fileStore()->all('hermes_audit')) ?: '';
         $this->assertStringContainsString('vault.reveal', $auditDump);
         $this->assertStringNotContainsString(self::CANARY, $auditDump);
     }

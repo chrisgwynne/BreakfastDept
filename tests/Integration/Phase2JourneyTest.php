@@ -183,7 +183,7 @@ final class Phase2JourneyTest extends TestCase
         // 8. The connected story is on the contact's CRM timeline + audit log.
         $types = array_map(static fn (array $a): string => (string) $a['type'], $p->activities()->forEntity('contact', $contact, 100));
         $this->assertContains('change_request.approved', $types, 'client approval recorded on the timeline');
-        $auditApplied = (int) ($p->db()->one("SELECT COUNT(*) AS n FROM hermes_audit WHERE endpoint = 'change_request.applied'")['n'] ?? 0);
+        $auditApplied = count(array_filter($p->fileStore()->all('hermes_audit'), static fn (array $r): bool => (string) ($r['endpoint'] ?? '') === 'change_request.applied'));
         $this->assertGreaterThan(0, $auditApplied, 'applying the change is an immutable audit event');
     }
 

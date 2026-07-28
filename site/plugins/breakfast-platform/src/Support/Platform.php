@@ -463,7 +463,7 @@ final class Platform
 
     public function audit(): AuditLog
     {
-        return $this->service(AuditLog::class, fn () => new AuditLog($this->db()));
+        return $this->service(AuditLog::class, fn () => new AuditLog($this->fileStore()));
     }
 
     public function calendar(): \Breakfast\Platform\Calendar\CalendarService

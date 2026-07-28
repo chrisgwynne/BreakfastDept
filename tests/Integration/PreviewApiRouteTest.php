@@ -123,7 +123,7 @@ final class PreviewApiRouteTest extends TestCase
         $this->assertSame('active', $published['data']['status']);
 
         // The publish actually wrote an audit row (proves event() signature).
-        $this->assertSame(1, (int) breakfast()->db()->scalar("SELECT COUNT(*) FROM hermes_audit WHERE endpoint = 'preview.publish'"));
+        $this->assertSame(1, count(array_filter(breakfast()->fileStore()->all('hermes_audit'), static fn (array $r): bool => (string) ($r['endpoint'] ?? '') === 'preview.publish')));
 
         // Password set, then detail + list must NOT expose the hash.
         breakfast()->previewPasswords()->setPassword($uuid, 'secret-pw', 'admin');

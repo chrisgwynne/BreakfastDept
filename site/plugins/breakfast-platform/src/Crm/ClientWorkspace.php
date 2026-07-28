@@ -28,7 +28,6 @@ final class ClientWorkspace
      */
     public function forContact(array $contact): array
     {
-        $db          = $this->platform->db();
         $store       = $this->platform->fileStore();
         $contactUuid = (string) ($contact['uuid'] ?? '');
         $companyUuid = (string) ($contact['company_uuid'] ?? '');

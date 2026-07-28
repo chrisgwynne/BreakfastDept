@@ -110,35 +110,37 @@ final class HermesAdmin
      */
     private function usageByCredential(): array
     {
-        if ($this->platform->db()->tableExists('hermes_audit') === false) {
-            return [];
-        }
-        $rows = $this->platform->db()->all(
-            "SELECT credential_id,
-                    MAX(created_at) AS last_used,
-                    COUNT(*)        AS n
-             FROM hermes_audit
-             WHERE credential_id NOT LIKE 'panel:%'
-             GROUP BY credential_id"
-        );
         $out = [];
-        foreach ($rows as $r) {
+        foreach ($this->auditRows() as $r) {
             $id = (string) ($r['credential_id'] ?? '');
-            if ($id === '') {
+            if ($id === '' || str_starts_with($id, 'panel:')) {
                 continue;
             }
-            $last = $this->platform->db()->one(
-                'SELECT result FROM hermes_audit WHERE credential_id = :c ORDER BY created_at DESC LIMIT 1',
-                ['c' => $id]
-            );
-            $out[$id] = [
-                'last_used'   => (string) ($r['last_used'] ?? ''),
-                'last_result' => (string) ($last['result'] ?? ''),
-                'count'       => (int) ($r['n'] ?? 0),
-            ];
+            $at = (string) ($r['created_at'] ?? '');
+            if (!isset($out[$id])) {
+                $out[$id] = ['last_used' => '', 'last_result' => '', 'count' => 0];
+            }
+            $out[$id]['count']++;
+            if ($at >= $out[$id]['last_used']) {
+                $out[$id]['last_used']   = $at;
+                $out[$id]['last_result'] = (string) ($r['result'] ?? '');
+            }
         }
 
         return $out;
+    }
+
+    /**
+     * Every audit entry, newest first.
+     *
+     * @return list<array<string,mixed>>
+     */
+    private function auditRows(): array
+    {
+        $rows = $this->platform->fileStore()->all('hermes_audit');
+        usort($rows, static fn ($a, $b) => strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? '')));
+
+        return $rows;
     }
 
     // ==================================================================
@@ -220,36 +222,21 @@ final class HermesAdmin
      */
     public function activity(array $filters, int $page = 1, int $perPage = 25): array
     {
-        if ($this->platform->db()->tableExists('hermes_audit') === false) {
-            return ['items' => [], 'total' => 0, 'page' => 1, 'per_page' => $perPage];
-        }
-
-        $where  = ['1 = 1'];
-        $params = [];
+        $rows = $this->auditRows();
         if (($filters['result'] ?? '') !== '') {
-            $where[]          = 'result = :result';
-            $params['result'] = $filters['result'];
+            $rows = array_values(array_filter($rows, static fn (array $r): bool => (string) ($r['result'] ?? '') === $filters['result']));
         }
         if (($filters['credential'] ?? '') !== '') {
-            $where[]        = 'credential_id = :cred';
-            $params['cred'] = $filters['credential'];
+            $rows = array_values(array_filter($rows, static fn (array $r): bool => (string) ($r['credential_id'] ?? '') === $filters['credential']));
         }
-        $clause = implode(' AND ', $where);
+        $total = count($rows);
 
-        $total = (int) $this->platform->db()->scalar("SELECT COUNT(*) FROM hermes_audit WHERE $clause", $params);
-
-        $perPage        = max(1, min(100, $perPage));
-        $page           = max(1, $page);
-        $params['lim']  = $perPage;
-        $params['off']  = ($page - 1) * $perPage;
-
-        $rows = $this->platform->db()->all(
-            "SELECT * FROM hermes_audit WHERE $clause ORDER BY created_at DESC LIMIT :lim OFFSET :off",
-            $params
-        );
+        $perPage = max(1, min(100, $perPage));
+        $page    = max(1, $page);
+        $slice   = array_slice($rows, ($page - 1) * $perPage, $perPage);
 
         return [
-            'items'    => array_map([$this, 'auditRow'], $rows),
+            'items'    => array_map([$this, 'auditRow'], $slice),
             'total'    => $total,
             'page'     => $page,
             'per_page' => $perPage,
@@ -259,10 +246,7 @@ final class HermesAdmin
     /** @return array<string,mixed>|null */
     public function activityDetail(string $uuid): ?array
     {
-        if ($this->platform->db()->tableExists('hermes_audit') === false) {
-            return null;
-        }
-        $row = $this->platform->db()->one('SELECT * FROM hermes_audit WHERE uuid = :u', ['u' => $uuid]);
+        $row = $this->platform->fileStore()->find('hermes_audit', $uuid);
 
         return $row === null ? null : $this->auditRow($row, true);
     }
@@ -306,26 +290,30 @@ final class HermesAdmin
     {
         $configured = $this->store->all() !== [];
         $enabled    = $this->enabled();
-        $hasAudit   = $this->platform->db()->tableExists('hermes_audit');
+        $hasAudit   = true; // audit trail is always available (flat-file)
 
         $lastSuccess = $lastFailure = null;
         $requests24h = $failures24h = 0;
-        if ($hasAudit) {
-            $lastSuccess = $this->platform->db()->scalar(
-                "SELECT MAX(created_at) FROM hermes_audit WHERE result = 'ok' AND credential_id NOT LIKE 'panel:%'"
-            );
-            $lastFailure = $this->platform->db()->scalar(
-                "SELECT MAX(created_at) FROM hermes_audit WHERE result != 'ok' AND credential_id NOT LIKE 'panel:%'"
-            );
-            $since = date('c', time() - 86400);
-            $requests24h = (int) $this->platform->db()->scalar(
-                "SELECT COUNT(*) FROM hermes_audit WHERE created_at >= :s AND credential_id NOT LIKE 'panel:%'",
-                ['s' => $since]
-            );
-            $failures24h = (int) $this->platform->db()->scalar(
-                "SELECT COUNT(*) FROM hermes_audit WHERE created_at >= :s AND result != 'ok' AND credential_id NOT LIKE 'panel:%'",
-                ['s' => $since]
-            );
+        $since = date('c', time() - 86400);
+        foreach ($this->auditRows() as $r) {
+            $cred = (string) ($r['credential_id'] ?? '');
+            if (str_starts_with($cred, 'panel:')) {
+                continue;
+            }
+            $at = (string) ($r['created_at'] ?? '');
+            $ok = (string) ($r['result'] ?? '') === 'ok';
+            if ($ok && ($lastSuccess === null || $at > $lastSuccess)) {
+                $lastSuccess = $at;
+            }
+            if (!$ok && ($lastFailure === null || $at > $lastFailure)) {
+                $lastFailure = $at;
+            }
+            if ($at >= $since) {
+                $requests24h++;
+                if (!$ok) {
+                    $failures24h++;
+                }
+            }
         }
 
         // Severity: disabled | misconfigured | degraded | attention | healthy.
@@ -347,7 +335,7 @@ final class HermesAdmin
             'configured'        => $configured,
             'credentials'       => count($this->store->all()),
             'audit_storage'     => $hasAudit,
-            'nonce_storage'     => $this->platform->db()->tableExists('hermes_nonces'),
+            'nonce_storage'     => true, // flat-file nonce store is always available
             'queue_pending'     => $this->platform->queue()->pendingCount(),
             'queue_failed'      => $this->platform->queue()->failedCount(),
             'replay_window'     => $this->replayWindow(),
@@ -438,7 +426,7 @@ final class HermesAdmin
             $canonical = Signer::canonical($method, $path, $timestamp, $nonce, $body);
             $signature = Signer::sign($credential->secret(), $canonical);
 
-            $auth = new Authenticator($this->store, $this->platform->db(), $this->replayWindow());
+            $auth = new Authenticator($this->store, $this->platform->fileStore(), $this->replayWindow());
             $result = $auth->authenticate($method, $path, $body, [
                 'x-hermes-key'       => $credential->id,
                 'x-hermes-timestamp' => $timestamp,

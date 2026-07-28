@@ -534,8 +534,8 @@ Kirby::plugin('breakfast/platform', [
                 }
 
                 $store = new CredentialStore();
-                $auth  = new Authenticator($store, $platform->db(), (int) ($platform->config('hermes')['replayWindow'] ?? 300));
-                $api   = new HermesApi($platform, $auth, new AuditLog($platform->db()), new DraftFactory());
+                $auth  = new Authenticator($store, $platform->fileStore(), (int) ($platform->config('hermes')['replayWindow'] ?? 300));
+                $api   = new HermesApi($platform, $auth, new AuditLog($platform->fileStore()), new DraftFactory());
 
                 $request = $kirby->request();
                 $headers = [];
