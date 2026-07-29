@@ -46,6 +46,7 @@ if ($page->isHomePage() === false) {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title><?= esc($meta->title()) ?></title>
   <meta name="description" content="<?= esc($meta->description()) ?>">
+  <meta name="google-site-verification" content="730QrZJoEiHIgYNfi3FKRh0Wk1ZJrm_WqHmKtiuA4yM" />
   <link rel="canonical" href="<?= esc($meta->canonical()) ?>">
   <meta name="robots" content="<?= esc($meta->robots()) ?>">
 
