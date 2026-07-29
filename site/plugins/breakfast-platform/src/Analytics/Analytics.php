@@ -31,6 +31,11 @@ final class Analytics
         return $this->provider() !== 'none';
     }
 
+    public function site(): string
+    {
+        return (string) ($this->config['site'] ?? '');
+    }
+
     /** Whether the configured provider sets non-essential cookies. */
     public function requiresConsent(): bool
     {
@@ -87,7 +92,7 @@ final class Analytics
      */
     public function script(string $nonce): string
     {
-        $site   = htmlspecialchars((string) ($this->config['site'] ?? ''), ENT_QUOTES);
+        $site   = htmlspecialchars($this->site(), ENT_QUOTES);
         $srcUrl = htmlspecialchars((string) ($this->config['scriptUrl'] ?? ''), ENT_QUOTES);
 
         return match ($this->provider()) {

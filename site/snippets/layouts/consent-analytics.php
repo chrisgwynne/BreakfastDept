@@ -7,14 +7,26 @@
  * @var string $nonce
  * @var \Breakfast\Platform\Analytics\Analytics $analytics
  */
-$snippet = str_replace(['<script', '</script>'], '', $analytics->script($nonce));
+$measurementId = json_encode(
+    $analytics->site(),
+    JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_THROW_ON_ERROR
+);
 ?>
 <script nonce="<?= esc($nonce) ?>">
 (function () {
   function load() {
     if (window.__bfAnalytics) return;
+    var id = <?= $measurementId ?>;
+    if (!/^G-[A-Z0-9]+$/.test(id)) return;
     window.__bfAnalytics = true;
-    <?= $snippet /* provider bootstrap; contains no user input */ ?>
+    var script = document.createElement("script");
+    script.async = true;
+    script.src = "https://www.googletagmanager.com/gtag/js?id=" + encodeURIComponent(id);
+    document.head.appendChild(script);
+    window.dataLayer = window.dataLayer || [];
+    window.gtag = function () { window.dataLayer.push(arguments); };
+    window.gtag("js", new Date());
+    window.gtag("config", id, {anonymize_ip: true});
   }
   var ok = null;
   try { ok = localStorage.getItem("bf-consent"); } catch (e) {}
