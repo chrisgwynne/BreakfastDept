@@ -7,6 +7,14 @@
       <h1 class="section__title"><?= esc($page->title()) ?></h1>
     </div>
     <?php if ($page->intro()->isNotEmpty()): ?><div class="blocks" style="margin-bottom:var(--s-8)"><?= $page->intro()->toBlocks() ?></div><?php endif ?>
+    <div class="enquiry-next reveal" aria-labelledby="next-heading">
+      <h2 id="next-heading">What happens next</h2>
+      <ol>
+        <li><strong>You send the rough outline.</strong><span>A few useful lines are enough; you do not need a finished brief.</span></li>
+        <li><strong>I check the fit.</strong><span>I reply with an honest view of the useful scope and whether I am the right person for it.</span></li>
+        <li><strong>You get a clear next step.</strong><span>If it makes sense to continue, the work is scoped and quoted in writing before anything starts.</span></li>
+      </ol>
+    </div>
     <?php snippet('forms/project-form', ['page' => $page, 'result' => $result, 'old' => $old]) ?>
   </div>
 </section>

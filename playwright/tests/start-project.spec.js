@@ -6,6 +6,21 @@ const { test, expect } = require("@playwright/test");
 // thank-you page (server-side processing is unchanged).
 
 test.describe("Start a project — multi-step form", () => {
+  test("service offer CTA carries the buyer's choice into the enquiry", async ({ page }) => {
+    await page.goto("/services");
+    await expect(page.getByRole("heading", { name: "A new website", exact: true })).toBeVisible();
+    await expect(page.getByText("What’s included").first()).toBeVisible();
+
+    await page.locator('[data-track-label="service-new-website"]').click();
+    await expect(page).toHaveURL(/start-a-project\?service=new-website#form/);
+
+    await page.fill("#field-name", "Offer Path Tester");
+    await page.fill("#field-email", "offer-path@example.co.uk");
+    await page.locator('.fstep[data-step="1"] [data-step-next]').click();
+    await expect(page.getByRole("checkbox", { name: "A new website" })).toBeChecked();
+    await expect(page.getByRole("checkbox", { name: "Not sure yet" })).not.toBeChecked();
+  });
+
   test("steps, validation, back/next and submission", async ({ page }) => {
     const errs = [];
     page.on("pageerror", (e) => errs.push(String(e)));
