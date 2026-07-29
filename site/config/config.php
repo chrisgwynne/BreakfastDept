@@ -180,8 +180,11 @@ return [
             'scannerCmd' => Env::get('UPLOADS_SCANNER_CMD', ''),
         ],
         'analytics' => [
-            'provider'  => Env::get('ANALYTICS_PROVIDER', 'none'),
-            'site'      => Env::get('ANALYTICS_SITE', ''),
+            // GA4 is enabled only in production and remains consent-gated by
+            // the existing analytics/consent layer. Environment values can
+            // still override these defaults for staging or local development.
+            'provider'  => Env::get('ANALYTICS_PROVIDER', $isProduction ? 'ga4' : 'none'),
+            'site'      => Env::get('ANALYTICS_SITE', $isProduction ? 'G-FSZWKZ1FZH' : ''),
             'scriptUrl' => Env::get('ANALYTICS_SCRIPT_URL', ''),
         ],
 

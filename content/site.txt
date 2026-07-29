@@ -119,11 +119,11 @@ Default_social_image:
 
 ----
 
-Analytics_provider: none
+Analytics_provider: ga4
 
 ----
 
-Analytics_site:
+Analytics_site: G-FSZWKZ1FZH
 
 ----
 
