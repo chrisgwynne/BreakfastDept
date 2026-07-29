@@ -96,13 +96,13 @@
     </div>
     <div class="grid grid--3">
       <?php foreach ($svc as $i => $s): ?>
-        <?php $icon = ['websites' => 'globe', 'online shops' => 'cart', 'rescue & ongoing support' => 'wrench'][strtolower((string) $s->title()->value())] ?? 'spark'; ?>
+        <?php $icon = ['website design & build' => 'globe', 'shopify online shop' => 'cart', 'website rescue & care' => 'wrench'][strtolower((string) $s->title()->value())] ?? 'spark'; ?>
         <a class="scard scard--link reveal" style="--i:<?= $i ?>" href="<?= esc($s->link()->or(url('services'))) ?>">
           <span class="scard__icon" aria-hidden="true"><?php snippet('partials/icon', ['name' => $icon]) ?></span>
           <h3 class="scard__title"><?= esc($s->title()) ?></h3>
           <p class="scard__summary"><?= esc($s->text()) ?></p>
           <?php if ($s->audience()->isNotEmpty()): ?><p class="scard__aud"><?= esc($s->audience()) ?></p><?php endif ?>
-          <span class="scard__go" aria-hidden="true">See what's involved →</span>
+          <span class="scard__go" aria-hidden="true">See this option →</span>
         </a>
       <?php endforeach ?>
     </div>
@@ -251,7 +251,7 @@
       <h2 class="cta-band__title"><?= esc($page->final_cta_heading()->or($site->cta_heading())) ?></h2>
       <p class="cta-band__text"><?= esc($page->final_cta_text()->or($site->cta_text())) ?></p>
       <div class="cta-band__actions">
-        <a class="btn btn--primary btn--lg" data-track="cta_click" data-track-label="final-primary" href="<?= esc(url('start-a-project')) ?>"><?= esc(t('breakfast.startproject', 'Start a project')) ?></a>
+        <a class="btn btn--primary btn--lg" data-track="cta_click" data-track-label="final-primary" href="<?= esc(url('start-a-project')) ?>">Tell me about your project</a>
         <a class="btn btn--ghost btn--lg" href="<?= esc(url('contact')) ?>"><?= esc(t('breakfast.quickq', 'Ask a quick question')) ?></a>
       </div>
     </div>

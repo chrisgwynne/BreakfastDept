@@ -672,6 +672,36 @@ details[open] .faq__q::after { content: "–"; }
 .scard { gap: var(--s-2); }
 .scard .link-cta { margin-top: var(--s-2); }
 
+/* ---------- Productised offer path ---------- */
+.offer-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-6); align-items: stretch; }
+.scard--offer { gap: var(--s-4); }
+.scard--offer:last-child:nth-child(odd) { grid-column: 1 / -1; }
+.scard__top { display: flex; align-items: center; justify-content: space-between; gap: var(--s-4); }
+.scard__package { font-family: var(--mono); color: var(--secondary); font-size: 0.78rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
+.scard__includes { border-top: 1px solid rgba(28, 41, 60, 0.2); padding-top: var(--s-4); }
+.scard__includes h3 { font-size: 0.85rem; margin-bottom: var(--s-2); }
+.scard__includes ul { display: grid; gap: var(--s-2); color: var(--muted); }
+.scard__includes li { position: relative; padding-left: var(--s-5); }
+.scard__includes li::before { content: "✓"; position: absolute; left: 0; color: var(--secondary); font-weight: 900; }
+.scard__actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--s-4); margin-top: auto; padding-top: var(--s-2); }
+.scard__actions .link-cta { margin-top: 0; }
+.offer-help { margin-top: var(--s-8); display: flex; align-items: center; justify-content: space-between; gap: var(--s-6); }
+.offer-help p { color: var(--muted); max-width: 62ch; margin-top: var(--s-2); }
+.offer-help .btn { flex: none; }
+.enquiry-next { max-width: 52rem; background: var(--surface); border: var(--border); border-radius: var(--radius); padding: var(--s-6); margin-bottom: var(--s-8); }
+.enquiry-next h2 { font-size: 1.35rem; margin-bottom: var(--s-4); }
+.enquiry-next ol { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s-5); counter-reset: enquiry-step; }
+.enquiry-next li { display: grid; gap: var(--s-2); color: var(--muted); counter-increment: enquiry-step; }
+.enquiry-next li::before { content: counter(enquiry-step); display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--primary); border: 2px solid var(--text); color: var(--text); font-weight: 900; }
+.enquiry-next strong { color: var(--text); }
+
+@media (max-width: 720px) {
+  .offer-grid { grid-template-columns: 1fr; }
+  .scard--offer:last-child:nth-child(odd) { grid-column: auto; }
+  .offer-help { align-items: flex-start; flex-direction: column; }
+  .enquiry-next ol { grid-template-columns: 1fr; }
+}
+
 /* ---------- Multi-step form (progressive enhancement) ---------- */
 /* No-JS: every step shows in order; only the Next/Back controls are hidden so
    the single submit still works. JS then chunks it into steps. */

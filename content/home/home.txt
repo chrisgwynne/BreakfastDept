@@ -18,7 +18,7 @@ Hero_text: I design and build clear, fast websites that help small businesses ac
 
 ----
 
-Hero_primary_label: Start a project
+Hero_primary_label: Tell me about your project
 
 ----
 
@@ -50,29 +50,29 @@ Services_enabled: true
 
 ----
 
-Services_heading: What's on the menu.
+Services_heading: Choose your starting point.
 
 ----
 
-Services_intro: Three ways I can help. Most people start with a few lines about what they need — the rest gets worked out together.
+Services_intro: Start with the outcome you need. Every route begins with a clear scope and written quote before work starts.
 
 ----
 
 Services_cards:
 
 -
-  title: Websites
-  text: A clear, fast website that turns visitors into enquiries.
-  audience: For independents who've outgrown their current site.
+  title: Website design & build
+  text: Strategy, copy, design and build for a clear website centred on one useful customer action.
+  audience: For independents starting properly or replacing a site that no longer fits.
   link: /services/new-website
 -
-  title: Online shops
-  text: Sell online without the clunk — simple to run, easy to buy from.
+  title: Shopify online shop
+  text: A branded online shop with products, payments, postage and stock set up to manage.
   audience: For makers and shops ready to take orders.
   link: /services/online-shop
 -
-  title: Rescue & ongoing support
-  text: Fix a site that's holding you back, then keep it healthy.
+  title: Website rescue & care
+  text: Diagnose what is wrong, fix what matters, or arrange practical ongoing support.
   audience: For businesses stuck with a site that fights them.
   link: /services/website-rescue
 
@@ -201,7 +201,7 @@ Final_cta_heading: Not sure what your website needs?
 
 ----
 
-Final_cta_text: Send a few lines about your business. You'll get an honest view on what would actually help — no jargon, no pressure.
+Final_cta_text: Send a few lines about your business and what is getting in the way. You do not need to choose an option or write a finished brief first.
 
 ----
 

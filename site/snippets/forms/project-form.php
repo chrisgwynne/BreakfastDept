@@ -11,6 +11,8 @@
 $errors = $result?->errors ?? [];
 $old    = $old ?? [];
 $field  = function (string $name) use ($old) { return esc($old[$name] ?? ''); };
+$selectedService = trim((string) get('service'));
+$oldServices = array_map('strval', (array) ($old['services'] ?? []));
 // Which step each field lives in — used to jump to the first server error.
 $stepOf = [
     'name' => 1, 'email' => 1, 'company' => 1, 'help' => 1,
@@ -90,8 +92,10 @@ foreach (array_keys($errors) as $ef) {
       <?php if ($page->form_services_help()->isNotEmpty()): ?><p class="field__hint"><?= esc($page->form_services_help()) ?></p><?php endif ?>
       <div class="grid grid--2" style="gap:var(--s-2);margin-top:var(--s-2)">
         <?php foreach ($services->children()->listed() as $s): ?>
-          <label class="checkbox"><input type="checkbox" name="services[]" value="<?= esc($s->title()) ?>"> <?= esc($s->title()) ?></label>
+          <?php $checked = in_array((string) $s->title(), $oldServices, true) || $selectedService === $s->slug(); ?>
+          <label class="checkbox"><input type="checkbox" name="services[]" value="<?= esc($s->title()) ?>" <?= $checked ? 'checked' : '' ?>> <?= esc($s->title()) ?></label>
         <?php endforeach ?>
+        <label class="checkbox"><input type="checkbox" name="services[]" value="Not sure yet" <?= in_array('Not sure yet', $oldServices, true) ? 'checked' : '' ?>> Not sure yet</label>
       </div>
     </fieldset>
     <?php endif ?>
