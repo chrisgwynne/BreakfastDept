@@ -81,6 +81,10 @@ final class SeoLaunchTest extends TestCase
         $txt = snippet('seo/robots', [], true);
         $this->assertStringContainsString('Allow: /', $txt);
         $this->assertStringNotContainsString("Disallow: /\n", $txt);
+
+        foreach (['/breakfast-admin/', '/kirby/', '/site/', '/content/', '/vendor/', '/storage/'] as $privatePath) {
+            $this->assertStringContainsString('Disallow: ' . $privatePath, $txt);
+        }
     }
 
     public function testHomeHasADefaultSocialImage(): void
