@@ -109,6 +109,18 @@ final class SeoLaunchTest extends TestCase
         $this->assertStringContainsString('North Wales', $service->seoMeta()->title());
     }
 
+    public function testCommercialPageTitlesAreConciseAndDoNotDuplicateTheBrand(): void
+    {
+        foreach (['home', 'work', 'work/localmarkers'] as $pageId) {
+            $page = $this->kirby->page($pageId);
+            $this->assertNotNull($page);
+
+            $title = $page->seoMeta()->title();
+            $this->assertLessThanOrEqual(60, mb_strlen($title), $pageId . ' title should fit a typical search result');
+            $this->assertSame(1, substr_count($title, 'Breakfast'), $pageId . ' title should contain the brand once');
+        }
+    }
+
     private function rrmdir(string $dir): void
     {
         if (!is_dir($dir)) {
