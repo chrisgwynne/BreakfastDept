@@ -65,7 +65,13 @@
   // this marker, so completion analytics represent a persisted enquiry.
   var completedEnquiry = document.querySelector("[data-enquiry-complete]");
   if (completedEnquiry) {
-    track("contact_form_completed", { form: completedEnquiry.getAttribute("data-form") || "contact" });
+    var completionKey = "bf-completed-" + completedEnquiry.getAttribute("data-reference");
+    var alreadyTracked = false;
+    try { alreadyTracked = window.sessionStorage.getItem(completionKey) === "1"; } catch (e) {}
+    if (!alreadyTracked) {
+      track("contact_form_completed", { form: completedEnquiry.getAttribute("data-form") || "contact" });
+      try { window.sessionStorage.setItem(completionKey, "1"); } catch (e) {}
+    }
   }
 
   document.querySelectorAll("[data-track]").forEach(function (el) {

@@ -69,6 +69,18 @@ final class EnquiryRepository extends FileRepository
         return $this->findRecord($uuid);
     }
 
+    /** @return array<string,mixed>|null */
+    public function findByReference(string $reference): ?array
+    {
+        foreach ($this->records() as $row) {
+            if (hash_equals((string) ($row['reference'] ?? ''), $reference)) {
+                return $row;
+            }
+        }
+
+        return null;
+    }
+
     /**
      * @param array<string,mixed> $data
      * @return array<string,mixed>|null
