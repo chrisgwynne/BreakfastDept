@@ -47,9 +47,6 @@
         track("contact_form_started", { form: form.getAttribute("data-form") || "contact" });
       }
     });
-    form.addEventListener("submit", function () {
-      track("contact_form_completed", { form: form.getAttribute("data-form") || "contact" });
-    });
   });
 
   /* ---------- Analytics event helper (privacy-safe; no PII) ---------- */
@@ -62,6 +59,14 @@
     }
   }
   window.bfTrack = track;
+
+  // A submit attempt is not a conversion: validation, spam checks or delivery
+  // can still fail server-side. Only the post-processing thank-you page carries
+  // this marker, so completion analytics represent a persisted enquiry.
+  var completedEnquiry = document.querySelector("[data-enquiry-complete]");
+  if (completedEnquiry) {
+    track("contact_form_completed", { form: completedEnquiry.getAttribute("data-form") || "contact" });
+  }
 
   document.querySelectorAll("[data-track]").forEach(function (el) {
     el.addEventListener("click", function () {
