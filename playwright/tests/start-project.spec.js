@@ -23,6 +23,10 @@ test.describe("Start a project — multi-step form", () => {
 
   test("steps, validation, back/next and submission", async ({ page }) => {
     const errs = [];
+    await page.addInitScript(() => {
+      window.analyticsEvents = [];
+      window.gtag = (...args) => window.analyticsEvents.push(args);
+    });
     page.on("pageerror", (e) => errs.push(String(e)));
     await page.goto("/start-a-project");
 
@@ -35,6 +39,7 @@ test.describe("Start a project — multi-step form", () => {
     await page.locator('.fstep[data-step="1"] [data-step-next]').click();
     await expect(page.locator('.fstep[data-step="2"]')).toBeHidden();
     await expect(page.locator("#field-name")).toHaveAttribute("aria-invalid", "true");
+    expect(await page.evaluate(() => window.analyticsEvents.some((event) => event[1] === "contact_form_completed"))).toBe(false);
 
     // Fill step 1 and advance.
     const uniq = Date.now() + "-" + Math.floor(Math.random() * 1e6);
@@ -59,6 +64,9 @@ test.describe("Start a project — multi-step form", () => {
     await page.locator("[data-submit]").click();
     await expect(page).toHaveURL(/thank-you/);
     await expect(page.locator("body")).toContainText(/ENQ-/);
+    await expect.poll(() => page.evaluate(() => window.analyticsEvents.filter((event) => event[1] === "contact_form_completed"))).toEqual([
+      ["event", "contact_form_completed", { form: "start-project" }],
+    ]);
     expect(errs).toEqual([]);
   });
 

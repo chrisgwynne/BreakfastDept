@@ -57,7 +57,7 @@ return function ($kirby, $site, $page) {
 
         if ($result->success) {
             $thankYou = page('thank-you');
-            go(($thankYou ? $thankYou->url() : $site->url()) . '?ref=' . urlencode($result->reference));
+            go(($thankYou ? $thankYou->url() : $site->url()) . '?ref=' . urlencode($result->reference) . '&form=website-review');
         }
 
         $old = $result->old;
