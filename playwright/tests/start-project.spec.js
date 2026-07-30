@@ -67,7 +67,14 @@ test.describe("Start a project — multi-step form", () => {
     await expect.poll(() => page.evaluate(() => window.analyticsEvents.filter((event) => event[1] === "contact_form_completed"))).toEqual([
       ["event", "contact_form_completed", { form: "start-project" }],
     ]);
+    await page.reload();
+    expect(await page.evaluate(() => window.analyticsEvents.filter((event) => event[1] === "contact_form_completed"))).toHaveLength(0);
     expect(errs).toEqual([]);
+  });
+
+  test("a forged thank-you reference is not treated as a conversion", async ({ page }) => {
+    await page.goto("/thank-you?ref=ENQ-2099-9999&form=start-project");
+    await expect(page.locator("[data-enquiry-complete]")).toHaveCount(0);
   });
 
   test("without JS the form is one page and still submits", async ({ browser }) => {

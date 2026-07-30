@@ -17,6 +17,15 @@ final class EnquiryReferenceTest extends PlatformTestCase
         $this->assertStringStartsWith('ENQ-', $a['reference']);
     }
 
+    public function testFindByReferenceRequiresAnExactPersistedReference(): void
+    {
+        $repo = $this->platform->enquiries();
+        $enquiry = $repo->create(['form_type' => 'start-project', 'payload' => []]);
+
+        $this->assertSame($enquiry['uuid'], $repo->findByReference($enquiry['reference'])['uuid'] ?? null);
+        $this->assertNull($repo->findByReference($enquiry['reference'] . '-forged'));
+    }
+
     public function testIpHashPruning(): void
     {
         $repo = $this->platform->enquiries();
