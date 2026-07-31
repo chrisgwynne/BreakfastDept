@@ -73,6 +73,12 @@ if ($page->isHomePage() === false) {
           even same-origin because fonts are always fetched in CORS mode. */ ?>
   <link rel="preload" href="<?= esc(url('assets/fonts/inter-variable.woff2')) ?>" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="<?= esc(url('assets/css/app.css')) ?>?v=<?= $assetVer ?>">
+  <?php /* The art-directed case-study system is loaded ONLY on project pages, so
+          the extra CSS never touches the rest of the site's payload. */ ?>
+  <?php if ($page->intendedTemplate()->name() === 'project'): ?>
+  <?php $csVer = (string) (@filemtime($kirby->root('assets') . '/css/case-study.css') ?: $assetVer); ?>
+  <link rel="stylesheet" href="<?= esc(url('assets/css/case-study.css')) ?>?v=<?= $csVer ?>">
+  <?php endif ?>
 
   <?= StructuredData::toScript($structured->business()) ?>
   <?= StructuredData::toScript($structured->website()) ?>

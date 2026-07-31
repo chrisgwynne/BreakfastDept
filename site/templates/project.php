@@ -1,102 +1,116 @@
-<?php snippet('layouts/header') ?>
+<?php
 
-<article class="section">
-  <div class="container">
-    <?php snippet('partials/breadcrumbs') ?>
+use Breakfast\Platform\Content\ArtDirection;
 
-    <?php $isConcept = $page->project_status()->value() === 'concept'; ?>
-    <header class="section__head" style="max-width:52rem">
-      <span class="kicker"><?= $isConcept ? 'Concept · ' : '' ?><?= esc($page->client()) ?><?php if ($page->industries()->isNotEmpty()): ?> · <?= esc($page->industries()->split()[0] ?? '') ?><?php endif ?></span>
-      <h1 class="section__title"><?= esc($page->title()) ?></h1>
-      <?php if ($page->summary()->isNotEmpty()): ?><p class="section__lead"><?= esc($page->summary()) ?></p><?php endif ?>
-      <?php if ($isConcept): ?><p class="tag tag--concept">Concept website — a worked example, not a client project.</p><?php endif ?>
-      <?php if ($page->confidential()->toBool(false)): ?><p class="tag"><?= esc(t('breakfast.confidential', 'Details anonymised at the client’s request')) ?></p><?php endif ?>
-    </header>
+snippet('layouts/header');
 
-    <?php if ($hero = $page->hero_image()->toFile()): ?>
-      <div class="article__cover"><?= $hero->crop(1600, 900)->html(['alt' => esc($hero->alt()->or($page->title())), 'fetchpriority' => 'high']) ?></div>
-    <?php endif ?>
+/* Resolve the curated art-direction settings into safe tokens + data-attrs.
+   Every value is whitelisted inside ArtDirection; nothing user-entered is
+   interpolated into CSS or attributes. */
+$adFields = [];
+foreach (['preset', 'accent', 'secondary', 'bg', 'text', 'display', 'body', 'corner',
+          'border', 'density', 'image_scale', 'rotation', 'caption', 'pullquote',
+          'animation', 'transition', 'motif', 'hero', 'ending'] as $k) {
+    $adFields[$k] = $page->content()->get('ad_' . $k)->value();
+}
+$ad = ArtDirection::resolve($adFields);
+$style = ArtDirection::styleAttr($ad['vars']);
 
-    <?php /* Before / after */ ?>
-    <?php $before = $page->before_image()->toFile(); $after = $page->after_image()->toFile(); ?>
-    <?php if ($before && $after): ?>
-      <div class="comparison" style="margin-bottom:var(--s-12)">
-        <figure><?= $before->crop(700, 500)->html(['alt' => 'Before', 'loading' => 'lazy']) ?><figcaption>before</figcaption></figure>
-        <figure><?= $after->crop(700, 500)->html(['alt' => 'After', 'loading' => 'lazy']) ?><figcaption>after</figcaption></figure>
-      </div>
-    <?php endif ?>
+/* Legacy narrative fields still drive the story; the flexible `body` blocks
+   carry the bespoke art direction. */
+$story = [];
+foreach (['challenge' => 'The challenge', 'approach' => 'The approach', 'strategy' => 'Strategy',
+          'design_explanation' => 'Design', 'build_explanation' => 'Build', 'outcome' => 'The outcome'] as $f => $label) {
+    if ($page->$f()->isNotEmpty()) {
+        $story[] = ['label' => t('breakfast.project.' . $f, $label), 'field' => $f];
+    }
+}
+$metrics = $page->metrics()->toStructure();
+?>
+<article class="cs" <?= ArtDirection::dataAttrs($ad['data']) ?><?= $style !== '' ? ' style="' . esc($style, 'attr') . '"' : '' ?>>
+  <div class="cs__inner cs__crumbs"><?php snippet('partials/breadcrumbs') ?></div>
 
-    <div class="columns">
-      <div class="prose">
-        <?php foreach (['challenge' => 'The challenge', 'approach' => 'Our approach', 'strategy' => 'Strategy'] as $field => $label): ?>
-          <?php if ($page->$field()->isNotEmpty()): ?>
-            <h2><?= esc(t('breakfast.project.' . $field, $label)) ?></h2>
-            <?= $page->$field()->kt() ?>
-          <?php endif ?>
-        <?php endforeach ?>
-      </div>
-      <div class="prose">
-        <?php foreach (['design_explanation' => 'Design', 'build_explanation' => 'Build', 'outcome' => 'The outcome'] as $field => $label): ?>
-          <?php if ($page->$field()->isNotEmpty()): ?>
-            <h2><?= esc(t('breakfast.project.' . $field, $label)) ?></h2>
-            <?= $page->$field()->kt() ?>
-          <?php endif ?>
-        <?php endforeach ?>
-      </div>
-    </div>
+  <?php snippet('case-study/hero', ['page' => $page, 'variant' => $ad['data']['hero']]) ?>
 
-    <?php /* Metrics */ ?>
-    <?php $metrics = $page->metrics()->toStructure(); ?>
+  <div class="cs__body">
+    <?php /* Narrative: numbered story beats, art-directed. */ ?>
+    <?php foreach ($story as $i => $s): ?>
+      <section class="cs__inner cs-numbered reveal" style="--i:<?= $i ?>">
+        <div class="cs-numbered__n" aria-hidden="true"><?= str_pad((string) ($i + 1), 2, '0', STR_PAD_LEFT) ?></div>
+        <div class="cs-text">
+          <h2><?= esc($s['label']) ?></h2>
+          <?= $page->{$s['field']}()->kt() ?>
+        </div>
+      </section>
+    <?php endforeach ?>
+
+    <?php /* Metrics → project-fact band. */ ?>
     <?php if ($metrics->isNotEmpty()): ?>
-      <div class="stats" style="margin-top:var(--s-12)">
-        <?php foreach ($metrics as $m): ?>
-          <div class="stat">
-            <div class="stat__value"><?= esc($m->value()) ?></div>
-            <div class="stat__label"><?= esc($m->label()) ?></div>
-            <?php if ($m->context()->isNotEmpty()): ?><p class="stat__context"><?= esc($m->context()) ?></p><?php endif ?>
-          </div>
-        <?php endforeach ?>
-      </div>
+      <section class="cs__inner reveal">
+        <div class="cs-facts">
+          <?php foreach ($metrics as $m): ?>
+            <div class="cs-facts__item">
+              <div class="v"><?= esc($m->value()) ?></div>
+              <div class="l"><?= esc($m->label()) ?></div>
+              <?php if ($m->context()->isNotEmpty()): ?><p class="cs-cap"><?= esc($m->context()) ?></p><?php endif ?>
+            </div>
+          <?php endforeach ?>
+        </div>
+      </section>
     <?php endif ?>
 
-    <?php /* Testimonial */ ?>
+    <?php /* Testimonial → art-directed pull quote (respects [data-ad-pullquote]). */ ?>
     <?php if ($page->testimonial_quote()->isNotEmpty()): ?>
-      <figure class="quote" style="margin-top:var(--s-12)">
-        <blockquote class="quote__text"><?= esc($page->testimonial_quote()) ?></blockquote>
-        <figcaption class="quote__cite">— <?= esc($page->testimonial_name()) ?><?php if ($page->testimonial_role()->isNotEmpty()): ?>, <?= esc($page->testimonial_role()) ?><?php endif ?></figcaption>
-      </figure>
+      <section class="cs__inner reveal">
+        <figure class="cs-quote">
+          <blockquote class="cs-quote__text"><?= esc($page->testimonial_quote()) ?></blockquote>
+          <figcaption class="cs-quote__cite">— <?= esc($page->testimonial_name()) ?><?php if ($page->testimonial_role()->isNotEmpty()): ?>, <?= esc($page->testimonial_role()) ?><?php endif ?></figcaption>
+        </figure>
+      </section>
     <?php endif ?>
 
-    <?php /* Flexible body blocks */ ?>
+    <?php /* Flexible art-directed body blocks — the bespoke layouts live here. */ ?>
     <?php if ($page->body()->isNotEmpty()): ?>
-      <div class="blocks" style="margin-top:var(--s-12)"><?= $page->body()->toBlocks() ?></div>
+      <?= $page->body()->toBlocks() ?>
     <?php endif ?>
 
-    <?php /* Gallery */ ?>
+    <?php /* Gallery. */ ?>
     <?php if ($page->gallery()->toFiles()->isNotEmpty()): ?>
-      <div class="gallery" style="margin-top:var(--s-12)">
-        <?php foreach ($page->gallery()->toFiles() as $img): ?><?= $img->crop(600, 450)->html(['alt' => esc($img->alt()), 'loading' => 'lazy']) ?><?php endforeach ?>
-      </div>
+      <section class="cs__inner reveal">
+        <div class="cs-strip">
+          <?php foreach ($page->gallery()->toFiles() as $img): ?><figure class="cs-surface"><?= $img->crop(900, 640)->html(['alt' => esc($img->alt()), 'loading' => 'lazy']) ?></figure><?php endforeach ?>
+        </div>
+      </section>
     <?php endif ?>
 
-    <?php /* Credits + tech + link */ ?>
-    <div class="grid grid--2" style="margin-top:var(--s-12)">
-      <?php if ($page->credits()->toStructure()->isNotEmpty()): ?>
-        <div class="card"><h3 class="scard__title"><?= esc(t('breakfast.credits', 'Credits')) ?></h3>
-          <ul><?php foreach ($page->credits()->toStructure() as $c): ?><li><strong><?= esc($c->role()) ?>:</strong> <?= esc($c->name()) ?></li><?php endforeach ?></ul>
+    <?php /* Credits + tech. */ ?>
+    <?php if ($page->credits()->toStructure()->isNotEmpty() || $page->technology()->isNotEmpty()): ?>
+      <section class="cs__inner reveal">
+        <div class="cs-facts" style="align-items:start">
+          <?php if ($page->technology()->isNotEmpty()): ?>
+            <div class="cs-facts__item">
+              <div class="l"><?= esc(t('breakfast.tech', 'Built with')) ?></div>
+              <p style="margin-top:.5rem"><?php foreach ($page->technology()->split() as $t): ?><span class="cs__tag" style="margin:.15rem .3rem .15rem 0"><?= esc($t) ?></span><?php endforeach ?></p>
+            </div>
+          <?php endif ?>
+          <?php if ($page->credits()->toStructure()->isNotEmpty()): ?>
+            <div class="cs-facts__item">
+              <div class="l"><?= esc(t('breakfast.credits', 'Credits')) ?></div>
+              <ul style="margin-top:.5rem"><?php foreach ($page->credits()->toStructure() as $c): ?><li><strong><?= esc($c->role()) ?>:</strong> <?= esc($c->name()) ?></li><?php endforeach ?></ul>
+            </div>
+          <?php endif ?>
         </div>
-      <?php endif ?>
-      <?php if ($page->technology()->isNotEmpty() || $page->project_url()->isNotEmpty()): ?>
-        <div class="card">
-          <?php if ($page->technology()->isNotEmpty()): ?><h3 class="scard__title"><?= esc(t('breakfast.tech', 'Built with')) ?></h3><p><?php foreach ($page->technology()->split() as $t): ?><span class="tag"><?= esc($t) ?></span> <?php endforeach ?></p><?php endif ?>
-          <?php if ($page->project_url()->isNotEmpty()): ?><p style="margin-top:var(--s-4)"><a class="btn btn--ghost" data-track="external_project_link" href="<?= esc($page->project_url()) ?>" rel="noopener" target="_blank"><?= esc(t('breakfast.visit', 'Visit the site')) ?> ↗</a></p><?php endif ?>
-        </div>
-      <?php endif ?>
-    </div>
-
-    <?php snippet('partials/related', ['related' => $page->related_projects()->toPages(), 'heading' => t('breakfast.relatedprojects', 'More work')]) ?>
+      </section>
+    <?php endif ?>
   </div>
+
+  <?php snippet('case-study/ending', ['page' => $page, 'variant' => $ad['data']['ending']]) ?>
 </article>
 
+<?php /* Site-wide consistency: more work + CTA band stay so a case study never
+        feels like a dead end, but the ending variant above is the real close. */ ?>
+<?php if ($page->related_projects()->toPages()->isNotEmpty()): ?>
+<section class="section"><div class="container"><?php snippet('partials/related', ['related' => $page->related_projects()->toPages(), 'heading' => t('breakfast.relatedprojects', 'More work')]) ?></div></section>
+<?php endif ?>
 <section class="section"><div class="container"><?php snippet('partials/cta-band') ?></div></section>
 <?php snippet('layouts/footer') ?>

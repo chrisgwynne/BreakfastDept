@@ -126,6 +126,224 @@ tabs:
         type: blocks
         extends: fields/bodyblocks
 
+  artdirection:
+    label: Art direction
+    icon: palette
+    fields:
+      ad_intro:
+        type: info
+        label: Make this case study feel bespoke
+        text: >
+          Every setting here is a curated, tested option — never raw CSS. Start
+          from a preset, then refine. The public page stays recognisably
+          Breakfast (nav, footer, type, focus states, accessibility) while the
+          art direction gives this project its own visual personality.
+      ad_preset:
+        label: Preset
+        type: select
+        width: 1/2
+        default: story-driven
+        help: A coherent starting look. Settings below override it where set.
+        options:
+          bold-editorial: Bold Editorial
+          playful-collage: Playful Collage
+          quiet-premium: Quiet Premium
+          image-first: Image First
+          device-showcase: Device Showcase
+          before-after: Before & After
+          typography-led: Typography Led
+          colour-led: Colour Led
+          story-driven: Story Driven
+      ad_hero:
+        label: Hero composition
+        type: select
+        width: 1/2
+        help: Preview each before choosing — no hero is applied globally.
+        options:
+          cinematic: Cinematic (full-bleed)
+          layered-devices: Layered devices
+          editorial: Editorial (big type)
+          collage: Collage (playful)
+          minimal: Minimal impact
+          split: Split-screen
+      ad_paletteheadline:
+        type: headline
+        label: Palette
+      ad_accent:
+        label: Accent colour
+        type: select
+        width: 1/4
+        options: &adcolours
+          ink: Ink
+          cream: Cream
+          paper: Paper
+          white: White
+          yellow: Yellow
+          butter: Butter
+          purple: Purple
+          plum: Plum
+          coral: Coral
+          blush: Blush
+          sage: Sage
+          forest: Forest
+          midnight: Midnight
+          sky: Sky
+          terracotta: Terracotta
+          sand: Sand
+          mint: Mint
+          charcoal: Charcoal
+      ad_secondary:
+        label: Secondary colour
+        type: select
+        width: 1/4
+        options: *adcolours
+      ad_bg:
+        label: Background
+        type: select
+        width: 1/4
+        options: *adcolours
+      ad_text:
+        label: Text colour
+        type: select
+        width: 1/4
+        options: *adcolours
+      ad_typeheadline:
+        type: headline
+        label: Type & form
+      ad_display:
+        label: Display type
+        type: select
+        width: 1/3
+        options:
+          grotesk-tight: Grotesk (tight)
+          grotesk-wide: Grotesk (wide)
+          mono-caps: Mono caps
+      ad_body:
+        label: Body type
+        type: select
+        width: 1/3
+        options:
+          sans: Sans
+          mono: Mono
+      ad_density:
+        label: Section density
+        type: select
+        width: 1/3
+        options:
+          airy: Airy
+          balanced: Balanced
+          tight: Tight
+      ad_corner:
+        label: Image corners
+        type: select
+        width: 1/3
+        options:
+          sharp: Sharp
+          soft: Soft
+          round: Round
+          pill: Pill
+      ad_border:
+        label: Border treatment
+        type: select
+        width: 1/3
+        options:
+          none: None
+          thin: Thin
+          thick: Thick
+          heavy: Heavy
+      ad_image_scale:
+        label: Image scale
+        type: select
+        width: 1/3
+        options:
+          contained: Contained
+          bleed: Bleed
+          oversized: Oversized
+      ad_rotation:
+        label: Rotation intensity
+        type: select
+        width: 1/3
+        help: Bounded so content never becomes unreadable; reduced on mobile.
+        options:
+          none: None (0°)
+          subtle: Subtle (3°)
+          playful: Playful (6°)
+          wild: Wild (8°)
+      ad_caption:
+        label: Caption style
+        type: select
+        width: 1/3
+        options:
+          quiet: Quiet
+          mono-tag: Mono tag
+          handwritten: Handwritten
+          boxed: Boxed
+      ad_pullquote:
+        label: Pull-quote style
+        type: select
+        width: 1/3
+        options:
+          plain: Plain
+          giant: Giant
+          marks: Giant marks
+          panel: Colour panel
+          rotated: Rotated card
+          over-image: Over image
+      ad_motionheadline:
+        type: headline
+        label: Motion & transitions
+      ad_animation:
+        label: Animation character
+        type: select
+        width: 1/3
+        help: One coherent behaviour per page. Always respects reduced-motion.
+        options:
+          quiet: Quiet editorial
+          playful-stagger: Playful stagger
+          mask-reveal: Bold mask reveals
+          parallax-lite: Layered parallax
+          fade: Minimal fade
+          device-assembly: Device assembly
+          none: None
+      ad_transition:
+        label: Section transitions
+        type: select
+        width: 1/3
+        options:
+          hard-cut: Hard colour cut
+          slide-panel: Sliding panel
+          angled: Angled divider
+          oversized-rule: Oversized rule
+          overlap: Overlap
+          whitespace: Whitespace reset
+      ad_motif:
+        label: Decorative motif
+        type: select
+        width: 1/3
+        options:
+          none: None
+          dots: Dots
+          grid: Grid
+          wave: Wave
+          star: Star
+          arrow: Arrow
+          underline: Underline
+          sticker: Sticker
+      ad_ending:
+        label: Ending composition
+        type: select
+        width: 1/2
+        help: Vary the close — not every case study should end the same way.
+        options:
+          giant-shot: Giant final screenshot
+          testimonial: Testimonial takeover
+          results: Results panel
+          visit: Visit-the-site moment
+          lessons: Project lessons
+          next-teaser: Next-project teaser
+          motif: Brand motif
+          mobile-row: Mobile-device row
+
   media:
     label: Media
     icon: image
