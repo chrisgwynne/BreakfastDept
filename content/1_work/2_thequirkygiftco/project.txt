@@ -1,0 +1,90 @@
+Title: The Quirky Gift Co.
+
+----
+
+Project_status: internal
+
+----
+
+Client: In-house project
+
+----
+
+Summary: My own Shopify store for personalised, quirky gifts — built as a revenue stream I own outright, running alongside Etsy.
+
+----
+
+Challenge: I was already selling personalised gifts on Etsy, and it works — but a marketplace only ever rents you the audience. It takes a cut of every order, owns the customer relationship, sets the rules, and sits my products next to everyone else's.
+
+I wanted a second channel I actually own: my own storefront, my own brand, my own customer list and my own margins — without giving up the made-to-order, personalised range that sells.
+
+----
+
+Approach: I built the whole thing end to end:
+
+- A full Shopify storefront — brand, layout, product range and the personalisation flow — stood up to run solo alongside everything else I do.
+- A wide, quirky range organised into shop-by-category and shop-by-occasion, so browsing has a job rather than being a wall of products: door toppers, metal signs, wall prints, keyrings, 3D-printed gifts and license plates.
+- Made-to-order personalisation on the products that need it, so a name or a place turns a stock design into a one-off.
+- Product and category copy written in the brand's own voice — playful and a little cheeky — instead of flat marketplace listings.
+
+----
+
+Strategy: A marketplace rents you reach; a store builds you an asset. Etsy stays in the mix as a discovery channel, but The Quirky Gift Co is where I own the brand and the customer — so the audience I build compounds for me, not for the platform.
+
+----
+
+Design_explanation: Clean and modern, with plenty of white space so the products do the talking. The personality lives in the words and the designs, not in a busy layout — clear browse paths by category, by occasion and by best-seller keep the whole range easy to move through.
+
+----
+
+Build_explanation: Shopify and Liquid for the storefront, with made-to-order and print-on-demand fulfilment behind the personalised products. No custom back end to babysit — the point was a channel I could launch quickly and run single-handed.
+
+----
+
+Outcome: The Quirky Gift Co is a channel I own outright — my brand, my customer relationships and my margin, running next to Etsy rather than underneath it.
+
+It's the same case I put to clients who sell on marketplaces or social platforms: rent the audience while it works, but build the thing you own. This one is me taking my own advice.
+
+----
+
+Technology: Shopify, Liquid, Print-on-demand
+
+----
+
+Project_url: https://www.thequirkygiftco.com
+
+----
+
+Hero_image:
+
+- cover.jpg
+
+----
+
+Card_image:
+
+- cover.jpg
+
+----
+
+Industries: E-commerce, Retail
+
+----
+
+Featured: true
+
+----
+
+Date: 2026-07-31
+
+----
+
+Seo_title: The Quirky Gift Co — my own Shopify gift store, built to own the channel
+
+----
+
+Meta_description: I built The Quirky Gift Co, my own Shopify store for personalised quirky gifts — a revenue stream I own outright, running alongside Etsy.
+
+----
+
+Uuid: work-thequirkygiftco
