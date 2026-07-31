@@ -23,6 +23,9 @@
 # Flat-file data tree — every operational record (CRM, projects, portal, queue,
 # audit, …) lives here and MUST NEVER be committed.
 /storage/data/*
+# Screenshot captures + image derivatives (runtime, bytes on disk).
+/storage/screenshots/*
+/storage/derivatives/*
 /storage/uploads/*
 /storage/queue/*
 /storage/client-previews/*
