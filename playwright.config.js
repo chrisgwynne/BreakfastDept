@@ -32,7 +32,7 @@ module.exports = defineConfig({
   // under php -S. The admin bundle is expected to be built already (npm run build
   // in admin/ — done in CI before this job; locally, build it once).
   webServer: {
-    command: `php bin/console migrate && php -S 127.0.0.1:${PORT} -t public public/router.php`,
+    command: `php -S 127.0.0.1:${PORT} -t public public/router.php`,
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 30000,
