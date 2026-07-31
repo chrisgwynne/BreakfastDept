@@ -23,10 +23,34 @@ module.exports = defineConfig({
     // (e.g. a sandbox with a pre-installed Chromium).
     launchOptions: process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : {},
   },
+  // Visual-regression baselines are environment-sensitive (font rendering /
+  // anti-aliasing differ between machines), so the `visual` project is OPT-IN:
+  // it only runs when BF_VISUAL=1, keeping the shared CI green. Baselines are
+  // committed for this environment; re-baseline elsewhere with
+  //   BF_VISUAL=1 npx playwright test --project=visual --update-snapshots
   projects: [
-    { name: "desktop", use: { ...devices["Desktop Chrome"] } },
-    { name: "mobile", use: { ...devices["Pixel 5"] } },
+    {
+      name: "desktop",
+      testIgnore: "**/*.visual.spec.js",
+      use: { ...devices["Desktop Chrome"] },
+    },
+    {
+      name: "mobile",
+      testIgnore: "**/*.visual.spec.js",
+      use: { ...devices["Pixel 5"] },
+    },
+    ...(process.env.BF_VISUAL
+      ? [
+          {
+            name: "visual",
+            testMatch: "**/*.visual.spec.js",
+            use: { ...devices["Desktop Chrome"], reducedMotion: "reduce" },
+          },
+        ]
+      : []),
   ],
+  // A modest, non-permissive diff tolerance for the few dynamic pixels.
+  expect: { toHaveScreenshot: { maxDiffPixelRatio: 0.02, animations: "disabled" } },
   // Migrate the DB, then serve public/ through router.php so the built admin SPA,
   // its API (/breakfast-admin/api/v1) and the public pages all dispatch correctly
   // under php -S. The admin bundle is expected to be built already (npm run build
