@@ -22,11 +22,13 @@ async function load() {
   }
 }
 
-async function create() {
+async function create(starter = true) {
   if (!newTitle.value.trim()) return
   creating.value = true
   try {
-    const cs = await portfolio.create(newTitle.value.trim())
+    // Make beautiful the default: a new case study starts from a rich editorial
+    // composition unless the owner deliberately chooses a blank page.
+    const cs = await portfolio.create(newTitle.value.trim(), { starter })
     router.push({ name: 'portfolio-edit', params: { id: cs.slug } })
   } catch (e) {
     error.value = e instanceof ApiError ? e.message : 'Could not create the case study.'
@@ -45,9 +47,10 @@ onMounted(load)
       <p class="muted">Art-directed case studies. Each one can look genuinely bespoke.</p>
     </header>
 
-    <form class="create" @submit.prevent="create">
+    <form class="create" @submit.prevent="create(true)">
       <input v-model="newTitle" placeholder="New case study title…" data-test="pf-new-title" aria-label="New case study title" />
-      <button class="btn btn--primary" :disabled="creating" data-test="pf-create">Create</button>
+      <button class="btn btn--primary" :disabled="creating" data-test="pf-create">Start from a composition</button>
+      <button type="button" class="btn" :disabled="creating" data-test="pf-create-blank" @click="create(false)">Start blank</button>
     </form>
 
     <p v-if="error" class="error" role="alert">{{ error }}</p>
