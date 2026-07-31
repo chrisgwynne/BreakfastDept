@@ -14,39 +14,117 @@ Summary: A done-for-you Google Business Profile service for UK tradespeople, bui
 
 ----
 
-Challenge: UK tradespeople rely on Google Business Profile for local enquiries, and almost none of them have the time to manage one properly. LocalMarkers turns that into a service someone else runs for them.
-
-It needed a site that could sell to fifty-six different trades without feeling like fifty-six templates, and a back end that could actually run the service day to day.
+Challenge: 
 
 ----
 
-Approach: I built it end to end:
-
-- A fifty-six page trade section, each page written for the specific trade rather than spun from a template.
-- A matching free audit landing page for every trade, so paid and organic traffic each have somewhere to land.
-- A client portal where customers see what's being done to their profile.
-- An admin CRM for running the service side.
-- A fifty-point Google Business Profile audit framework that the whole service is built around.
+Approach: 
 
 ----
 
-Strategy:
+Strategy: 
 
 ----
 
-Design_explanation:
+Design_explanation: 
 
 ----
 
-Build_explanation: The stack: Kirby CMS, PHP, SQLite, vanilla CSS and JavaScript. No frameworks, no build step.
+Build_explanation: 
 
 ----
 
-Outcome: This is the same approach behind everything I build. Words first, then the design around them. Fast by default, because there's nothing loaded that isn't doing a job.
+Outcome: 
 
 ----
 
-Technology: Kirby CMS, PHP, SQLite, Vanilla CSS & JavaScript
+Ad_preset: typography-led
+
+----
+
+Ad_hero: editorial
+
+----
+
+Ad_accent: sky
+
+----
+
+Ad_secondary: forest
+
+----
+
+Ad_bg: paper
+
+----
+
+Ad_text: ink
+
+----
+
+Ad_display: grotesk-wide
+
+----
+
+Ad_body: sans
+
+----
+
+Ad_density: airy
+
+----
+
+Ad_corner: sharp
+
+----
+
+Ad_border: thin
+
+----
+
+Ad_image_scale: oversized
+
+----
+
+Ad_rotation: subtle
+
+----
+
+Ad_caption: mono-tag
+
+----
+
+Ad_pullquote: marks
+
+----
+
+Ad_animation: mask-reveal
+
+----
+
+Ad_transition: oversized-rule
+
+----
+
+Ad_motif: grid
+
+----
+
+Ad_ending: motif
+
+----
+
+Body: 
+
+[{"id":"lm1","type":"cs-statement","content":{"text":"Fifty-six trades rely on Google Business Profile to get found locally — and almost none of them have the time to run one properly.","align":"left","kind":"challenge"},"isHidden":false},{"id":"lm2","type":"cs-numbered","content":{"number":"1","heading":"One service, fifty-six front doors","text":"LocalMarkers had to sell to fifty-six different trades without feeling like fifty-six templates — and then actually run the service behind them. Every trade page is written for that trade, not spun from a pattern."},"isHidden":false},{"id":"lm3","type":"cs-shot","content":{"image":["brand-card.png"],"scale":"oversized","caption":"One pin, one place. The whole identity is a coordinate."},"isHidden":false},{"id":"lm4","type":"cs-numbered","content":{"number":"2","heading":"A landing pad for every trade","text":"Each trade gets a matching free-audit landing page, so paid and organic traffic always have somewhere specific to land — never a generic homepage."},"isHidden":false},{"id":"lm5","type":"cs-annotated","content":{"image":["insight-conwy.jpg"],"notes":[{"label":"Trade and town sit right in the headline"},{"label":"A real, local audit offer — not a stock lead magnet"},{"label":"Proof pulled from nearby jobs in the same county"}]},"isHidden":false},{"id":"lm6","type":"cs-composition","content":{"data":"{\"aspect\":\"16:9\",\"layers\":[{\"id\":\"c1\",\"type\":\"browser-frame\",\"image\":\"insight-conwy.jpg\",\"col\":1,\"colSpan\":7,\"row\":1,\"rowSpan\":6,\"rotation\":-3,\"frame\":\"browser\",\"shadow\":\"lg\",\"border\":\"thin\",\"reveal\":0},{\"id\":\"c2\",\"type\":\"desktop-shot\",\"image\":\"insight-bangor.jpg\",\"col\":6,\"colSpan\":6,\"row\":3,\"rowSpan\":5,\"rotation\":3,\"frame\":\"none\",\"shadow\":\"md\",\"border\":\"thin\",\"reveal\":1},{\"id\":\"c3\",\"type\":\"crop\",\"image\":\"brand-card.png\",\"col\":8,\"colSpan\":4,\"row\":1,\"rowSpan\":2,\"rotation\":-5,\"frame\":\"none\",\"shadow\":\"sm\",\"border\":\"thick\",\"reveal\":2},{\"id\":\"c4\",\"type\":\"shape\",\"shape\":\"line\",\"col\":3,\"colSpan\":6,\"row\":6,\"rowSpan\":1,\"rotation\":0,\"reveal\":2},{\"id\":\"c5\",\"type\":\"annotation\",\"text\":\"Every insight is pinned to a real town — that is the whole local play.\",\"col\":2,\"colSpan\":3,\"row\":5,\"rowSpan\":2,\"anchor\":\"center\",\"reveal\":3}]}","caption":"Three towns, one system — the insights engine mapped out."},"isHidden":false},{"id":"lm7","type":"cs-strip","content":{"images":["insight-conwy.jpg","insight-bangor.jpg","insight-holidays.jpg"],"caption":"A local insight for every town the trades actually work in."},"isHidden":false},{"id":"lm8","type":"cs-quote","content":{"text":"A directory is only useful if every entry knows exactly where it stands.","attribution":"","role":"","kind":"statement","style":"marks"},"isHidden":false},{"id":"lm9","type":"cs-facts","content":{"items":[{"value":"56","label":"trade pages, each written from scratch"},{"value":"50-point","label":"Google Business Profile audit framework"},{"value":"Portal + CRM","label":"to actually run the service"},{"value":"No build step","label":"Kirby, PHP, vanilla CSS & JS"}]},"isHidden":false},{"id":"lm10","type":"cs-colourblock","content":{"colour":"forest","heading":"Fifty-six trade pages. Fifty-six audit landing pages. One service running quietly behind all of it.","text":""},"isHidden":false}]
+
+----
+
+Technology: Kirby CMS, PHP, Vanilla CSS & JavaScript
+
+----
+
+Industries: Local SEO, Trades
 
 ----
 
@@ -54,13 +132,13 @@ Project_url: https://localmarkers.co.uk
 
 ----
 
-Hero_image:
+Hero_image: 
 
 - cover.jpg
 
 ----
 
-Card_image:
+Card_image: 
 
 - cover.jpg
 
