@@ -479,6 +479,15 @@ final class Platform
         });
     }
 
+    /** Nondestructive image derivatives for case studies. */
+    public function derivatives(): \Breakfast\Platform\Portfolio\Derivatives
+    {
+        return $this->service(\Breakfast\Platform\Portfolio\Derivatives::class, fn () => new \Breakfast\Platform\Portfolio\Derivatives(
+            $this->fileStore(),
+            $this->storageDir()
+        ));
+    }
+
     public function settings(): \Breakfast\Platform\Settings\SettingsStore
     {
         return $this->service(\Breakfast\Platform\Settings\SettingsStore::class, fn () => new \Breakfast\Platform\Settings\SettingsStore(

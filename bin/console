@@ -394,6 +394,62 @@ switch ($command) {
         out('Privacy review recorded: ' . $id);
         break;
 
+    case 'portfolio:capture:check':
+        // Verify the screenshot capture pipeline for a deployment. --read-only (the
+        // default) inspects config only. --url=<approved> --confirm performs ONE real
+        // safe capture and cleans it up. A live capture is only reported as passing
+        // if it actually ran on THIS infrastructure.
+        $cmd = \Breakfast\Platform\Support\Env::get('SCREENSHOT_CMD', '');
+        $configured = trim($cmd) !== '';
+        out('Driver:            ' . ($configured ? 'command (' . strtok($cmd, ' ') . ')' : 'stub (no SCREENSHOT_CMD — live capture disabled)'));
+        $browser = false;
+        if ($configured) {
+            $bin = (string) strtok($cmd, ' ');
+            $browser = is_file($bin);
+            if (!$browser) {
+                foreach (explode(':', (string) getenv('PATH')) as $d) {
+                    if ($d !== '' && is_file(rtrim($d, '/') . '/' . $bin)) { $browser = true; break; }
+                }
+            }
+            out('Browser/binary:    ' . ($browser ? 'found' : 'NOT FOUND on PATH'));
+        }
+        $dir = $platform->storageDir() . '/screenshots';
+        @mkdir($dir, 0770, true);
+        $writable = is_dir($dir) && is_writable($dir);
+        out('Storage writable:  ' . ($writable ? 'yes (' . $dir . ')' : 'NO'));
+        $globalHosts = \Breakfast\Platform\Support\Env::get('SCREENSHOT_ALLOW_HOSTS', '');
+        out('Global allow-list: ' . ($globalHosts !== '' ? $globalHosts : '(per-project hosts only)'));
+
+        if (flag($flags, 'confirm') && !flag($flags, 'read-only')) {
+            $url   = is_string($flags['url'] ?? null) ? (string) $flags['url'] : fail('A live check needs --url=<approved public URL>.');
+            $host  = (string) (parse_url($url, PHP_URL_HOST) ?: '');
+            if ($host === '') { fail('--url must be an absolute URL.'); }
+            out('');
+            out('Running a LIVE capture against ' . $url . ' …');
+            $req = new \Breakfast\Platform\Screenshots\CaptureRequest($url, 'capture-check', 'desktop');
+            try {
+                $rec = $platform->screenshots()->capture('capture-check', [$host], $req, 'cli');
+            } catch (\Throwable $e) {
+                fail('LIVE capture FAILED: ' . $e->getMessage());
+            }
+            if ($rec['is_stub'] ?? false) {
+                out('Result:            STUB image (no live browser ran — configure SCREENSHOT_CMD to truly verify).');
+            } else {
+                out('Result:            OK — ' . $rec['width'] . '×' . $rec['height'] . ' ' . $rec['mime'] . ', ' . $rec['bytes'] . ' bytes.');
+            }
+            // Cleanup: remove the diagnostic record + file.
+            $abs = rtrim($platform->storageDir(), '/') . '/' . $rec['file'];
+            @is_file($abs) && @unlink($abs);
+            $platform->fileStore()->delete('case_study_screenshots', (string) $rec['uuid']);
+            out('Cleanup:           diagnostic capture removed.');
+            out('');
+            out(($rec['is_stub'] ?? false) ? 'CHECK INCONCLUSIVE (stub driver).' : 'LIVE CAPTURE CHECK PASSED.');
+        } else {
+            out('');
+            out('Read-only check complete. Re-run with --url=<approved> --confirm to verify a real capture.');
+        }
+        break;
+
     case 'previews:scan-all':
         $violations = 0;
         foreach ($platform->previews()->all(['limit' => 5000]) as $preview) {
@@ -877,5 +933,6 @@ switch ($command) {
         out('  app:check | health | hermes:keys | seed:crm');
         out('  screenshots:capture --project= --url= --hosts= [--viewport=|--page=|--full]');
         out('  screenshots:list --project= | screenshots:approve --id= | screenshots:privacy --id=');
+        out('  portfolio:capture:check [--read-only | --url= --confirm]');
         break;
 }

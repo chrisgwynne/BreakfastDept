@@ -83,6 +83,7 @@ final class AdminApi
             'previews'      => $this->previews($seg),
             'email'         => $this->email($method, $seg, $user),
             'website'       => $this->website($method, $seg, $user),
+            'portfolio'     => $this->portfolio($method, $seg, $user),
             'hermes'        => $this->hermes($method, $seg, $user),
             'invoices'      => $this->invoices($method, $seg, $user),
             'proposals'     => $this->proposals($method, $seg, $user),
@@ -885,6 +886,118 @@ final class AdminApi
         } catch (\Breakfast\Platform\Website\WebsiteException $e) {
             throw new ApiException($e->status, $e->getMessage(), 'website', $e->fields);
         }
+    }
+
+    /**
+     * Portfolio / case-study authoring. Gated on website edit/publish. All the
+     * heavy lifting lives in PortfolioContent; here we route + map errors.
+     *
+     * @param list<string> $seg
+     * @return mixed
+     */
+    private function portfolio(string $method, array $seg, \Kirby\Cms\User $user)
+    {
+        if (!PanelGate::canViewWebsite($user)) {
+            throw new ApiException(403, 'You don’t have access to the portfolio.', 'forbidden');
+        }
+        $svc   = new \Breakfast\Platform\Portfolio\PortfolioContent($this->kirby, $this->platform);
+        $actor = (string) $user->email();
+        $requireEdit = function () use ($user): void {
+            if (!PanelGate::canEditWebsite($user)) {
+                throw new ApiException(403, 'You can’t edit the portfolio.', 'forbidden');
+            }
+        };
+        $requirePublish = function () use ($user): void {
+            if (!PanelGate::canPublishWebsite($user)) {
+                throw new ApiException(403, 'You can’t publish the portfolio.', 'forbidden');
+            }
+        };
+
+        $a = $seg[1] ?? '';
+        try {
+            if ($a === '') {
+                if ($method === 'POST') {
+                    $requireEdit();
+                    $b = $this->body();
+
+                    return $svc->create((string) ($b['title'] ?? ''), $actor, $b);
+                }
+
+                return $svc->index();
+            }
+            if ($a === 'capture-health') {
+                return $svc->captureHealth();
+            }
+
+            $id     = $a;
+            $action = $seg[2] ?? '';
+
+            if ($method === 'GET' && $action === '') {
+                return $svc->load($id);
+            }
+            if ($method === 'GET' && $action === 'preview-link') {
+                return $svc->previewLink($id);
+            }
+            if ($method === 'PATCH' && $action === '') {
+                $requireEdit();
+
+                return $svc->save($id, $this->body(), $actor);
+            }
+            if ($method === 'POST') {
+                return match ($action) {
+                    'publish'        => $this->guarded($requirePublish, fn () => $svc->publish($id, $actor)),
+                    'unpublish'      => $this->guarded($requirePublish, fn () => $svc->unpublish($id, $actor)),
+                    'revoke-preview' => $this->guarded($requireEdit, function () use ($svc, $id, $actor) {
+                        $svc->revokePreviewLinks($id, $actor);
+                        return ['ok' => true];
+                    }),
+                    'capture'        => $this->guarded($requireEdit, fn () => $svc->capture($id, $this->body(), $actor)),
+                    'derivative'     => $this->guarded($requireEdit, fn () => $svc->createDerivative($id, $this->body(), $actor)),
+                    'screenshot'     => $this->guarded($requireEdit, fn () => $this->portfolioScreenshot($svc, $id, $seg, $actor)),
+                    default          => throw new ApiException(404, 'Unknown portfolio action.', 'not_found'),
+                };
+            }
+
+            throw new ApiException(404, 'Unknown portfolio endpoint.', 'not_found');
+        } catch (\Breakfast\Platform\Portfolio\PortfolioException $e) {
+            throw new ApiException($e->status, $e->getMessage(), 'portfolio');
+        }
+    }
+
+    /**
+     * POST /portfolio/:id/screenshot/:sid/(approve|privacy|attach)
+     *
+     * @param list<string> $seg
+     * @return array<string,mixed>
+     */
+    private function portfolioScreenshot(\Breakfast\Platform\Portfolio\PortfolioContent $svc, string $id, array $seg, string $actor): array
+    {
+        $sid = $seg[3] ?? '';
+        $op  = $seg[4] ?? '';
+        if ($sid === '') {
+            throw new ApiException(404, 'Screenshot id required.', 'not_found');
+        }
+        $shots = $this->platform->screenshots();
+
+        return match ($op) {
+            'approve' => $this->wrapShot($shots->approvePublicUse($sid, $actor)),
+            'privacy' => $this->wrapShot($shots->markPrivacyReviewed($sid, $actor, (string) ($this->body()['notes'] ?? ''))),
+            'attach'  => $svc->attachScreenshot($id, $sid, $actor),
+            default   => throw new ApiException(404, 'Unknown screenshot action.', 'not_found'),
+        };
+    }
+
+    /**
+     * @param array<string,mixed>|null $rec
+     * @return array<string,mixed>
+     */
+    private function wrapShot(?array $rec): array
+    {
+        if ($rec === null) {
+            throw new ApiException(404, 'Screenshot not found.', 'not_found');
+        }
+
+        return $rec;
     }
 
     /**

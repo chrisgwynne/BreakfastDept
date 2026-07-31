@@ -530,6 +530,11 @@ Kirby::plugin('breakfast/platform', [
                 } catch (\Breakfast\Platform\Website\WebsiteException $e) {
                     return new \Kirby\Http\Response($e->getMessage(), 'text/plain', $e->status);
                 }
+                // Reduced-motion preview: force the settled, motion-free state so an
+                // editor can review the reduced-motion experience from the studio.
+                if ((string) get('rm') === '1') {
+                    $html = \Breakfast\Platform\Portfolio\PreviewInject::reducedMotion($html);
+                }
 
                 // The rendered page carries the site layout's nonce-based CSP
                 // (site/snippets/layouts/header.php emits SecurityHeaders during
@@ -540,7 +545,37 @@ Kirby::plugin('breakfast/platform', [
                 // cached, or leak the admin URL via Referer.
                 return new \Kirby\Http\Response($html, 'text/html', 200, [
                     'X-Robots-Tag'           => 'noindex, nofollow',
-                    'X-Frame-Options'        => 'DENY',
+                    // SAMEORIGIN (not DENY) so the authenticated Preview Studio can
+                    // frame it; cross-origin clickjacking is still blocked.
+                    'X-Frame-Options'        => 'SAMEORIGIN',
+                    'X-Content-Type-Options' => 'nosniff',
+                    'Referrer-Policy'        => 'no-referrer',
+                    'Cache-Control'          => 'private, no-store, max-age=0',
+                ]);
+            },
+        ],
+
+        // Signed, expiring, revocable preview link — shareable WITHOUT an admin
+        // session. The token is an HMAC over page id + expiry + a per-page
+        // revocation counter (see PortfolioContent::previewLink). Never indexable,
+        // never cached, no admin cookies required or honoured.
+        [
+            'pattern' => 'breakfast-admin/preview/t/(:any)',
+            'method'  => 'GET',
+            'action'  => function (string $id) {
+                $svc = new \Breakfast\Platform\Portfolio\PortfolioContent(kirby(), breakfast());
+                try {
+                    $html = $svc->renderSignedPreview($id, (int) get('exp'), (int) get('v', 1), (string) get('t'));
+                } catch (\Breakfast\Platform\Portfolio\PortfolioException $e) {
+                    return new \Kirby\Http\Response($e->getMessage(), 'text/plain', $e->status);
+                }
+                if ((string) get('rm') === '1') {
+                    $html = \Breakfast\Platform\Portfolio\PreviewInject::reducedMotion($html);
+                }
+
+                return new \Kirby\Http\Response($html, 'text/html', 200, [
+                    'X-Robots-Tag'           => 'noindex, nofollow',
+                    'X-Frame-Options'        => 'SAMEORIGIN',
                     'X-Content-Type-Options' => 'nosniff',
                     'Referrer-Policy'        => 'no-referrer',
                     'Cache-Control'          => 'private, no-store, max-age=0',

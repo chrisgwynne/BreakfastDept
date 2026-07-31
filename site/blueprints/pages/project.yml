@@ -407,6 +407,14 @@ tabs:
       project_url:
         label: Live project URL
         type: url
+      approved_hosts:
+        label: Approved capture hosts
+        type: text
+        help: Comma-separated hosts the screenshot tool may capture (e.g. acme.com, www.acme.com). Falls back to the live URL's host.
+      approved_paths:
+        label: Approved capture paths
+        type: text
+        help: Optional comma-separated paths offered in the capture tool (e.g. /, /about, /contact).
 
   settings:
     label: Settings
