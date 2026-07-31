@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Breakfast\Platform\Portfolio;
 
 use Breakfast\Platform\Content\ArtDirection;
+use Breakfast\Platform\Content\ArtDirectionQualityGate;
 use Breakfast\Platform\Content\CaseStudyProbe;
 use Breakfast\Platform\Content\CaseStudyWarnings;
 use Breakfast\Platform\Screenshots\CaptureRequest;
@@ -593,7 +594,90 @@ final class PortfolioContent
             }
         }
 
+        // Art-direction quality gate: an art-directed record can't publish as a
+        // sparse one-image page. Evaluated on the DRAFT being published.
+        foreach ($this->artDirectionBlockers($page, $c) as $msg) {
+            $b[] = $msg;
+        }
+
         return $b;
+    }
+
+    /**
+     * Build the quality-gate record from the DRAFT content and return its
+     * blockers. Mirrors {@see CaseStudyProbe::record()} but reads the unsaved
+     * draft (so the editor is stopped before an empty page ever goes live).
+     *
+     * @param array<string,mixed> $c editing (draft) content
+     * @return list<string>
+     */
+    private function artDirectionBlockers(Page $page, array $c): array
+    {
+        $adFields = [];
+        foreach (['preset', 'accent', 'secondary', 'bg', 'text', 'display', 'body', 'corner',
+                  'border', 'density', 'image_scale', 'rotation', 'caption', 'pullquote',
+                  'animation', 'transition', 'motif', 'hero', 'ending'] as $k) {
+            $adFields[$k] = isset($c['ad_' . $k]) ? (string) $c['ad_' . $k] : '';
+        }
+        $ad = ArtDirection::resolve($adFields);
+
+        $presetCustomised = false;
+        foreach ($adFields as $k => $v) {
+            if ($k !== 'preset' && trim((string) $v) !== '') {
+                $presetCustomised = true;
+                break;
+            }
+        }
+
+        $decoded = json_decode($this->blocksJson($c), true);
+        $blocks = [];
+        $summaries = [];
+        $screenshotImage = false;
+        $imageKeys = ['image', 'images', 'desktop', 'mobile', 'before', 'after'];
+        $shotBlocks = ['cs-shot', 'cs-rotated', 'cs-stack', 'cs-devices', 'cs-fullpage', 'cs-strip', 'cs-annotated', 'cs-composition'];
+        foreach (is_array($decoded) ? $decoded : [] as $blk) {
+            if (!is_array($blk)) {
+                continue;
+            }
+            $type = (string) ($blk['type'] ?? '');
+            $content = is_array($blk['content'] ?? null) ? $blk['content'] : [];
+            $blocks[] = $type;
+            $imageCount = 0;
+            foreach ($imageKeys as $ik) {
+                $v = $content[$ik] ?? null;
+                if (is_array($v)) {
+                    $imageCount += count($v);
+                } elseif (is_string($v) && trim($v) !== '') {
+                    $imageCount += 1;
+                }
+            }
+            $compHasImage = $type === 'cs-composition' && str_contains((string) ($content['data'] ?? ''), 'image');
+            $hasText = trim((string) ($content['text'] ?? '')) !== '' || trim((string) ($content['heading'] ?? '')) !== '';
+            if (in_array($type, $shotBlocks, true) && ($imageCount > 0 || $compHasImage)) {
+                $screenshotImage = true;
+            }
+            $summaries[] = [
+                'type'             => $type,
+                'hasImage'         => $imageCount > 0 || $compHasImage,
+                'imageCount'       => $imageCount,
+                'hasText'          => $hasText,
+                'hiddenEverywhere' => (bool) ($blk['isHidden'] ?? false),
+            ];
+        }
+
+        $record = [
+            'caseMode'          => ($c['case_mode'] ?? '') === 'simple' ? 'simple' : 'art-directed',
+            'preset'            => $ad['preset'],
+            'presetCustomised'  => $presetCustomised,
+            'hero'              => $ad['data']['hero'],
+            'ending'            => $ad['data']['ending'],
+            'blocks'            => $blocks,
+            'imageCount'        => $page->images()->count(),
+            'hasScreenshots'    => $screenshotImage,
+            'ineffectiveBlocks' => ArtDirectionQualityGate::ineffectiveBlocks($summaries),
+        ];
+
+        return ArtDirectionQualityGate::evaluate($record)['blockers'];
     }
 
     private function uniqueSlug(Page $parent, string $title): string
