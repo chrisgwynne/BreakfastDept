@@ -452,6 +452,33 @@ final class Platform
         ));
     }
 
+    /**
+     * The case-study screenshot library. Uses the on-infra headless command when
+     * SCREENSHOT_CMD is configured, otherwise a no-network stub driver (so the
+     * subsystem is safe and usable everywhere, and live capture runs only where
+     * a browser is provisioned).
+     */
+    public function screenshots(): \Breakfast\Platform\Screenshots\ScreenshotService
+    {
+        return $this->service(\Breakfast\Platform\Screenshots\ScreenshotService::class, function (): \Breakfast\Platform\Screenshots\ScreenshotService {
+            $cfg = $this->config('screenshots', []);
+            $cfg = is_array($cfg) ? $cfg : [];
+            $cmd = is_string($cfg['cmd'] ?? null) ? (string) $cfg['cmd'] : '';
+            $driver = $cmd !== ''
+                ? new \Breakfast\Platform\Screenshots\CommandCaptureDriver($cmd, (int) ($cfg['timeout'] ?? 30), (int) ($cfg['maxBytes'] ?? 8 * 1024 * 1024))
+                : new \Breakfast\Platform\Screenshots\NullCaptureDriver();
+            $allowHosts = array_values(array_filter(array_map('strval', (array) ($cfg['allowHosts'] ?? []))));
+
+            return new \Breakfast\Platform\Screenshots\ScreenshotService(
+                $this->fileStore(),
+                $driver,
+                $this->audit(),
+                $this->storageDir(),
+                ['allowHosts' => $allowHosts, 'allowHttp' => (bool) ($cfg['allowHttp'] ?? false)]
+            );
+        });
+    }
+
     public function settings(): \Breakfast\Platform\Settings\SettingsStore
     {
         return $this->service(\Breakfast\Platform\Settings\SettingsStore::class, fn () => new \Breakfast\Platform\Settings\SettingsStore(

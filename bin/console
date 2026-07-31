@@ -355,6 +355,45 @@ switch ($command) {
         out($bad === [] ? 'OK' : 'REVIEW NEEDED');
         break;
 
+    case 'screenshots:capture':
+        $project = is_string($flags['project'] ?? null) ? (string) $flags['project'] : fail('Usage: screenshots:capture --project=<uuid> --url=<https url> --hosts=<a.com,b.com> [--viewport=desktop] [--page=homepage] [--full]');
+        $url     = is_string($flags['url'] ?? null) ? (string) $flags['url'] : fail('--url is required (absolute https URL).');
+        $hosts   = is_string($flags['hosts'] ?? null) ? array_filter(array_map('trim', explode(',', (string) $flags['hosts']))) : [];
+        $req     = new \Breakfast\Platform\Screenshots\CaptureRequest(
+            $url,
+            is_string($flags['page'] ?? null) ? (string) $flags['page'] : 'homepage',
+            is_string($flags['viewport'] ?? null) ? (string) $flags['viewport'] : 'desktop',
+            flag($flags, 'full'),
+        );
+        try {
+            $rec = $platform->screenshots()->capture($project, array_values($hosts), $req, 'cli');
+        } catch (\Throwable $e) {
+            fail('Capture failed: ' . $e->getMessage());
+        }
+        out('Captured ' . $rec['uuid'] . ' (' . $rec['width'] . '×' . $rec['height'] . ($rec['is_stub'] ? ', STUB — no SCREENSHOT_CMD configured' : '') . ')');
+        out('Stored: ' . $rec['file'] . '  — not publishable until approved + privacy-reviewed.');
+        break;
+
+    case 'screenshots:list':
+        $project = is_string($flags['project'] ?? null) ? (string) $flags['project'] : fail('Usage: screenshots:list --project=<uuid>');
+        foreach ($platform->screenshots()->list($project, flag($flags, 'all')) as $s) {
+            $gates = ($s['public_use_approved'] ? 'approved' : 'unapproved') . '/' . ($s['privacy_reviewed'] ? 'privacy-ok' : 'privacy-pending');
+            out(sprintf('%s  v%d  %-9s  %-8s  %s  %s', $s['uuid'], $s['version'], $s['viewport'], $s['status'], $gates, (string) ($s['page_label'] ?? '')));
+        }
+        break;
+
+    case 'screenshots:approve':
+        $id = is_string($flags['id'] ?? null) ? (string) $flags['id'] : fail('Usage: screenshots:approve --id=<uuid>');
+        $platform->screenshots()->approvePublicUse($id, 'cli') ?? fail('Not found.');
+        out('Approved for public use: ' . $id);
+        break;
+
+    case 'screenshots:privacy':
+        $id = is_string($flags['id'] ?? null) ? (string) $flags['id'] : fail('Usage: screenshots:privacy --id=<uuid> [--notes=...]');
+        $platform->screenshots()->markPrivacyReviewed($id, 'cli', is_string($flags['notes'] ?? null) ? (string) $flags['notes'] : '') ?? fail('Not found.');
+        out('Privacy review recorded: ' . $id);
+        break;
+
     case 'previews:scan-all':
         $violations = 0;
         foreach ($platform->previews()->all(['limit' => 5000]) as $preview) {
@@ -836,5 +875,7 @@ switch ($command) {
         out('  previews:scan-all | previews:storage | previews:quarantine <uuid> --confirm');
         out('  previews:disable-all --confirm | previews:enable-all --confirm');
         out('  app:check | health | hermes:keys | seed:crm');
+        out('  screenshots:capture --project= --url= --hosts= [--viewport=|--page=|--full]');
+        out('  screenshots:list --project= | screenshots:approve --id= | screenshots:privacy --id=');
         break;
 }
