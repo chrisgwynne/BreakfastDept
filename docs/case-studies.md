@@ -56,6 +56,47 @@ Every block is responsive (rotation calms and overlaps unwind on mobile),
 keyboard-accessible where interactive, and degrades without JavaScript. No block
 causes horizontal overflow.
 
+## Authoring in Breakfast Admin
+
+The whole workflow runs in the standalone **Breakfast Admin** (Portfolio) — not
+the Kirby Panel and not the CLI. Kirby remains the underlying flat-file content
+store; the owner never has to touch it.
+
+Portfolio → **New case study** → the editor opens with tabs:
+
+- **Details** — title, summary, live URL, and the *approved capture hosts + paths*.
+- **Art direction** — preset + every curated control.
+- **Blocks** — add, reorder and remove art-directed blocks.
+- **Screenshots** — capture desktop/laptop/tablet/mobile (viewport or full page),
+  then per-shot **approve public use**, complete the **privacy review**, and
+  **attach** — attaching copies the capture into the project's media so blocks can
+  use it. Failures show a human message (host not approved, private address,
+  timeout, driver unavailable, …) — never a shell command or server path.
+- **Composition** — the layered-composition editor: add desktop/mobile/annotation
+  layers, reorder, set bounded scale + rotation, and per-breakpoint (tablet/mobile)
+  visibility. Everything is clamped by `CompositionSanitizer`; nothing can escape
+  the canvas or emit raw CSS.
+- **Crop** — pick a source image and produce a nondestructive derivative (card /
+  hero / social / mobile / detail), with optional 90° source rotation. The
+  original is never modified.
+
+### Preview Studio
+
+The Preview tab renders the **real public template with the current unpublished
+draft** in a same-origin iframe (no duplicate renderer):
+
+- desktop / tablet / mobile widths + a **reduced-motion** toggle,
+- a breakpoint indicator, block navigator and art-direction summary,
+- an image-weight / performance estimate and the accessibility + privacy
+  warnings,
+- publication blockers (a case study can't be published until they clear),
+- **refresh**, **open in new tab**, and **copy secure preview link**.
+
+The secure link is signed, expiring and revocable — shareable without an admin
+session, never indexable, never cached, and it carries no admin cookies or
+internal fields. Revoking bumps a per-page counter that invalidates every link
+already issued.
+
 ## Screenshots from a live site
 
 Live capture runs on **your own infrastructure** via a trusted headless command,
@@ -103,6 +144,27 @@ php bin/console screenshots:privacy --id=<uuid> --notes="checked — nothing per
 Viewports: `desktop` · `laptop` · `tablet` · `mobile`. Full-page captures are
 height-capped and optimised (strip / frame / pan) — the raw natural height is
 never rendered.
+
+### Verifying capture on a deployment
+
+`SCREENSHOT_CMD` should point at a trusted headless command that reads a JSON job
+on stdin (`{url,width,height,full_page,dark,delay_ms,dismiss,allowed_hosts}`),
+re-validates every redirect hop against `allowed_hosts`, blocks private
+addresses, honours the viewport, and writes PNG/JPEG bytes to stdout.
+
+After configuring it, verify on the target infrastructure:
+
+```bash
+php bin/console portfolio:capture:check --read-only
+# then a real, cleaned-up capture against an approved public URL:
+php bin/console portfolio:capture:check --url=https://your-approved-host.example/ --confirm
+```
+
+The read-only check reports the driver, browser/binary availability, storage
+permissions and host configuration. The `--confirm` run performs ONE real
+capture and deletes it; it only reports **LIVE CAPTURE CHECK PASSED** if a real
+image actually came back — a stub driver reports **INCONCLUSIVE** instead, so a
+green result always means live capture genuinely works on that host.
 
 ## Editor warnings
 
