@@ -19,13 +19,18 @@ const SLUG = "journey-demo";
 const HOST = "93.184.216.34";
 
 function cleanup() {
-  const work = path.join(process.cwd(), "content", "1_work");
-  for (const p of [
+  const root = process.cwd();
+  const work = path.join(root, "content", "1_work");
+  const paths = [
     path.join(work, "_drafts", SLUG),
     ...(fs.existsSync(work) ? fs.readdirSync(work).filter((d) => d.endsWith("_" + SLUG)).map((d) => path.join(work, d)) : []),
-  ]) {
-    fs.rmSync(p, { recursive: true, force: true });
-  }
+    // Runtime capture/derivative state, so a fresh run starts with zero shots.
+    path.join(root, "storage", "data", "case_study_screenshots"),
+    path.join(root, "storage", "data", "case_study_derivatives"),
+    path.join(root, "storage", "screenshots"),
+    path.join(root, "storage", "derivatives"),
+  ];
+  for (const p of paths) fs.rmSync(p, { recursive: true, force: true });
 }
 
 test.describe("Breakfast Admin — portfolio authoring journey", () => {
@@ -73,14 +78,14 @@ test.describe("Breakfast Admin — portfolio authoring journey", () => {
     await page.getByTestId("cap-viewport").selectOption("desktop");
     await page.getByTestId("cap-path").fill("/");
     await page.getByTestId("cap-go").click();
-    await expect(page.getByTestId("shot-desktop")).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId("shot-desktop").first()).toBeVisible({ timeout: 15000 });
     await page.getByTestId("cap-viewport").selectOption("mobile");
     await page.getByTestId("cap-go").click();
-    await expect(page.getByTestId("shot-mobile")).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId("shot-mobile").first()).toBeVisible({ timeout: 15000 });
 
     // 5. Approve public use + privacy review + attach, for every capture.
     for (const row of ["shot-desktop", "shot-mobile"]) {
-      const tr = page.getByTestId(row);
+      const tr = page.getByTestId(row).first();
       await tr.getByRole("button", { name: /approve use/i }).click();
       await expect(tr.getByRole("button", { name: /✓ public use/i })).toBeVisible();
       await tr.getByRole("button", { name: /privacy ok/i }).click();

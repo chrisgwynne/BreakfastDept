@@ -530,11 +530,6 @@ Kirby::plugin('breakfast/platform', [
                 } catch (\Breakfast\Platform\Website\WebsiteException $e) {
                     return new \Kirby\Http\Response($e->getMessage(), 'text/plain', $e->status);
                 }
-                // Reduced-motion preview: force the settled, motion-free state so an
-                // editor can review the reduced-motion experience from the studio.
-                if ((string) get('rm') === '1') {
-                    $html = \Breakfast\Platform\Portfolio\PreviewInject::reducedMotion($html);
-                }
 
                 // The rendered page carries the site layout's nonce-based CSP
                 // (site/snippets/layouts/header.php emits SecurityHeaders during
@@ -545,8 +540,37 @@ Kirby::plugin('breakfast/platform', [
                 // cached, or leak the admin URL via Referer.
                 return new \Kirby\Http\Response($html, 'text/html', 200, [
                     'X-Robots-Tag'           => 'noindex, nofollow',
-                    // SAMEORIGIN (not DENY) so the authenticated Preview Studio can
-                    // frame it; cross-origin clickjacking is still blocked.
+                    'X-Frame-Options'        => 'DENY',
+                    'X-Content-Type-Options' => 'nosniff',
+                    'Referrer-Policy'        => 'no-referrer',
+                    'Cache-Control'          => 'private, no-store, max-age=0',
+                ]);
+            },
+        ],
+
+        // Frameable draft preview for the Portfolio Preview Studio. Identical to
+        // preview/page but SAMEORIGIN (so the authenticated studio can iframe it)
+        // with an optional reduced-motion (?rm=1) render. Cross-origin framing is
+        // still blocked; never indexable, never cached.
+        [
+            'pattern' => 'breakfast-admin/preview/frame/(:any)',
+            'method'  => 'GET',
+            'action'  => function (string $id) {
+                $user = kirby()->user();
+                if (!\Breakfast\Platform\Security\PanelGate::canEditWebsite($user)) {
+                    return new \Kirby\Http\Response('Not found', 'text/plain', 404);
+                }
+                try {
+                    $html = (new \Breakfast\Platform\Website\WebsiteContent(kirby(), breakfast()))->previewHtml($id);
+                } catch (\Breakfast\Platform\Website\WebsiteException $e) {
+                    return new \Kirby\Http\Response($e->getMessage(), 'text/plain', $e->status);
+                }
+                if ((string) get('rm') === '1') {
+                    $html = \Breakfast\Platform\Portfolio\PreviewInject::reducedMotion($html);
+                }
+
+                return new \Kirby\Http\Response($html, 'text/html', 200, [
+                    'X-Robots-Tag'           => 'noindex, nofollow',
                     'X-Frame-Options'        => 'SAMEORIGIN',
                     'X-Content-Type-Options' => 'nosniff',
                     'Referrer-Policy'        => 'no-referrer',

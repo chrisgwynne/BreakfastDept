@@ -131,7 +131,7 @@ final class PortfolioContent
             'warnings'    => $warnings,
             'publishable' => $this->publishBlockers($page, $screenshots, $warnings) === [],
             'blockers'    => $this->publishBlockers($page, $screenshots, $warnings),
-            'previewUrl'  => $this->kirby->url() . '/breakfast-admin/preview/page/' . $page->id(),
+            'previewUrl'  => $this->kirby->url() . '/breakfast-admin/preview/frame/' . $page->id(),
         ];
     }
 
