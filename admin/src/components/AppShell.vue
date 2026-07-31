@@ -31,6 +31,7 @@ const nav = [
   { to: '/vault', name: 'vault', label: 'Vault', icon: 'cog', perm: 'crm.manage' },
   { to: '/email', name: 'email', label: 'Email', icon: 'mail' },
   { to: '/website', name: 'website', label: 'Website', icon: 'globe' },
+  { to: '/portfolio', name: 'portfolio', label: 'Portfolio', icon: 'image' },
   { to: '/reports', name: 'reports', label: 'Reports', icon: 'chart' },
   { to: '/operations', name: 'operations', label: 'Operations', icon: 'pulse', perm: 'admin' },
   { to: '/hermes', name: 'hermes', label: 'Hermes', icon: 'plug', perm: 'hermes.view' },

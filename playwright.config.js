@@ -17,6 +17,7 @@ module.exports = defineConfig({
   reporter: [["list"]],
   use: {
     baseURL,
+    testIdAttribute: "data-test",
     trace: "on-first-retry",
     // In CI, Playwright manages its own browser (installed via `playwright
     // install`). Only override the executable when PW_CHROMIUM is provided

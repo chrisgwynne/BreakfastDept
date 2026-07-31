@@ -6,12 +6,15 @@ import { useAuth } from '@/stores/auth'
 import { useUi } from '@/stores/ui'
 import PageHeader from '@/components/PageHeader.vue'
 import DataState from '@/components/DataState.vue'
+import { portfolio, type CaptureHealth } from '@/lib/portfolio'
 
 const auth = useAuth()
 const ui = useUi()
 const data = ref<Operations | null>(null)
 const loading = ref(true)
 const error = ref<string | null>(null)
+const capture = ref<CaptureHealth | null>(null)
+function fmtBytes(b: number): string { return b > 1_000_000 ? (b / 1_000_000).toFixed(1) + ' MB' : Math.round(b / 1000) + ' KB' }
 
 // --- Automation ---
 interface AutomationRule { uuid: string; name: string; trigger_type: string; threshold_days: number; enabled: number; fire_count: number; last_run_at: string | null; revision: number }
@@ -63,6 +66,7 @@ async function load() {
   try {
     data.value = await api.get<Operations>('/operations')
     await loadAutomation()
+    capture.value = await portfolio.captureHealth().catch(() => null)
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Unknown error'
   } finally {
@@ -105,6 +109,18 @@ onMounted(load)
               <span class="stat__value num">{{ data.mail.recent_failures }}</span>
             </div>
           </div>
+        </section>
+
+        <section v-if="capture" data-test="capture-health">
+          <h2 class="sect__h">Screenshot capture</h2>
+          <dl class="kv">
+            <div><dt>Driver</dt><dd>{{ capture.driver }}<span v-if="!capture.configured" class="muted"> (not configured)</span></dd></div>
+            <div><dt>Browser</dt><dd>{{ capture.browserAvailable === null ? '—' : capture.browserAvailable ? 'available' : 'not found' }}</dd></div>
+            <div><dt>Last capture</dt><dd>{{ capture.lastSuccessful ? new Date(capture.lastSuccessful).toLocaleString() : 'never' }}</dd></div>
+            <div><dt>Approved hosts</dt><dd>{{ capture.approvedHostCount }}</dd></div>
+            <div><dt>Screenshots</dt><dd>{{ capture.screenshotCount }}</dd></div>
+            <div><dt>Storage</dt><dd>{{ fmtBytes(capture.storageBytes) }}</dd></div>
+          </dl>
         </section>
 
         <section>

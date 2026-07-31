@@ -25,6 +25,7 @@ const paths: Record<string, string> = {
   receipt: 'M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6M9 16h4',
   calendar: 'M4 5h16v15H4zM4 9h16M8 3v4M16 3v4M8 13h.01M12 13h.01M16 13h.01M8 16h.01M12 16h.01',
   folder: 'M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z',
+  image: 'M4 5h16v14H4zM4 15l4-4 4 4 3-3 5 5M9 9a1.4 1.4 0 100-2.8A1.4 1.4 0 009 9z',
 }
 defineProps<{ name: string }>()
 </script>
