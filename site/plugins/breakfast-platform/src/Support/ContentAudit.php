@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Breakfast\Platform\Support;
 
+use Breakfast\Platform\Content\CaseStudyProbe;
+use Breakfast\Platform\Content\CaseStudyWarnings;
 use Kirby\Cms\App;
 use Kirby\Cms\Page;
 
@@ -134,11 +136,24 @@ final class ContentAudit
             if ($hasImage === false) {
                 $this->warn('missing-image', $where, 'Project has no hero or card image — add one before presenting it as finished work.');
             }
+            $this->auditCaseStudyWarnings($page, $where);
         }
 
         // 3. Empty primary CTA on the home page.
         if ($page->isHomePage() && $page->content()->get('final_cta_heading')->isEmpty()) {
             $this->warn('empty-cta', $where, 'Home page final call-to-action heading is empty.');
+        }
+    }
+
+    /**
+     * Surface actionable case-study warnings (performance budget, oversized
+     * images, missing alt, too many heavy blocks) via {@see CaseStudyWarnings}.
+     */
+    private function auditCaseStudyWarnings(Page $page, string $where): void
+    {
+        $probe = CaseStudyProbe::probe($page);
+        foreach (CaseStudyWarnings::inspect($probe['images'], $probe['counts']) as $w) {
+            $this->warn($w['category'], $where, $w['message']);
         }
     }
 

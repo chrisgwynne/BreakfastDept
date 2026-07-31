@@ -19,6 +19,7 @@ parameters:
             - site/plugins/breakfast-platform/src/Hermes/DraftFactory.php
             - site/plugins/breakfast-platform/src/Hermes/Api.php
             - site/plugins/breakfast-platform/src/Website/WebsiteMedia.php
+            - site/plugins/breakfast-platform/src/Content/CaseStudyProbe.php
     bootstrapFiles:
         - vendor/autoload.php
     treatPhpDocTypesAsCertain: false
