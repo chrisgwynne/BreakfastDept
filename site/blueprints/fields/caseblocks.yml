@@ -20,6 +20,7 @@ fieldsets:
       - cs-beforeafter
       - cs-annotated
       - cs-sticky
+      - cs-composition
   editorial:
     label: Editorial
     type: group

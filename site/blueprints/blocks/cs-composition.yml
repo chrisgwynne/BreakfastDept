@@ -1,0 +1,11 @@
+name: Layered composition
+icon: layout
+fields:
+  data:
+    label: Composition
+    type: textarea
+    font: monospace
+    help: Built visually in the Breakfast Admin Preview Studio. Stored as a bounded, sanitised layout — never raw CSS.
+  caption:
+    label: Caption
+    type: text

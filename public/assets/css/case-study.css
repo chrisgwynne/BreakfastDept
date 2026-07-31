@@ -214,6 +214,72 @@
 .cs-fullpage--pan img { width: 100%; height: auto; will-change: transform; }
 
 /* =========================================================
+   LAYERED COMPOSITION  (bounded 12×8 grid, overflow-contained)
+   ========================================================= */
+.cs-comp {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  grid-auto-rows: minmax(0, 1fr);
+  aspect-ratio: var(--comp-ar, 16 / 9);
+  overflow: hidden;                 /* nothing escapes the canvas → no page overflow */
+  border-radius: var(--cs-radius);
+  background: color-mix(in srgb, var(--ad-text, #1c293c) 6%, transparent);
+}
+.cs-comp__layer {
+  grid-column: var(--l-col) / span var(--l-cs);
+  grid-row: var(--l-row) / span var(--l-rs);
+  align-self: center;
+  justify-self: center;
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  transform: scale(var(--l-scale, 1)) rotate(var(--l-rot, 0deg));
+  opacity: var(--l-op, 1);
+  transition: transform var(--dur-mid) var(--ease-out), opacity var(--dur-mid) var(--ease-out);
+}
+.cs-comp__layer img { width: 100%; height: 100%; object-fit: contain; border-radius: 6px; }
+.cs-comp__layer.border-thin img { border: 2px solid var(--ad-text, #1c293c); }
+.cs-comp__layer.border-thick img { border: 3px solid var(--ad-text, #1c293c); }
+.cs-comp__layer.shadow-sm img { box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18); }
+.cs-comp__layer.shadow-md img { box-shadow: 0 10px 26px rgba(0, 0, 0, 0.22); }
+.cs-comp__layer.shadow-lg img { box-shadow: 0 18px 46px rgba(0, 0, 0, 0.28); }
+.cs-comp__layer.frame-browser { padding-top: 1.4rem; position: relative; background: #fff; border-radius: 8px; }
+.cs-comp__chrome { position: absolute; top: 0; left: 0; right: 0; height: 1.4rem; background: var(--ad-text, #1c293c); border-radius: 8px 8px 0 0; }
+.cs-comp__chrome::before { content: ""; position: absolute; top: 0.5rem; left: 0.6rem; width: 0.4rem; height: 0.4rem; border-radius: 50%; background: #ff5f56; box-shadow: 0.6rem 0 0 #ffbd2e, 1.2rem 0 0 #27c93f; }
+.cs-comp__layer.frame-phone { border: 6px solid var(--ad-text, #1c293c); border-radius: 20px; background: #000; }
+.cs-comp__caption { font-family: var(--mono); font-size: 0.8rem; text-align: center; }
+.cs-comp__marker { display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: 999px; background: var(--cs-accent); color: var(--cs-on-accent); font-weight: 800; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25); }
+.cs-comp__shape { display: block; width: 100%; height: 100%; }
+.cs-comp__shape--circle { border: 3px solid var(--cs-accent); border-radius: 50%; }
+.cs-comp__shape--dot { background: var(--cs-accent); border-radius: 50%; width: 60%; height: 0; padding-bottom: 60%; margin: auto; }
+.cs-comp__shape--line { border-top: 3px solid var(--cs-accent); height: 0; align-self: center; }
+.cs-comp__shape--underline { border-bottom: 6px solid var(--cs-accent); height: 0; align-self: end; }
+.cs-comp__notes { margin-top: 1rem; display: grid; gap: 0.5rem; }
+.cs-comp__notes li { display: flex; gap: 0.6rem; align-items: baseline; font-size: 0.9rem; }
+.cs-comp__notes b { flex: none; display: inline-grid; place-items: center; width: 1.5rem; height: 1.5rem; border-radius: 999px; background: var(--cs-accent); color: var(--cs-on-accent); font-size: 0.75rem; }
+
+/* Per-breakpoint layer overrides + visibility. */
+@media (min-width: 1025px) { .cs-comp__layer.hd { display: none; } }
+@media (min-width: 641px) and (max-width: 1024px) {
+  .cs-comp__layer.ht { display: none; }
+  .cs-comp__layer {
+    grid-column: var(--l-col-t, var(--l-col)) / span var(--l-cs-t, var(--l-cs));
+    grid-row: var(--l-row-t, var(--l-row)) / span var(--l-rs-t, var(--l-rs));
+    transform: scale(var(--l-scale-t, var(--l-scale, 1))) rotate(var(--l-rot-t, var(--l-rot, 0deg)));
+  }
+}
+@media (max-width: 640px) {
+  .cs-comp__layer.hm { display: none; }
+  .cs-comp__layer {
+    grid-column: var(--l-col-m, var(--l-col)) / span var(--l-cs-m, var(--l-cs));
+    grid-row: var(--l-row-m, var(--l-row)) / span var(--l-rs-m, var(--l-rs));
+    transform: scale(var(--l-scale-m, var(--l-scale, 1))) rotate(var(--l-rot-m, var(--l-rot, 0deg)));
+  }
+}
+
+/* =========================================================
    PULL-QUOTE VARIANTS  (driven by [data-ad-pullquote])
    ========================================================= */
 .cs-quote { max-width: 34rem; }
