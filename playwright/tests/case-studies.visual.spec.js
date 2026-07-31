@@ -4,15 +4,16 @@
 // environment-sensitive; re-baseline per environment with:
 //   BF_VISUAL=1 npx playwright test --project=visual --update-snapshots
 //
-// The three concept case studies collectively exercise every major layout type:
-// cinematic / layered-devices / collage heroes, oversized + rotated + stacked +
-// full-bleed screenshots, device arrangement, before/after (slider + split),
-// annotated detail, giant + marks pull quotes, colour blocks, palette, specimen,
-// facts and the ending variants. Runs under reduced motion with animations
-// disabled for determinism; the fixed consent bar is masked.
+// The two REAL, published case studies must look visibly different at desktop
+// and mobile — different heroes, block sequences, palettes and endings.
+// LocalMarkers is a typography-led wayfinding page (editorial hero, grid motif,
+// layered composition, motif close); The Quirky Gift Co is a playful product
+// collage (collage hero, sticker motif, stacked/rotated products, giant-shot
+// close). Runs under reduced motion with animations disabled for determinism;
+// the fixed consent bar is masked.
 const { test, expect } = require("@playwright/test");
 
-const CASES = ["riverside-kitchen", "ironclad-roofing", "marlowe-and-fox"];
+const CASES = ["localmarkers", "thequirkygiftco"];
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
