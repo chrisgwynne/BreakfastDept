@@ -238,5 +238,23 @@ return [
             // headers, so sanitised SVG is allowed. Video allow-list is opt-in.
             'allowVideo' => Env::bool('CLIENT_PREVIEW_ALLOW_VIDEO', false),
         ],
+
+        // ------------------------------------------------------------------
+        // Case-study screenshots. Live capture shells out to a trusted headless
+        // command (SCREENSHOT_CMD) that runs on the host's own infrastructure;
+        // when it is unset, the no-network stub driver is used. The SSRF/host
+        // allow-list and the public-use + privacy gates are always enforced by
+        // Screenshots\ScreenshotService (see docs/case-studies.md).
+        // ------------------------------------------------------------------
+        'screenshots' => [
+            'cmd'        => Env::get('SCREENSHOT_CMD', ''),
+            'timeout'    => Env::int('SCREENSHOT_TIMEOUT', 30),
+            'maxBytes'   => Env::int('SCREENSHOT_MAX_BYTES', 8 * 1024 * 1024),
+            // Extra always-allowed capture hosts (comma-separated), in addition
+            // to the hosts a project explicitly lists for itself.
+            'allowHosts' => array_values(array_filter(array_map('trim', explode(',', Env::get('SCREENSHOT_ALLOW_HOSTS', ''))))),
+            // https-only by default; enable http capture only for internal test use.
+            'allowHttp'  => Env::bool('SCREENSHOT_ALLOW_HTTP', false),
+        ],
     ],
 ];
