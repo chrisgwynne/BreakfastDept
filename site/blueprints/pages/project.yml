@@ -124,7 +124,8 @@ tabs:
       body:
         label: Body
         type: blocks
-        extends: fields/bodyblocks
+        extends: fields/caseblocks
+        help: Compose the case study. Mix art-directed layouts, editorial beats and brand moments — no two projects need the same order.
 
   artdirection:
     label: Art direction
@@ -142,7 +143,7 @@ tabs:
         label: Preset
         type: select
         width: 1/2
-        default: story-driven
+        default: bold-editorial
         help: A coherent starting look. Settings below override it where set.
         options:
           bold-editorial: Bold Editorial

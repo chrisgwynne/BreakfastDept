@@ -1,0 +1,11 @@
+name: Colour block
+icon: palette
+fields:
+  colour:
+    label: Colour
+    type: select
+    default: accent
+    width: 1/2
+    options: { accent: Accent, secondary: Secondary, ink: Ink, purple: Purple, coral: Coral, forest: Forest, midnight: Midnight, terracotta: Terracotta, plum: Plum }
+  heading: { label: Heading, type: text, width: 1/2 }
+  text: { label: Text, type: textarea, buttons: false }

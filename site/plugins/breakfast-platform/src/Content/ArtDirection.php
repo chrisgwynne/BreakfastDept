@@ -97,13 +97,16 @@ final class ArtDirection
      * @var array<string,string>
      */
     private const DEFAULTS = [
-        'preset' => 'story-driven',
+        // The out-of-the-box look is deliberately bold, not timid: a strong
+        // editorial hero, oversized imagery, a giant pull quote and confident
+        // rhythm. A quieter project opts into 'quiet-premium'.
+        'preset' => 'bold-editorial',
         'accent' => 'yellow', 'secondary' => 'purple', 'bg' => 'cream', 'text' => 'ink',
-        'display' => 'grotesk-tight', 'body' => 'sans',
-        'corner' => 'soft', 'border' => 'thin', 'density' => 'balanced',
-        'image_scale' => 'contained', 'rotation' => 'subtle',
-        'caption' => 'quiet', 'pullquote' => 'plain',
-        'animation' => 'quiet', 'transition' => 'whitespace', 'motif' => 'none',
+        'display' => 'grotesk-wide', 'body' => 'sans',
+        'corner' => 'soft', 'border' => 'thin', 'density' => 'airy',
+        'image_scale' => 'oversized', 'rotation' => 'subtle',
+        'caption' => 'mono-tag', 'pullquote' => 'giant',
+        'animation' => 'mask-reveal', 'transition' => 'oversized-rule', 'motif' => 'underline',
         'hero' => 'editorial', 'ending' => 'visit',
     ];
 
@@ -114,44 +117,50 @@ final class ArtDirection
      */
     private const PRESET_SEED = [
         'bold-editorial' => [
-            'hero' => 'editorial', 'display' => 'grotesk-tight', 'density' => 'balanced',
+            'hero' => 'editorial', 'display' => 'grotesk-wide', 'density' => 'airy',
             'pullquote' => 'giant', 'transition' => 'oversized-rule', 'animation' => 'mask-reveal',
-            'accent' => 'yellow', 'text' => 'ink', 'bg' => 'cream', 'motif' => 'underline',
+            'accent' => 'yellow', 'secondary' => 'purple', 'text' => 'ink', 'bg' => 'cream',
+            'motif' => 'underline', 'image_scale' => 'oversized', 'rotation' => 'subtle',
         ],
         'playful-collage' => [
             'hero' => 'collage', 'display' => 'grotesk-wide', 'rotation' => 'playful',
             'pullquote' => 'rotated', 'transition' => 'overlap', 'animation' => 'playful-stagger',
             'accent' => 'coral', 'secondary' => 'purple', 'motif' => 'sticker', 'corner' => 'round',
+            'image_scale' => 'oversized', 'bg' => 'butter', 'density' => 'balanced',
         ],
         'quiet-premium' => [
             'hero' => 'minimal', 'display' => 'grotesk-tight', 'density' => 'airy',
-            'pullquote' => 'plain', 'transition' => 'whitespace', 'animation' => 'quiet',
+            'pullquote' => 'marks', 'transition' => 'whitespace', 'animation' => 'fade',
             'accent' => 'ink', 'bg' => 'paper', 'border' => 'none', 'rotation' => 'none', 'corner' => 'sharp',
         ],
         'image-first' => [
             'hero' => 'cinematic', 'image_scale' => 'oversized', 'density' => 'tight',
             'pullquote' => 'over-image', 'transition' => 'overlap', 'animation' => 'parallax-lite',
-            'accent' => 'yellow', 'text' => 'ink',
+            'accent' => 'yellow', 'text' => 'ink', 'rotation' => 'subtle',
         ],
         'device-showcase' => [
             'hero' => 'layered-devices', 'transition' => 'slide-panel', 'animation' => 'device-assembly',
-            'accent' => 'sky', 'secondary' => 'ink', 'corner' => 'round',
+            'accent' => 'sky', 'secondary' => 'ink', 'corner' => 'round', 'image_scale' => 'oversized',
+            'pullquote' => 'panel',
         ],
         'before-after' => [
             'hero' => 'split', 'transition' => 'angled', 'animation' => 'fade',
-            'accent' => 'terracotta', 'pullquote' => 'panel',
+            'accent' => 'terracotta', 'secondary' => 'ink', 'pullquote' => 'panel', 'rotation' => 'subtle',
         ],
         'typography-led' => [
             'hero' => 'editorial', 'display' => 'grotesk-wide', 'pullquote' => 'marks',
             'motif' => 'underline', 'animation' => 'mask-reveal', 'density' => 'airy', 'border' => 'none',
+            'image_scale' => 'oversized',
         ],
         'colour-led' => [
             'hero' => 'editorial', 'accent' => 'purple', 'secondary' => 'coral', 'bg' => 'butter',
             'transition' => 'slide-panel', 'animation' => 'playful-stagger', 'pullquote' => 'panel',
+            'image_scale' => 'oversized', 'motif' => 'wave',
         ],
         'story-driven' => [
-            'hero' => 'minimal', 'pullquote' => 'panel', 'transition' => 'whitespace',
-            'animation' => 'quiet', 'density' => 'balanced',
+            'hero' => 'minimal', 'pullquote' => 'giant', 'transition' => 'oversized-rule',
+            'animation' => 'mask-reveal', 'density' => 'balanced', 'accent' => 'yellow',
+            'motif' => 'underline', 'rotation' => 'subtle',
         ],
     ];
 
@@ -304,7 +313,7 @@ final class ArtDirection
      * palette colour, using WCAG relative luminance — keeps quote-over-colour and
      * button-on-accent legible regardless of the chosen palette entry.
      */
-    private static function onColour(string $key): string
+    public static function onColour(string $key): string
     {
         $hex = self::COLOURS[$key] ?? '#1c293c';
         $r = hexdec(substr($hex, 1, 2)) / 255;

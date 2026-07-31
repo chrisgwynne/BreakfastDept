@@ -1,0 +1,6 @@
+name: Device arrangement
+icon: mobile
+fields:
+  desktop: { label: Desktop screenshot, type: files, max: 1, query: page.images, uploads: images }
+  mobile: { label: Mobile screenshot, type: files, max: 1, query: page.images, uploads: images }
+  caption: { label: Caption, type: text }

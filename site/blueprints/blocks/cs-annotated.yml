@@ -1,0 +1,10 @@
+name: Annotated screenshot
+icon: info
+fields:
+  image: { label: Screenshot, type: files, max: 1, query: page.images, uploads: images }
+  notes:
+    label: Notes
+    type: structure
+    help: Keep it to a few — do not overload the image.
+    fields:
+      label: { label: Note, type: text }

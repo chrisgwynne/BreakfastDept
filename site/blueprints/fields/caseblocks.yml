@@ -1,0 +1,48 @@
+##
+# Case-study body blocks. Extends the curated block set with the art-directed
+# layout blocks (site/blueprints/blocks/cs-*.yml + site/snippets/blocks/cs-*.php)
+# so each case study can be composed into a genuinely bespoke page. Referenced by
+# the project `body` field. Curated whitelist only — no arbitrary embeds.
+##
+type: blocks
+fieldsets:
+  artdirected:
+    label: Art-directed layouts
+    type: group
+    fieldsets:
+      - cs-shot
+      - cs-rotated
+      - cs-stack
+      - cs-devices
+      - cs-fullpage
+      - cs-fullbleed
+      - cs-strip
+      - cs-beforeafter
+      - cs-annotated
+      - cs-sticky
+  editorial:
+    label: Editorial
+    type: group
+    fieldsets:
+      - cs-statement
+      - cs-text
+      - cs-numbered
+      - cs-interlude
+      - cs-quote
+      - cs-facts
+  brand:
+    label: Brand & colour
+    type: group
+    fieldsets:
+      - cs-colourblock
+      - cs-specimen
+      - cs-palette
+  standard:
+    label: Standard
+    type: group
+    fieldsets:
+      - text
+      - image
+      - gallery
+      - video
+      - divider

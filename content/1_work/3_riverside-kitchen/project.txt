@@ -1,0 +1,91 @@
+Title: Riverside Kitchen
+
+----
+
+Project_status: concept
+
+----
+
+Client: Restaurant
+
+----
+
+Summary: A concept case study for a riverside restaurant — booking-led, atmospheric and image-first.
+
+----
+
+Ad_preset: image-first
+
+----
+
+Ad_accent: terracotta
+
+----
+
+Ad_secondary: forest
+
+----
+
+Ad_bg: cream
+
+----
+
+Ad_hero: cinematic
+
+----
+
+Ad_pullquote: over-image
+
+----
+
+Ad_ending: giant-shot
+
+----
+
+Challenge:
+
+----
+
+Body:
+
+[{"id":"b1","type":"cs-statement","content":{"text":"The old site made booking a table feel *harder* than calling the restaurant.","align":"left","kind":"challenge"}},{"id":"b2","type":"cs-shot","content":{"image":["shot-home.jpg"],"scale":"oversized","caption":"The homepage leads with the room, not a menu PDF."}},{"id":"b3","type":"cs-quote","content":{"text":"Every scroll should make you hungrier and the booking one tap closer.","attribution":"","role":"","kind":"statement","style":"over-image","image":["shot-article.jpg"]},"isHidden":false},{"id":"b4","type":"cs-beforeafter","content":{"before":["shot-before.jpg"],"after":["shot-home.jpg"],"mode":"slider","labels":"Old site,New site"}},{"id":"b5","type":"cs-facts","content":{"items":[{"value":"2 taps","label":"to a booking"},{"value":"< 1s","label":"first paint"},{"value":"1 page","label":"no menu PDF"}]}},{"id":"b6","type":"cs-devices","content":{"desktop":["shot-grid.jpg"],"mobile":["shot-mobile.jpg"],"caption":"The menu reads beautifully on a phone at the table."}},{"id":"b7","type":"cs-colourblock","content":{"colour":"forest","heading":"Booking is the whole point, so it never sits more than a tap away.","text":""}},{"id":"b8","type":"cs-strip","content":{"images":["shot-home.jpg","shot-grid.jpg","shot-article.jpg"],"caption":"Home, menu and the story — one calm system."}}]
+
+----
+
+Technology: Kirby CMS, PHP, Vanilla CSS & JavaScript
+
+----
+
+Hero_image:
+
+- shot-home.jpg
+
+----
+
+Card_image:
+
+- shot-home.jpg
+
+----
+
+Industries: Hospitality
+
+----
+
+Featured: false
+
+----
+
+Date: 2026-07-20
+
+----
+
+Seo_title: Riverside Kitchen — a booking-led restaurant website concept
+
+----
+
+Meta_description: A concept case study: a riverside restaurant site built booking-first, atmospheric and fast, with the menu readable on a phone at the table.
+
+----
+
+Uuid: work-riverside-kitchen

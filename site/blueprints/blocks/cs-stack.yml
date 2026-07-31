@@ -1,0 +1,5 @@
+name: Screenshots (stacked)
+icon: images
+fields:
+  images: { label: Screenshots (2–3), type: files, min: 2, max: 3, query: page.images, uploads: images }
+  caption: { label: Caption, type: text }

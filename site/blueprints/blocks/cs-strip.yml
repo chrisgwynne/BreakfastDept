@@ -1,0 +1,5 @@
+name: Screenshot sequence (horizontal)
+icon: menu
+fields:
+  images: { label: Screenshots, type: files, min: 2, query: page.images, uploads: images }
+  caption: { label: Caption, type: text }

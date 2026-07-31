@@ -1,0 +1,6 @@
+name: Numbered section
+icon: list-numbers
+fields:
+  number: { label: Number, type: number, width: 1/4, default: 1 }
+  heading: { label: Heading, type: text, width: 3/4 }
+  text: { label: Text, type: textarea, buttons: [ bold, italic, link ] }

@@ -1,0 +1,6 @@
+name: Font specimen
+icon: title
+fields:
+  big: { label: Big letters, type: text, default: "Aa", width: 1/2 }
+  name: { label: Typeface name, type: text, width: 1/2 }
+  sample: { label: Sample line, type: text }

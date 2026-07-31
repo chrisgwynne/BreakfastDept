@@ -1,0 +1,17 @@
+name: Before / after
+icon: refresh
+fields:
+  before: { label: Before, type: files, max: 1, query: page.images, uploads: images, width: 1/2 }
+  after: { label: After, type: files, max: 1, query: page.images, uploads: images, width: 1/2 }
+  mode:
+    label: Mode
+    type: select
+    default: slider
+    width: 1/2
+    options: { slider: Slider, split: Split panels }
+  labels:
+    label: Labels
+    type: text
+    width: 1/2
+    default: "Before,After"
+    help: Two comma-separated labels.

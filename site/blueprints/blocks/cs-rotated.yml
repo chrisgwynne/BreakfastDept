@@ -1,0 +1,11 @@
+name: Screenshot (rotated)
+icon: image
+fields:
+  image: { label: Screenshot, type: files, max: 1, query: page.images, uploads: images }
+  direction:
+    label: Tilt
+    type: select
+    width: 1/2
+    default: right
+    options: { left: Left, right: Right }
+  caption: { label: Caption, type: text, width: 1/2 }

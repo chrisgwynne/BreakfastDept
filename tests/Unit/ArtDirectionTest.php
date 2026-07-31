@@ -13,11 +13,13 @@ final class ArtDirectionTest extends TestCase
     {
         $r = ArtDirection::resolve([]);
 
-        $this->assertSame('story-driven', $r['preset']);
+        // The default is deliberately bold, not timid.
+        $this->assertSame('bold-editorial', $r['preset']);
         $this->assertSame('#f5efe3', $r['vars']['--ad-bg']);       // cream
         $this->assertSame('#1c293c', $r['vars']['--ad-text']);     // ink
-        $this->assertSame('minimal', $r['data']['hero']);          // story-driven preset seeds a minimal hero
-        $this->assertContains($r['data']['pullquote'], ArtDirection::PULLQUOTES);
+        $this->assertSame('editorial', $r['data']['hero']);
+        $this->assertSame('giant', $r['data']['pullquote']);       // bold by default
+        $this->assertSame('oversized', $r['data']['imagescale']);
     }
 
     public function testPresetSeedsCoherentLook(): void
@@ -57,7 +59,7 @@ final class ArtDirectionTest extends TestCase
         $this->assertSame('#fdc800', $r['vars']['--ad-accent']);   // yellow default
         $this->assertContains($r['data']['hero'], ArtDirection::HEROES);
         $this->assertSame('3deg', $r['vars']['--ad-rot']);          // 'subtle' default
-        $this->assertSame('story-driven', $r['preset']);
+        $this->assertSame('bold-editorial', $r['preset']);          // bad preset → bold default
     }
 
     public function testRotationIsBoundedToEightDegrees(): void

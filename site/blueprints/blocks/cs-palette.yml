@@ -1,0 +1,13 @@
+name: Colour palette
+icon: palette
+fields:
+  swatches:
+    label: Swatches
+    type: structure
+    fields:
+      colour:
+        label: Colour
+        type: select
+        width: 1/2
+        options: { ink: Ink, cream: Cream, paper: Paper, white: White, yellow: Yellow, butter: Butter, purple: Purple, plum: Plum, coral: Coral, blush: Blush, sage: Sage, forest: Forest, midnight: Midnight, sky: Sky, terracotta: Terracotta, sand: Sand, mint: Mint, charcoal: Charcoal }
+      label: { label: Label, type: text, width: 1/2 }

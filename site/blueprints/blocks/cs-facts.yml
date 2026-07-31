@@ -1,0 +1,9 @@
+name: Project facts
+icon: dashboard
+fields:
+  items:
+    label: Facts
+    type: structure
+    fields:
+      value: { label: Value, type: text, width: 1/2 }
+      label: { label: Label, type: text, width: 1/2 }

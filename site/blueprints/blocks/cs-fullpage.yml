@@ -1,0 +1,12 @@
+name: Full-page capture
+icon: image
+fields:
+  image: { label: Full-page screenshot, type: files, max: 1, query: page.images, uploads: images }
+  treatment:
+    label: Treatment
+    type: select
+    default: strip
+    width: 1/2
+    help: Long captures are optimised — never rendered at full natural height.
+    options: { strip: Clipped strip, frame: Scrollable frame, pan: Slow pan }
+  caption: { label: Caption, type: text, width: 1/2 }

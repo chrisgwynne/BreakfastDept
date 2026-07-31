@@ -1,0 +1,24 @@
+name: Pull quote (big)
+icon: quote
+fields:
+  text: { label: Quote, type: textarea, buttons: false, required: true }
+  attribution: { label: Name, type: text, width: 1/2 }
+  role: { label: Role / company, type: text, width: 1/2 }
+  kind:
+    label: Kind
+    type: select
+    width: 1/2
+    default: testimonial
+    help: Only a genuine, approved client quote may be marked a testimonial.
+    options: { testimonial: Client testimonial, statement: Breakfast statement }
+  style:
+    label: Style (overrides page default)
+    type: select
+    width: 1/2
+    options: { "": Page default, giant: Giant, marks: Giant marks, panel: Colour panel, rotated: Rotated card, over-image: Over image }
+  image:
+    label: Background image (for “over image”)
+    type: files
+    max: 1
+    query: page.images
+    uploads: images

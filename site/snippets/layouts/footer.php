@@ -77,5 +77,10 @@ $social    = $site->social()->toStructure();
   <?php endif ?>
 
   <script src="<?= esc(url('assets/js/app.js')) ?>?v=6" defer></script>
+  <?php /* Case-study enhancements (before/after slider, pan, parallax, strip
+          keyboard) load only on project pages and degrade fully without JS. */ ?>
+  <?php if ($page->intendedTemplate()->name() === 'project'): ?>
+  <script src="<?= esc(url('assets/js/case-study.js')) ?>?v=<?= (int) (@filemtime($kirby->root('assets') . '/js/case-study.js') ?: 1) ?>" defer></script>
+  <?php endif ?>
 </body>
 </html>

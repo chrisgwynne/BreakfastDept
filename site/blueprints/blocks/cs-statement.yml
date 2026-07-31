@@ -1,0 +1,22 @@
+name: Project statement
+icon: text
+fields:
+  text:
+    label: Statement
+    type: textarea
+    buttons: false
+    required: true
+    help: Bold editorial narration — NOT a client quote. Wrap a phrase in *stars* to accent it.
+  align:
+    label: Alignment
+    type: select
+    width: 1/2
+    default: left
+    options: { left: Left, center: Centre }
+  kind:
+    label: Kind
+    type: select
+    width: 1/2
+    default: statement
+    help: Labels the statement honestly on the page.
+    options: { statement: Statement, challenge: The challenge, strategy: The strategy, improvement: Biggest improvement, lesson: Project lesson }

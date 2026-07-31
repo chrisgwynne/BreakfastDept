@@ -1,0 +1,4 @@
+name: Typographic interlude
+icon: title
+fields:
+  text: { label: Big text, type: text, required: true }

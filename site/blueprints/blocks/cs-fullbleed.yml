@@ -1,0 +1,5 @@
+name: Full-bleed image
+icon: image
+fields:
+  image: { label: Image, type: files, max: 1, query: page.images, uploads: images }
+  caption: { label: Caption, type: text }

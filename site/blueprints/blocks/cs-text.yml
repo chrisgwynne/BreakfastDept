@@ -1,0 +1,11 @@
+name: Editorial text
+icon: text
+fields:
+  heading: { label: Heading, type: text }
+  text: { label: Text, type: textarea, buttons: [ bold, italic, link ] }
+  align:
+    label: Alignment
+    type: select
+    width: 1/2
+    default: left
+    options: { left: Left, center: Centre }

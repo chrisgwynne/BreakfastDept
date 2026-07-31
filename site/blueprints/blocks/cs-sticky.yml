@@ -1,0 +1,10 @@
+name: Sticky image + story
+icon: layout
+fields:
+  image: { label: Sticky image, type: files, max: 1, query: page.images, uploads: images }
+  steps:
+    label: Story steps
+    type: structure
+    fields:
+      heading: { label: Heading, type: text }
+      text: { label: Text, type: textarea, buttons: false }

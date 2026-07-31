@@ -1,0 +1,103 @@
+Title: Marlowe & Fox
+
+----
+
+Project_status: concept
+
+----
+
+Client: Retail
+
+----
+
+Summary: A concept case study for a playful retail brand — loud on purpose, editorial and full of personality.
+
+----
+
+Ad_preset: playful-collage
+
+----
+
+Ad_accent: coral
+
+----
+
+Ad_secondary: purple
+
+----
+
+Ad_bg: butter
+
+----
+
+Ad_hero: collage
+
+----
+
+Ad_pullquote: marks
+
+----
+
+Ad_rotation: playful
+
+----
+
+Ad_motif: sticker
+
+----
+
+Ad_ending: motif
+
+----
+
+Body:
+
+[{"id":"m1","type":"cs-interlude","content":{"text":"Loud, on purpose."}},{"id":"m2","type":"cs-statement","content":{"text":"A shop that feels like the *brand* — not a template with the logo dropped in.","align":"left","kind":"strategy"}},{"id":"m3","type":"cs-rotated","content":{"image":["shot-home.jpg"],"direction":"right","caption":"The homepage sets the tone before you read a word."}},{"id":"m4","type":"cs-palette","content":{"swatches":[{"colour":"coral","label":"Coral"},{"colour":"purple","label":"Ink violet"},{"colour":"butter","label":"Butter"},{"colour":"plum","label":"Plum"},{"colour":"blush","label":"Blush"}]}},{"id":"m5","type":"cs-specimen","content":{"big":"Aa","name":"Display grotesk, cranked wide","sample":"The quick brown fox picks the loud one."}},{"id":"m6","type":"cs-quote","content":{"text":"If it doesn't make you smile, it doesn't ship.","attribution":"","role":"","kind":"statement","style":"","image":[]}},{"id":"m7","type":"cs-stack","content":{"images":["shot-grid.jpg","shot-article.jpg","shot-mobile.jpg"],"caption":"Category, product and story — one loud, coherent system."}},{"id":"m8","type":"cs-fullbleed","content":{"image":["shot-article.jpg"],"caption":"Full-bleed moments give the product room to shout."}},{"id":"m9","type":"cs-colourblock","content":{"colour":"purple","heading":"Personality is a feature, not a risk.","text":""}}]
+
+----
+
+Hero_image:
+
+- shot-home.jpg
+
+----
+
+Card_image:
+
+- shot-grid.jpg
+
+----
+
+Gallery:
+
+- shot-grid.jpg
+- shot-article.jpg
+- shot-mobile.jpg
+
+----
+
+Technology: Kirby CMS, PHP, Vanilla CSS & JavaScript
+
+----
+
+Industries: Retail
+
+----
+
+Featured: false
+
+----
+
+Date: 2026-07-16
+
+----
+
+Seo_title: Marlowe & Fox — a bold, playful retail website concept
+
+----
+
+Meta_description: A concept case study: a playful retail brand's site built loud on purpose — editorial, colourful and full of personality, without losing usability.
+
+----
+
+Uuid: work-marlowe-and-fox

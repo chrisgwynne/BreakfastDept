@@ -1,0 +1,11 @@
+name: Screenshot (oversized)
+icon: image
+fields:
+  image: { label: Screenshot, type: files, max: 1, query: page.images, uploads: images }
+  scale:
+    label: Scale
+    type: select
+    width: 1/2
+    default: oversized
+    options: { contained: Contained, oversized: Oversized, fullbleed: Full-bleed }
+  caption: { label: Caption, type: text, width: 1/2 }

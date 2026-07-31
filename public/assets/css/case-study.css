@@ -198,6 +198,21 @@
 .cs[data-ad-caption="handwritten"] .cs-cap { font-family: var(--hand); font-size: 1.3rem; color: var(--cs-secondary); opacity: 1; }
 .cs[data-ad-caption="boxed"] .cs-cap { display: inline-block; padding: 0.2em 0.6em; background: var(--cs-accent); color: var(--cs-on-accent); border-radius: 6px; }
 
+/* Device arrangement — desktop frame with a mobile screen overlapping. */
+.cs__devices { position: relative; }
+.cs__devices > figure:first-child { width: 100%; }
+.cs__device-mobile { position: relative; z-index: 2; }
+@media (max-width: 760px) {
+  .cs__device-mobile { position: static; width: 55% !important; margin: -8% auto 0 !important; transform: none !important; }
+}
+
+/* Full-page capture treatments — never render the raw natural height. */
+.cs-fullpage--strip img { width: 100%; height: clamp(320px, 42vw, 560px); object-fit: cover; object-position: top; }
+.cs-fullpage--frame { max-height: 78vh; overflow-y: auto; scrollbar-width: thin; -webkit-overflow-scrolling: touch; }
+.cs-fullpage--frame img { width: 100%; height: auto; }
+.cs-fullpage--pan { height: clamp(340px, 56vh, 640px); overflow: hidden; }
+.cs-fullpage--pan img { width: 100%; height: auto; will-change: transform; }
+
 /* =========================================================
    PULL-QUOTE VARIANTS  (driven by [data-ad-pullquote])
    ========================================================= */
