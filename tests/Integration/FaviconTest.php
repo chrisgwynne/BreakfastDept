@@ -13,6 +13,8 @@ final class FaviconTest extends TestCase
         $root = dirname(__DIR__, 2);
         $header = (string) file_get_contents($root . '/site/snippets/layouts/header.php');
         $deploy = (string) file_get_contents($root . '/.github/workflows/deploy.yml');
+        $webrootConfig = (string) file_get_contents($root . '/deploy/webroot/.htaccess');
+        $publicConfig = (string) file_get_contents($root . '/public/.htaccess');
         $deployCommands = array_map(
             static fn (string $line): string => (string) preg_replace('/\s+/', ' ', trim($line)),
             explode("\n", $deploy)
@@ -48,6 +50,13 @@ final class FaviconTest extends TestCase
             '<link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48">',
             $header
         );
+        foreach ([$webrootConfig, $publicConfig] as $serverConfig) {
+            $this->assertStringContainsString(
+                'AddType application/manifest+json .webmanifest',
+                $serverConfig,
+                'Every supported deployment mode must serve the manifest with a JSON manifest MIME type'
+            );
+        }
 
         $manifest = json_decode(
             (string) file_get_contents($root . '/public/site.webmanifest'),

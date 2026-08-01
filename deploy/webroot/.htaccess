@@ -38,6 +38,13 @@ Options -Indexes -MultiViews +FollowSymLinks
     Require all denied
 </FilesMatch>
 
+# Web app manifests are JSON documents. The host otherwise serves the
+# .webmanifest extension as application/octet-stream, which is blocked by the
+# site's X-Content-Type-Options: nosniff policy.
+<IfModule mod_mime.c>
+    AddType application/manifest+json .webmanifest
+</IfModule>
+
 <IfModule mod_headers.c>
     # Long-lived immutable caching for fingerprinted static assets.
     <FilesMatch "\.(css|js|woff2|jpg|jpeg|png|webp|avif|svg|ico)$">
