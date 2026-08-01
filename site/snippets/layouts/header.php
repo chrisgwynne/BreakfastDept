@@ -65,7 +65,11 @@ if ($page->isHomePage() === false) {
   <meta name="twitter:card" content="summary">
   <?php endif ?>
 
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='42' fill='%23FBFBF9' stroke='%231C293C' stroke-width='6'/%3E%3Ccircle cx='50' cy='50' r='16' fill='%23FDC800'/%3E%3C/svg%3E">
+  <meta name="theme-color" content="#f7f2e7">
+  <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/site.webmanifest">
   <link rel="alternate" type="application/rss+xml" title="<?= esc($site->title()) ?> — Journal" href="<?= esc($site->url()) ?>/journal/feed.rss">
   <?php /* Preload the body font so text paints without waiting for CSS to be parsed
           first. Only Inter (body) is preloaded — the mono + handwriting faces are
