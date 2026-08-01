@@ -68,6 +68,9 @@ final class ContentAuditTest extends TestCase
                 'content'  => [
                     'title'          => 'A good concept',
                     'project_status' => 'concept',
+                    // A deliberately minimal write-up, so the art-direction
+                    // quality gate advises rather than blocks.
+                    'case_mode'      => 'simple',
                     'summary'        => 'A clean, honest summary of the concept.',
                     'hero_image'     => 'shot.jpg',
                     'seo_title'      => 'A good concept',

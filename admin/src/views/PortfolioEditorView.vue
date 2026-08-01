@@ -3,6 +3,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { portfolio, AD_OPTIONS, type CaseStudy, type Screenshot } from '@/lib/portfolio'
 import { ApiError } from '@/lib/api'
+import ComposerPanel from '@/components/ComposerPanel.vue'
 
 const route = useRoute()
 const id = String(route.params.id)
@@ -12,7 +13,7 @@ const loading = ref(true)
 const saving = ref(false)
 const msg = ref('')
 const err = ref('')
-const tab = ref<'details' | 'art' | 'blocks' | 'shots' | 'composition' | 'crop' | 'preview'>('details')
+const tab = ref<'composer' | 'details' | 'art' | 'blocks' | 'shots' | 'composition' | 'crop' | 'preview'>('details')
 
 /** Editable state mirrored from the loaded case study. */
 const fields = reactive<Record<string, string>>({})
@@ -199,6 +200,14 @@ function removeLayer(i: number) { composition.layers.splice(i, 1) }
 
 // ---- Preview ----
 function refreshPreview() { previewNonce.value++ }
+
+// A Composer action rewrote the draft — reload everything so the editor, blocks
+// and live preview reflect the new composition.
+async function onComposed(message: string) {
+  await load()
+  refreshPreview()
+  msg.value = message
+}
 function openPreview() { if (cs.value) window.open(previewSrc.value, '_blank', 'noopener') }
 const copied = ref(false)
 async function copySecureLink() {
@@ -237,9 +246,14 @@ onMounted(load)
     </ul>
 
     <nav class="tabs" role="tablist">
-      <button v-for="t in ['details','art','blocks','shots','composition','crop','preview']" :key="t"
+      <button v-for="t in ['composer','details','art','blocks','shots','composition','crop','preview']" :key="t"
         class="tabs__btn" :class="{ 'is-active': tab === t }" :data-test="`tab-${t}`" @click="tab = (t as typeof tab)">{{ t }}</button>
     </nav>
+
+    <!-- COMPOSER — the editorial art director -->
+    <div v-show="tab === 'composer'" class="panel">
+      <ComposerPanel :id="cs.slug" @applied="onComposed" />
+    </div>
 
     <!-- DETAILS -->
     <div v-show="tab === 'details'" class="panel">

@@ -10,40 +10,113 @@ Client: In-house project
 
 ----
 
-Summary: My own Shopify store for personalised, quirky gifts — built as a revenue stream I own outright, running alongside Etsy.
+Summary: My own Shopify store for personalised, quirky gifts — a revenue stream I own outright, running alongside Etsy.
 
 ----
 
-Challenge: I was already selling personalised gifts on Etsy, and it works — but a marketplace only ever rents you the audience. It takes a cut of every order, owns the customer relationship, sets the rules, and sits my products next to everyone else's.
-
-I wanted a second channel I actually own: my own storefront, my own brand, my own customer list and my own margins — without giving up the made-to-order, personalised range that sells.
+Challenge: 
 
 ----
 
-Approach: I built the whole thing end to end:
-
-- A full Shopify storefront — brand, layout, product range and the personalisation flow — stood up to run solo alongside everything else I do.
-- A wide, quirky range organised into shop-by-category and shop-by-occasion, so browsing has a job rather than being a wall of products: door toppers, metal signs, wall prints, keyrings, 3D-printed gifts and license plates.
-- Made-to-order personalisation on the products that need it, so a name or a place turns a stock design into a one-off.
-- Product and category copy written in the brand's own voice — playful and a little cheeky — instead of flat marketplace listings.
+Approach: 
 
 ----
 
-Strategy: A marketplace rents you reach; a store builds you an asset. Etsy stays in the mix as a discovery channel, but The Quirky Gift Co is where I own the brand and the customer — so the audience I build compounds for me, not for the platform.
+Strategy: 
 
 ----
 
-Design_explanation: Clean and modern, with plenty of white space so the products do the talking. The personality lives in the words and the designs, not in a busy layout — clear browse paths by category, by occasion and by best-seller keep the whole range easy to move through.
+Design_explanation: 
 
 ----
 
-Build_explanation: Shopify and Liquid for the storefront, with made-to-order and print-on-demand fulfilment behind the personalised products. No custom back end to babysit — the point was a channel I could launch quickly and run single-handed.
+Build_explanation: 
 
 ----
 
-Outcome: The Quirky Gift Co is a channel I own outright — my brand, my customer relationships and my margin, running next to Etsy rather than underneath it.
+Outcome: 
 
-It's the same case I put to clients who sell on marketplaces or social platforms: rent the audience while it works, but build the thing you own. This one is me taking my own advice.
+----
+
+Ad_preset: playful-collage
+
+----
+
+Ad_hero: collage
+
+----
+
+Ad_accent: coral
+
+----
+
+Ad_secondary: purple
+
+----
+
+Ad_bg: butter
+
+----
+
+Ad_text: ink
+
+----
+
+Ad_display: grotesk-wide
+
+----
+
+Ad_body: sans
+
+----
+
+Ad_density: balanced
+
+----
+
+Ad_corner: round
+
+----
+
+Ad_border: thick
+
+----
+
+Ad_image_scale: oversized
+
+----
+
+Ad_rotation: playful
+
+----
+
+Ad_caption: handwritten
+
+----
+
+Ad_pullquote: rotated
+
+----
+
+Ad_animation: playful-stagger
+
+----
+
+Ad_transition: overlap
+
+----
+
+Ad_motif: sticker
+
+----
+
+Ad_ending: giant-shot
+
+----
+
+Body: 
+
+[{"id":"qg1","type":"cs-interlude","content":{"text":"Rent the audience while it works. Build the thing you own."},"isHidden":false},{"id":"qg2","type":"cs-text","content":{"heading":"The channel problem","text":"I was already selling personalised gifts on Etsy, and it works — but a marketplace only ever rents you the audience. It takes a cut of every order, owns the customer relationship and sits my products next to everyone else's. The Quirky Gift Co is the channel I own outright: my brand, my customer list, my margins.","align":"left"},"isHidden":false},{"id":"qg3","type":"cs-stack","content":{"images":["product-doortopper.jpg","product-garage.jpg","product-sneaker.jpg"],"caption":"Door toppers, garage signs, sneakerhead flexes — one cheeky house style."},"isHidden":false},{"id":"qg4","type":"cs-fullbleed","content":{"image":["product-nymap.jpg"],"caption":"Wall prints — the range that hangs around long after the gift is unwrapped."},"isHidden":false},{"id":"qg5","type":"cs-rotated","content":{"image":["product-nyplate.jpg"],"direction":"right","caption":"Personalise the plate, own the joke."},"isHidden":false},{"id":"qg6","type":"cs-colourblock","content":{"colour":"coral","heading":"Shop by category. Shop by occasion. Never just a wall of products.","text":"Door toppers, metal signs, wall prints, keyrings, 3D-printed gifts and license plates — organised so browsing has a job."},"isHidden":false},{"id":"qg7","type":"cs-quote","content":{"text":"Etsy is a great shop window. It is a terrible landlord.","attribution":"","role":"","kind":"statement","style":"rotated"},"isHidden":false},{"id":"qg8","type":"cs-strip","content":{"images":["product-skitrail.jpg","product-alpe.jpg","product-trex.jpg","product-bandkey.jpg"],"caption":"A sign for every obsession — skiing, cycling, dinosaurs, garage bands."},"isHidden":false},{"id":"qg9","type":"cs-palette","content":{"swatches":[{"colour":"coral","label":"Loud"},{"colour":"purple","label":"Playful"},{"colour":"butter","label":"Warm"},{"colour":"ink","label":"Grounded"}]},"isHidden":false},{"id":"qg10","type":"cs-specimen","content":{"big":"Aa","name":"Playful grotesk","sample":"Quirky, a little cheeky, never flat — the personality lives in the words."},"isHidden":false}]
 
 ----
 
@@ -51,23 +124,31 @@ Technology: Shopify, Liquid, Print-on-demand
 
 ----
 
+Industries: E-commerce, Retail
+
+----
+
 Project_url: https://www.thequirkygiftco.com
 
 ----
 
-Hero_image:
+Hero_image: 
 
 - cover.jpg
 
 ----
 
-Card_image:
+Card_image: 
 
 - cover.jpg
 
 ----
 
-Industries: E-commerce, Retail
+Gallery: 
+
+- product-doortopper.jpg
+- product-nyplate.jpg
+- product-trex.jpg
 
 ----
 

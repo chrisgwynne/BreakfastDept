@@ -96,6 +96,30 @@ export const portfolio = {
   previewLink: (id: string) => api.get<{ url: string; expires: string }>(`${P}/${id}/preview-link`),
   revokePreview: (id: string) => api.post<{ ok: boolean }>(`${P}/${id}/revoke-preview`),
   captureHealth: () => api.get<CaptureHealth>(`${P}/capture-health`),
+  composer: (id: string) => api.get<ComposerReview>(`${P}/${id}/composer`),
+  compose: (id: string, body: { kind: string; key?: string }) => api.post<CaseStudy>(`${P}/${id}/compose`, body),
+}
+
+// Editorial Composer analysis shapes (mirror the PHP Composer engine).
+export interface DirectorNote { code: string; severity: string; message: string; action: string }
+export interface ScoreMetric { key: string; label: string; score: number; reason: string }
+export interface LayoutIdea {
+  key: string; name: string; rationale: string; preset: string; hero: string; ending: string;
+  pullquote: string; blocks: string[]; visualTypes: number
+}
+export interface StoryboardCell {
+  type: string; kind: string; hasImage: boolean; imageCount: number; hasText: boolean;
+  caption: string; hiddenEverywhere: boolean
+}
+export interface ComposerReview {
+  review: DirectorNote[]
+  storyHealth: { overall: number; metrics: ScoreMetric[] }
+  uniqueness: { overall: number; nearest: string | null; axes: ScoreMetric[] }
+  rhythm: { score: number; textRatio: number; imageRatio: number; counts: Record<string, number>; flags: { code: string; message: string; at: number }[] }
+  ideas: LayoutIdea[]
+  inspirations: { key: string; name: string; concept: string }[]
+  storyboard: StoryboardCell[]
+  gate: { passed: boolean; blockers: string[]; warnings: string[] }
 }
 
 // The curated art-direction option vocabularies (mirror ArtDirection in PHP).

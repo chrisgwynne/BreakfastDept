@@ -54,10 +54,11 @@ test.describe("Breakfast Admin — portfolio authoring journey", () => {
     test.setTimeout(120000);
     await login(page);
 
-    // 1. Create the record.
+    // 1. Create the record. Start blank so this journey authors every block
+    // itself (the "Start from a composition" button seeds a starter instead).
     await page.goto("/breakfast-admin/portfolio");
     await page.getByTestId("pf-new-title").fill(TITLE);
-    await page.getByTestId("pf-create").click();
+    await page.getByTestId("pf-create-blank").click();
     await page.waitForURL(new RegExp(`/portfolio/${SLUG}`), { timeout: 15000 });
 
     // 2. Details: summary, approved host + paths.

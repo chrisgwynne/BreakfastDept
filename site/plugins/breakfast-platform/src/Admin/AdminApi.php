@@ -938,6 +938,9 @@ final class AdminApi
             if ($method === 'GET' && $action === 'preview-link') {
                 return $svc->previewLink($id);
             }
+            if ($method === 'GET' && $action === 'composer') {
+                return $svc->composerReview($id);
+            }
             if ($method === 'PATCH' && $action === '') {
                 $requireEdit();
 
@@ -952,6 +955,7 @@ final class AdminApi
                         return ['ok' => true];
                     }),
                     'capture'        => $this->guarded($requireEdit, fn () => $svc->capture($id, $this->body(), $actor)),
+                    'compose'        => $this->guarded($requireEdit, fn () => $svc->applyComposition($id, $this->body(), $actor)),
                     'derivative'     => $this->guarded($requireEdit, fn () => $svc->createDerivative($id, $this->body(), $actor)),
                     'screenshot'     => $this->guarded($requireEdit, fn () => $this->portfolioScreenshot($svc, $id, $seg, $actor)),
                     default          => throw new ApiException(404, 'Unknown portfolio action.', 'not_found'),

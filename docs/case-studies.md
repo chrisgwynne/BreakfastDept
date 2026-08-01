@@ -56,6 +56,45 @@ Every block is responsive (rotation calms and overlaps unwind on mobile),
 keyboard-accessible where interactive, and degrades without JavaScript. No block
 causes horizontal overflow.
 
+## Editorial Composer
+
+The Portfolio editor is built to make an unforgettable case study easier to
+create than a boring one. Alongside the field tabs, a **Composer** panel acts as
+an editorial art director over the current draft:
+
+- **Make beautiful the default** — a new case study starts from a rich editorial
+  *starter composition* (bold opener, screenshot moment, numbered beat, a
+  crafted rotated shot, a giant pull quote, a facts band, a colour close), not a
+  blank page. "Start blank" is an explicit opt-out.
+- **Layout ideas** — one action proposes several genuinely different directions
+  (Editorial, Image-led, Collage, Device showcase, Magazine, Minimal,
+  Story-driven) as **real block structures from the approved vocabulary** — never
+  fabricated HTML. Image-hungry blocks degrade gracefully when assets are scarce,
+  and every idea is checked to clear the quality gate and to be structurally
+  distinct from the others. Picking one rebuilds the draft and binds the
+  project's real images into it.
+- **Creative director** — continuous, structure-specific notes: *text-heavy*,
+  *only one image*, *the pull quote is buried*, *the ending is the generic CTA*,
+  *this page feels 71% like LocalMarkers (same hero, same ending)* — each with an
+  action, never generic advice.
+- **Story health & uniqueness** — storytelling scores (opening impact, visual
+  interest, image variety, reading rhythm, quote placement, ending strength) and
+  per-axis uniqueness against the rest of the portfolio, every score explained.
+- **Reading rhythm** — text/image balance and pacing flags (two text sections in
+  a row, a wall of images, repeated blocks).
+- **Storyboard** — every section as a proportional cell (kind, type, imagery,
+  hidden state) so the page's rhythm is obvious before opening the full preview.
+- **Inspire me** — editorial moods (Museum, Field notebook, Scrapbook, Luxury
+  brochure…) that resolve to real block compositions.
+
+The whole engine is pure and unit-tested (`src/Composer/`); the panel consumes
+`GET /portfolio/:id/composer` and applies compositions via
+`POST /portfolio/:id/compose`. Nothing here emits raw CSS or invented markup —
+every result is a validated block structure inside the design system.
+
+> Still to come (phase 2): direct-manipulation canvas handles (drag/resize/
+> rotate), an animated in-editor preview, and side-by-side version compare.
+
 ## Authoring in Breakfast Admin
 
 The whole workflow runs in the standalone **Breakfast Admin** (Portfolio) — not

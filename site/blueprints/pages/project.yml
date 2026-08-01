@@ -420,6 +420,20 @@ tabs:
     label: Settings
     icon: settings
     fields:
+      case_mode:
+        label: Case study mode
+        type: select
+        default: art-directed
+        width: 1/2
+        help: >
+          Art-directed case studies must clear the minimum composition quality
+          gate before publishing (enough blocks, more than one visual treatment,
+          multiple images, a project statement). Choose "Simple" only for a
+          deliberately minimal write-up — those minimums become advice, not
+          blockers.
+        options:
+          art-directed: Art-directed (full quality gate)
+          simple: Simple case study
       date:
         label: Date
         type: date

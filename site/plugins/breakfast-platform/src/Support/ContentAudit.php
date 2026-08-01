@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Breakfast\Platform\Support;
 
+use Breakfast\Platform\Content\ArtDirectionQualityGate;
 use Breakfast\Platform\Content\CaseStudyProbe;
 use Breakfast\Platform\Content\CaseStudyWarnings;
+use Breakfast\Platform\Portfolio\PortfolioSimilarity;
 use Kirby\Cms\App;
 use Kirby\Cms\Page;
 
@@ -62,7 +64,9 @@ final class ContentAudit
             $this->auditPage($page);
         }
 
-        $this->auditDuplicateMetadata($pages->toArray(static fn (Page $p): Page => $p));
+        $pageList = $pages->toArray(static fn (Page $p): Page => $p);
+        $this->auditDuplicateMetadata($pageList);
+        $this->auditPortfolioSimilarity($pageList);
 
         return $this->findings;
     }
@@ -137,6 +141,7 @@ final class ContentAudit
                 $this->warn('missing-image', $where, 'Project has no hero or card image — add one before presenting it as finished work.');
             }
             $this->auditCaseStudyWarnings($page, $where);
+            $this->auditArtDirectionGate($page, $where);
         }
 
         // 3. Empty primary CTA on the home page.
@@ -154,6 +159,78 @@ final class ContentAudit
         $probe = CaseStudyProbe::probe($page);
         foreach (CaseStudyWarnings::inspect($probe['images'], $probe['counts']) as $w) {
             $this->warn($w['category'], $where, $w['message']);
+        }
+    }
+
+    /**
+     * Enforce the minimum art-direction quality gate. For a published,
+     * art-directed record its composition blockers are ERRORS (a sparse
+     * one-image page must never go live as bespoke work); warnings are surfaced.
+     * "Simple" case studies only ever warn.
+     */
+    private function auditArtDirectionGate(Page $page, string $where): void
+    {
+        $record = CaseStudyProbe::record($page);
+        // Draft/unpublished records are still being built — advise, don't block.
+        $isLive = $page->isListed() && ($record['status'] ?? '') !== 'draft';
+        $gate = ArtDirectionQualityGate::evaluate($record);
+
+        foreach ($gate['blockers'] as $msg) {
+            if ($isLive) {
+                $this->error('art-direction-gate', $where, $msg);
+            } else {
+                $this->warn('art-direction-gate', $where, $msg);
+            }
+        }
+        foreach ($gate['warnings'] as $msg) {
+            $this->warn('art-direction', $where, $msg);
+        }
+    }
+
+    /**
+     * Editorial guard: flag any two published case studies whose structural
+     * fingerprints are too alike (same hero, ending, palette and block
+     * sequence) — the failure mode where every portfolio page collapses into
+     * one template with different words.
+     *
+     * @param array<int|string,Page> $pages
+     */
+    private function auditPortfolioSimilarity(array $pages): void
+    {
+        $records = [];
+        foreach ($pages as $page) {
+            if ($page->intendedTemplate()->name() !== 'project') {
+                continue;
+            }
+            $record = CaseStudyProbe::record($page);
+            if (($record['caseMode'] ?? '') === 'simple') {
+                continue; // simple case studies are exempt from the editorial guard
+            }
+            $records[$page->id()] = $record;
+        }
+
+        $ids = array_keys($records);
+        $reported = [];
+        foreach ($ids as $id) {
+            $others = $records;
+            unset($others[$id]);
+            $analysis = PortfolioSimilarity::analyse($records[$id], $others);
+            if (!$analysis['tooSimilar'] || $analysis['nearest'] === null) {
+                continue;
+            }
+            // Report each pair once.
+            $pairKey = implode('|', [min($id, $analysis['nearest']), max($id, $analysis['nearest'])]);
+            if (isset($reported[$pairKey])) {
+                continue;
+            }
+            $reported[$pairKey] = true;
+            $recs = is_array($analysis['detail'] ?? null) ? ($analysis['detail']['recommendations'] ?? []) : [];
+            $this->error('portfolio-similarity', $id, sprintf(
+                'Too structurally similar to %s (%.0f%%). %s',
+                (string) $analysis['nearest'],
+                $analysis['score'] * 100,
+                $recs !== [] ? implode(' ', $recs) : 'Vary the hero, ending, palette or block sequence.'
+            ));
         }
     }
 

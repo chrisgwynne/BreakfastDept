@@ -4,7 +4,14 @@ declare(strict_types=1);
 
 namespace Breakfast\Platform\Portfolio;
 
+use Breakfast\Platform\Composer\BlockTaxonomy;
+use Breakfast\Platform\Composer\CreativeDirector;
+use Breakfast\Platform\Composer\LayoutIdeas;
+use Breakfast\Platform\Composer\RhythmAnalysis;
+use Breakfast\Platform\Composer\StarterComposition;
+use Breakfast\Platform\Composer\StoryHealth;
 use Breakfast\Platform\Content\ArtDirection;
+use Breakfast\Platform\Content\ArtDirectionQualityGate;
 use Breakfast\Platform\Content\CaseStudyProbe;
 use Breakfast\Platform\Content\CaseStudyWarnings;
 use Breakfast\Platform\Screenshots\CaptureRequest;
@@ -75,21 +82,36 @@ final class PortfolioContent
             throw new PortfolioException(500, 'The work section is missing.');
         }
         $slug = $this->uniqueSlug($parent, $title);
+        $content = [
+            'title'          => $title,
+            'project_status' => 'concept',
+            'client'         => (string) ($opts['client'] ?? ''),
+            'company_uuid'   => (string) ($opts['company_uuid'] ?? ''),
+            'opportunity_uuid' => (string) ($opts['opportunity_uuid'] ?? ''),
+            'ad_preset'      => 'bold-editorial',
+            'uuid'           => 'work-' . $slug,
+        ];
+
+        // Make beautiful the default: unless the owner explicitly chooses a blank
+        // start, a new case study begins from a rich editorial starter
+        // composition rather than an empty page.
+        $starter = ($opts['starter'] ?? true) !== false;
+        if ($starter) {
+            $seed = StarterComposition::build();
+            foreach ($seed['ad'] as $k => $v) {
+                $content[$k] = $v;
+            }
+            $content['case_mode'] = 'art-directed';
+            $content['body'] = json_encode($seed['blocks'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '[]';
+        }
+
         $page = $parent->createChild([
             'slug'     => $slug,
             'template' => 'project',
             'draft'    => true,
-            'content'  => [
-                'title'          => $title,
-                'project_status' => 'concept',
-                'client'         => (string) ($opts['client'] ?? ''),
-                'company_uuid'   => (string) ($opts['company_uuid'] ?? ''),
-                'opportunity_uuid' => (string) ($opts['opportunity_uuid'] ?? ''),
-                'ad_preset'      => 'bold-editorial',
-                'uuid'           => 'work-' . $slug,
-            ],
+            'content'  => $content,
         ]);
-        $this->audit('portfolio.created', $page->id(), $actor, ['title' => $title]);
+        $this->audit('portfolio.created', $page->id(), $actor, ['title' => $title, 'starter' => $starter]);
 
         return $this->load($page->id());
     }
@@ -593,7 +615,307 @@ final class PortfolioContent
             }
         }
 
+        // Art-direction quality gate: an art-directed record can't publish as a
+        // sparse one-image page. Evaluated on the DRAFT being published.
+        foreach ($this->artDirectionBlockers($page, $c) as $msg) {
+            $b[] = $msg;
+        }
+
         return $b;
+    }
+
+    /**
+     * Build the quality-gate record from the DRAFT content and return its
+     * blockers. Mirrors {@see CaseStudyProbe::record()} but reads the unsaved
+     * draft (so the editor is stopped before an empty page ever goes live).
+     *
+     * @param array<string,mixed> $c editing (draft) content
+     * @return list<string>
+     */
+    private function artDirectionBlockers(Page $page, array $c): array
+    {
+        return ArtDirectionQualityGate::evaluate($this->draftRecord($page, $c))['blockers'];
+    }
+
+    /**
+     * Build the Composer's normalised record from the DRAFT content — the same
+     * shape {@see CaseStudyProbe::record()} produces from a published page, but
+     * read from the unsaved draft so the editor reasons over what it is editing.
+     *
+     * @param array<string,mixed> $c editing (draft) content
+     * @return array<string,mixed>
+     */
+    private function draftRecord(Page $page, array $c): array
+    {
+        $adFields = [];
+        foreach (['preset', 'accent', 'secondary', 'bg', 'text', 'display', 'body', 'corner',
+                  'border', 'density', 'image_scale', 'rotation', 'caption', 'pullquote',
+                  'animation', 'transition', 'motif', 'hero', 'ending'] as $k) {
+            $adFields[$k] = isset($c['ad_' . $k]) ? (string) $c['ad_' . $k] : '';
+        }
+        $ad = ArtDirection::resolve($adFields);
+
+        $presetCustomised = false;
+        foreach ($adFields as $k => $v) {
+            if ($k !== 'preset' && trim((string) $v) !== '') {
+                $presetCustomised = true;
+                break;
+            }
+        }
+
+        $decoded = json_decode($this->blocksJson($c), true);
+        $blocks = [];
+        $summaries = [];
+        $screenshotImage = false;
+        $imageKeys = ['image', 'images', 'desktop', 'mobile', 'before', 'after'];
+        $shotBlocks = ['cs-shot', 'cs-rotated', 'cs-stack', 'cs-devices', 'cs-fullpage', 'cs-strip', 'cs-annotated', 'cs-composition'];
+        foreach (is_array($decoded) ? $decoded : [] as $blk) {
+            if (!is_array($blk)) {
+                continue;
+            }
+            $type = (string) ($blk['type'] ?? '');
+            $content = is_array($blk['content'] ?? null) ? $blk['content'] : [];
+            $blocks[] = $type;
+            $imageCount = 0;
+            foreach ($imageKeys as $ik) {
+                $v = $content[$ik] ?? null;
+                if (is_array($v)) {
+                    $imageCount += count($v);
+                } elseif (is_string($v) && trim($v) !== '') {
+                    $imageCount += 1;
+                }
+            }
+            $compHasImage = $type === 'cs-composition' && str_contains((string) ($content['data'] ?? ''), 'image');
+            $hasText = trim((string) ($content['text'] ?? '')) !== '' || trim((string) ($content['heading'] ?? '')) !== '';
+            if (in_array($type, $shotBlocks, true) && ($imageCount > 0 || $compHasImage)) {
+                $screenshotImage = true;
+            }
+            $summaries[] = [
+                'type'             => $type,
+                'kind'             => BlockTaxonomy::kind($type),
+                'hasImage'         => $imageCount > 0 || $compHasImage,
+                'imageCount'       => $imageCount,
+                'hasText'          => $hasText,
+                'caption'          => (string) ($content['caption'] ?? $content['heading'] ?? $content['text'] ?? ''),
+                'hiddenEverywhere' => (bool) ($blk['isHidden'] ?? false),
+            ];
+        }
+
+        return [
+            'id'                => $page->slug(),
+            'title'             => (string) ($c['title'] ?? $page->title()),
+            'caseMode'          => ($c['case_mode'] ?? '') === 'simple' ? 'simple' : 'art-directed',
+            'status'            => trim((string) ($c['project_status'] ?? '')),
+            'preset'            => $ad['preset'],
+            'presetCustomised'  => $presetCustomised,
+            'hero'              => $ad['data']['hero'],
+            'ending'            => $ad['data']['ending'],
+            'pullquote'         => $ad['data']['pullquote'],
+            'motif'             => $ad['data']['motif'],
+            'transition'        => $ad['data']['transition'],
+            'accent'            => $ad['vars']['--ad-accent'] ?? '',
+            'secondary'         => $ad['vars']['--ad-secondary'] ?? '',
+            'bg'                => $ad['vars']['--ad-bg'] ?? '',
+            'blocks'            => $blocks,
+            'summaries'         => $summaries,
+            'imageCount'        => $page->images()->count(),
+            'hasScreenshots'    => $screenshotImage,
+            'ineffectiveBlocks' => ArtDirectionQualityGate::ineffectiveBlocks($summaries),
+        ];
+    }
+
+    /**
+     * Editorial Composer analysis for a draft: creative-director notes, story
+     * health, uniqueness against published work, rhythm, layout ideas,
+     * inspirations and a storyboard summary. Read-only — never mutates content.
+     *
+     * @return array<string,mixed>
+     */
+    public function composerReview(string $id): array
+    {
+        $page   = $this->page($id);
+        $c      = $this->editingContent($page);
+        $record = $this->draftRecord($page, $c);
+        $others = $this->publishedOthers($page->id());
+
+        $gate = ArtDirectionQualityGate::evaluate($record);
+
+        return [
+            'review'       => CreativeDirector::review($record, $others),
+            'storyHealth'  => StoryHealth::score($record),
+            'uniqueness'   => StoryHealth::uniqueness($record, $others),
+            'rhythm'       => RhythmAnalysis::analyse($record['blocks']),
+            'ideas'        => LayoutIdeas::generate($record, 4),
+            'inspirations' => array_map(
+                static fn (string $k, array $v): array => ['key' => $k] + $v,
+                array_keys(LayoutIdeas::inspirations()),
+                array_values(LayoutIdeas::inspirations())
+            ),
+            'storyboard'   => $record['summaries'],
+            'gate'         => ['passed' => $gate['passed'], 'blockers' => $gate['blockers'], 'warnings' => $gate['warnings']],
+        ];
+    }
+
+    /**
+     * Apply a Composer composition to the draft: a rich starter, a chosen layout
+     * idea, or an inspiration direction. Binds the project's real images into the
+     * generated block sequence — always a real, valid block structure, never
+     * fabricated markup. Non-destructive to media; overwrites only the draft body
+     * + art-direction seeds.
+     *
+     * @param array<string,mixed> $body {kind:starter|layout|inspiration, key?:string}
+     * @return array<string,mixed>
+     */
+    public function applyComposition(string $id, array $body, string $actor): array
+    {
+        $kind = (string) ($body['kind'] ?? 'starter');
+        $key  = (string) ($body['key'] ?? '');
+        $page = $this->page($id);
+        $images = array_map(static fn ($f) => $f->filename(), iterator_to_array($page->images()));
+        $images = array_values($images);
+
+        if ($kind === 'starter') {
+            $starter = StarterComposition::build();
+            $ad = $starter['ad'];
+            $blocks = $this->bindImages($starter['blocks'], $images);
+            $label = 'starter composition';
+        } else {
+            $record = $this->draftRecord($page, $this->editingContent($page));
+            $ideas = LayoutIdeas::generate($record, 20);
+            if ($kind === 'inspiration') {
+                $insp = LayoutIdeas::inspirations()[$key] ?? null;
+                $key = $insp['concept'] ?? '';
+                $label = 'inspiration: ' . ($insp['name'] ?? $key);
+            } else {
+                $label = 'layout: ' . $key;
+            }
+            $idea = null;
+            foreach ($ideas as $i) {
+                if ($i['key'] === $key) {
+                    $idea = $i;
+                    break;
+                }
+            }
+            if ($idea === null) {
+                throw new PortfolioException(422, 'That composition is not available for this project.');
+            }
+            $ad = [
+                'ad_preset' => $idea['preset'], 'ad_hero' => $idea['hero'], 'ad_ending' => $idea['ending'],
+                'ad_pullquote' => $idea['pullquote'],
+            ];
+            $blocks = $this->bindImages($this->scaffold($idea['blocks']), $images);
+        }
+
+        // save() takes art direction as an unprefixed `artDirection` map and the
+        // body as `blocks`.
+        $artDirection = [];
+        foreach ($ad as $k => $v) {
+            $artDirection[substr($k, 3)] = $v; // strip the "ad_" prefix
+        }
+        $this->save($id, ['artDirection' => $artDirection, 'blocks' => $blocks], $actor);
+        $this->audit('portfolio.composed', $page->id(), $actor, ['kind' => $label]);
+
+        return $this->load($id);
+    }
+
+    /**
+     * Turn a bare list of block types into scaffolded block dicts with guiding
+     * editorial copy (no placeholder words) ready for the editor to fill.
+     *
+     * @param list<string> $types
+     * @return list<array<string,mixed>>
+     */
+    private function scaffold(array $types): array
+    {
+        $out = [];
+        $i = 0;
+        $n = 1;
+        foreach ($types as $type) {
+            $content = match ($type) {
+                'cs-statement'  => ['text' => 'Open with the core tension in one bold line.', 'align' => 'left', 'kind' => 'challenge'],
+                'cs-interlude'  => ['text' => 'A short, punchy typographic line to shift the rhythm.'],
+                'cs-text'       => ['heading' => 'Section heading', 'text' => 'One tight paragraph, specific to this client.', 'align' => 'left'],
+                'cs-numbered'   => ['number' => (string) $n++, 'heading' => 'The approach', 'text' => 'One paragraph on how you tackled it.'],
+                'cs-quote'      => ['text' => 'A single line that lands — a result or the sharpest thing about the project.', 'attribution' => '', 'role' => '', 'kind' => 'statement', 'style' => ''],
+                'cs-facts'      => ['items' => [['value' => 'Add', 'label' => 'a real outcome'], ['value' => 'Add', 'label' => 'a second fact'], ['value' => 'Add', 'label' => 'a third fact']]],
+                'cs-colourblock' => ['colour' => 'accent', 'heading' => 'A confident line in the project’s own voice.', 'text' => ''],
+                'cs-specimen'   => ['big' => 'Aa', 'name' => 'Display type', 'sample' => 'The project’s voice in one line.'],
+                'cs-shot', 'cs-rotated', 'cs-fullbleed', 'cs-fullpage' => ['image' => [], 'caption' => 'Add the screenshot that carries this section.'],
+                'cs-stack'      => ['images' => [], 'caption' => 'Two or three screenshots that share a house style.'],
+                'cs-strip'      => ['images' => [], 'caption' => 'A horizontal sequence showing the breadth of the work.'],
+                'cs-devices'    => ['desktop' => [], 'mobile' => [], 'caption' => 'Desktop and mobile, side by side.'],
+                'cs-annotated'  => ['image' => [], 'notes' => [['label' => 'Point out the first thing that matters.']]],
+                default         => [],
+            };
+            $out[] = ['id' => 'c' . (++$i), 'type' => $type, 'content' => $content, 'isHidden' => false];
+        }
+
+        return $out;
+    }
+
+    /**
+     * Bind the project's real image filenames into a scaffolded block list,
+     * filling each block's image slots in order (reusing images if scarce).
+     *
+     * @param list<array<string,mixed>> $blocks
+     * @param list<string> $images
+     * @return list<array<string,mixed>>
+     */
+    private function bindImages(array $blocks, array $images): array
+    {
+        if ($images === []) {
+            return $blocks;
+        }
+        $cursor = 0;
+        $next = static function (int $count) use (&$cursor, $images): array {
+            $picked = [];
+            for ($k = 0; $k < $count; $k++) {
+                $picked[] = $images[$cursor % count($images)];
+                $cursor++;
+            }
+            return $picked;
+        };
+        foreach ($blocks as &$blk) {
+            $type = (string) ($blk['type'] ?? '');
+            $slots = BlockTaxonomy::imageSlots($type);
+            if ($slots <= 0) {
+                continue;
+            }
+            if ($type === 'cs-devices') {
+                $blk['content']['desktop'] = $next(1);
+                $blk['content']['mobile']  = $next(1);
+            } elseif (in_array($type, ['cs-stack', 'cs-strip'], true)) {
+                $blk['content']['images'] = $next($slots);
+            } else {
+                $blk['content']['image'] = $next(1);
+            }
+        }
+        unset($blk);
+
+        return $blocks;
+    }
+
+    /**
+     * Published case studies other than $exceptId, as similarity/uniqueness
+     * records (keyed by page id).
+     *
+     * @return array<string,array<string,mixed>>
+     */
+    private function publishedOthers(string $exceptId): array
+    {
+        $out = [];
+        $parent = $this->kirby->page(self::PARENT);
+        if ($parent === null) {
+            return $out;
+        }
+        foreach ($parent->children()->listed() as $child) {
+            if ($child->id() === $exceptId || $child->intendedTemplate()->name() !== 'project') {
+                continue;
+            }
+            $out[$child->slug()] = CaseStudyProbe::record($child);
+        }
+
+        return $out;
     }
 
     private function uniqueSlug(Page $parent, string $title): string
