@@ -89,6 +89,12 @@ jobs:
           cp deploy/webroot/.htaccess   dist/.htaccess
           # Public static assets (served directly).
           cp -R public/assets           dist/assets
+          cp public/favicon.ico         dist/favicon.ico
+          cp public/favicon.svg         dist/favicon.svg
+          cp public/apple-touch-icon.png dist/apple-touch-icon.png
+          cp public/site.webmanifest    dist/site.webmanifest
+          cp public/android-chrome-192x192.png dist/android-chrome-192x192.png
+          cp public/android-chrome-512x512.png dist/android-chrome-512x512.png
           # Standalone admin SPA bundle (built above; served at /breakfast-admin).
           cp -R public/breakfast-admin  dist/breakfast-admin
           # Application code + content + dependencies + CLI (for the host cron).
