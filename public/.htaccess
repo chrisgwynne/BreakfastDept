@@ -36,6 +36,12 @@ Options -Indexes -MultiViews +FollowSymLinks
     RewriteRule ^ index.php [L]
 </IfModule>
 
+# Web app manifests are JSON documents. Declare the extension explicitly so
+# they remain usable alongside X-Content-Type-Options: nosniff.
+<IfModule mod_mime.c>
+    AddType application/manifest+json .webmanifest
+</IfModule>
+
 # Media, assets: long-lived immutable caching (filenames are cache-busted).
 <IfModule mod_headers.c>
     <FilesMatch "\.(css|js|woff2|jpg|jpeg|png|webp|avif|svg|ico)$">
