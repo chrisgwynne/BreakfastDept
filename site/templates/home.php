@@ -153,6 +153,13 @@
         </details>
       <?php endforeach ?>
     </div>
+    <div class="offer-help card reveal" style="margin-top:var(--s-6)" aria-labelledby="review-cta-heading">
+      <div>
+        <h3 class="scard__title" id="review-cta-heading">Want a second opinion on your current site?</h3>
+        <p>If those checks raised doubts, send over the site you have now. I’ll take an informal first look and reply with the main thing I’d fix first.</p>
+      </div>
+      <a class="btn btn--secondary" data-track="cta_click" data-track-label="home-diagnostic-website-review" href="<?= esc(url('website-review')) ?>#form">Get a website review</a>
+    </div>
   </div>
 </section>
 <?php endif ?>
