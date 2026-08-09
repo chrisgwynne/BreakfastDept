@@ -6,15 +6,15 @@ Hero_eyebrow: Web design in North Wales
 
 ----
 
-Hero_headline: Websites you'll be proud to
+Hero_headline: Web design in North Wales that helps local businesses
 
 ----
 
-Hero_highlight: send people to.
+Hero_highlight: win more enquiries.
 
 ----
 
-Hero_text: I design and build clear, fast websites that help small businesses across North Wales win more enquiries, bookings and sales.
+Hero_text: I design, write and build clear, fast websites for small businesses across North Wales — so visitors quickly understand what you do and how to take the next step.
 
 ----
 
