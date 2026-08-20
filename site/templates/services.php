@@ -3,7 +3,7 @@
   <div class="container">
     <?php snippet('partials/breadcrumbs') ?>
     <div class="section__head">
-      <span class="kicker"><?= esc(t('breakfast.services', 'Services')) ?></span>
+      <span class="kicker">P300 · <?= esc(t('breakfast.services', 'Services')) ?></span>
       <h1 class="section__title"><?= esc($page->heading()->or($page->title())) ?></h1>
       <?php if ($page->intro()->isNotEmpty()): ?><p class="section__lead"><?= esc($page->intro()) ?></p><?php endif ?>
     </div>
@@ -23,4 +23,9 @@
   </div>
 </section>
 <section class="section"><div class="container"><?php snippet('partials/cta-band') ?></div></section>
-<?php snippet('layouts/footer') ?>
+<?php snippet('layouts/footer', ['softkeys' => [
+    ['label' => 'Back',  'sub' => 'P100', 'href' => url('/')],
+    ['label' => 'Work',  'sub' => 'P200', 'href' => page('work') ? page('work')->url() : url('work')],
+    ['label' => 'Start', 'sub' => 'P101', 'href' => url('start-a-project')],
+    ['label' => 'Contact', 'sub' => 'P700', 'href' => url('contact')],
+]]) ?>

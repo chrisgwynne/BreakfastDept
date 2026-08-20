@@ -1,8 +1,15 @@
-<?php snippet('layouts/header') ?>
+<?php
+
+use Breakfast\Platform\Teletext\Registry;
+
+snippet('layouts/header');
+$ttNumber = Registry::numberFor($page, $site);
+?>
 <article class="section">
   <div class="container">
     <?php snippet('partials/breadcrumbs') ?>
     <header class="article__header">
+      <?php if ($ttNumber !== null): ?><p class="kicker">P<?= esc($ttNumber) ?></p><?php endif ?>
       <h1 class="section__title"><?= esc($page->title()) ?></h1>
       <?php if ($page->excerpt()->isNotEmpty()): ?><p class="section__lead"><?= esc($page->excerpt()) ?></p><?php endif ?>
       <div class="article__meta">
@@ -33,4 +40,9 @@
 <section class="section"><div class="container">
   <?php snippet('partials/cta-band', ['heading' => $page->cta_heading()->or($site->cta_heading()), 'text' => $page->cta_text()->or($site->cta_text())]) ?>
 </div></section>
-<?php snippet('layouts/footer') ?>
+<?php snippet('layouts/footer', ['softkeys' => [
+    ['label' => 'Back',    'sub' => 'P600', 'href' => page('journal') ? page('journal')->url() : url('journal')],
+    ['label' => 'Work',    'sub' => 'P200', 'href' => page('work') ? page('work')->url() : url('work')],
+    ['label' => 'Start',   'sub' => 'P101', 'href' => url('start-a-project')],
+    ['label' => 'Contact', 'sub' => 'P700', 'href' => url('contact')],
+]]) ?>

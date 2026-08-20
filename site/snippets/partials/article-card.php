@@ -1,6 +1,10 @@
 <?php
+
+use Breakfast\Platform\Teletext\Registry;
+
 /** @var \Kirby\Cms\Page $article */
 $cover = $article->cover()->toFile();
+$ttNumber = Registry::numberFor($article, $article->site());
 ?>
 <article class="pcard reveal" data-filter-item data-tags="<?= esc(implode(' ', array_map(fn ($c) => \Kirby\Toolkit\Str::slug($c), $article->categories()->split()))) ?>">
   <?php if ($cover): ?>
@@ -8,6 +12,7 @@ $cover = $article->cover()->toFile();
   <?php endif ?>
   <div class="pcard__body">
     <p class="pcard__cat">
+      <?php if ($ttNumber !== null): ?>P<?= esc($ttNumber) ?> · <?php endif ?>
       <?php if ($article->date()->isNotEmpty()): ?><?= esc($article->date()->toDate('j M Y')) ?><?php endif ?>
       <?php if ($article->categories()->isNotEmpty()): ?> · <?= esc($article->categories()->split()[0] ?? '') ?><?php endif ?>
     </p>

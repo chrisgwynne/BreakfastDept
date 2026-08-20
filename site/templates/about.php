@@ -3,7 +3,7 @@
   <div class="container">
     <?php snippet('partials/breadcrumbs') ?>
     <header class="section__head" style="max-width:52rem">
-      <span class="kicker"><?= esc(t('breakfast.about.kicker', 'About Breakfast')) ?></span>
+      <span class="kicker">P500 · <?= esc(t('breakfast.about.kicker', 'About Breakfast')) ?></span>
       <h1 class="section__title"><?= esc($page->heading()->or($page->title())) ?></h1>
     </header>
     <?php if ($page->intro()->isNotEmpty()): ?><div class="prose" style="font-size:1.2rem"><?= $page->intro()->toBlocks() ?></div><?php endif ?>
@@ -30,9 +30,9 @@
       </div>
     <?php endif ?>
 
-    <?php /* ---------- How Breakfast works ---------- */ ?>
+    <?php /* ---------- How Breakfast works (this is also P400 — see Registry) ---------- */ ?>
     <?php if ($page->how_text()->isNotEmpty()): ?>
-      <div class="section__head" style="margin-top:var(--s-16)"><h2 class="section__title" style="font-size:1.8rem"><?= esc($page->how_heading()->or('How Breakfast works')) ?></h2></div>
+      <div class="section__head" id="how" style="margin-top:var(--s-16);scroll-margin-top:calc(var(--header-h) + 60px)"><span class="kicker">P400</span><h2 class="section__title" style="font-size:1.8rem"><?= esc($page->how_heading()->or('How Breakfast works')) ?></h2></div>
       <p class="section__lead" style="max-width:46rem"><?= esc($page->how_text()) ?></p>
     <?php endif ?>
 
@@ -63,4 +63,9 @@
   </div>
 </article>
 <section class="section"><div class="container"><?php snippet('partials/cta-band') ?></div></section>
-<?php snippet('layouts/footer') ?>
+<?php snippet('layouts/footer', ['softkeys' => [
+    ['label' => 'Back',    'sub' => 'P100', 'href' => url('/')],
+    ['label' => 'Work',    'sub' => 'P200', 'href' => page('work') ? page('work')->url() : url('work')],
+    ['label' => 'Journal', 'sub' => 'P600', 'href' => page('journal') ? page('journal')->url() : url('journal')],
+    ['label' => 'Contact', 'sub' => 'P700', 'href' => url('contact')],
+]]) ?>

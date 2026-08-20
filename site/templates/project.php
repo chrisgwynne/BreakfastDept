@@ -1,8 +1,11 @@
 <?php
 
 use Breakfast\Platform\Content\ArtDirection;
+use Breakfast\Platform\Teletext\Registry;
 
 snippet('layouts/header');
+
+$ttNumber = Registry::numberFor($page, $site);
 
 /* Resolve the curated art-direction settings into safe tokens + data-attrs.
    Every value is whitelisted inside ArtDirection; nothing user-entered is
@@ -28,7 +31,10 @@ foreach (['challenge' => 'The challenge', 'approach' => 'The approach', 'strateg
 $metrics = $page->metrics()->toStructure();
 ?>
 <article class="cs" <?= ArtDirection::dataAttrs($ad['data']) ?><?= $style !== '' ? ' style="' . esc($style, 'attr') . '"' : '' ?>>
-  <div class="cs__inner cs__crumbs"><?php snippet('partials/breadcrumbs') ?></div>
+  <div class="cs__inner cs__crumbs">
+    <?php if ($ttNumber !== null): ?><p class="kicker">P<?= esc($ttNumber) ?></p><?php endif ?>
+    <?php snippet('partials/breadcrumbs') ?>
+  </div>
 
   <?php snippet('case-study/hero', ['page' => $page, 'variant' => $ad['data']['hero']]) ?>
 
@@ -113,4 +119,9 @@ $metrics = $page->metrics()->toStructure();
 <section class="section"><div class="container"><?php snippet('partials/related', ['related' => $page->related_projects()->toPages(), 'heading' => t('breakfast.relatedprojects', 'More work')]) ?></div></section>
 <?php endif ?>
 <section class="section"><div class="container"><?php snippet('partials/cta-band') ?></div></section>
-<?php snippet('layouts/footer') ?>
+<?php snippet('layouts/footer', ['softkeys' => [
+    ['label' => 'Back',    'sub' => 'P200', 'href' => page('work') ? page('work')->url() : url('work')],
+    ['label' => 'Project', 'sub' => $ttNumber !== null ? 'P' . $ttNumber : '', 'href' => $page->url()],
+    ['label' => 'Next',    'sub' => '',     'href' => ($n = $page->nextListed()) ? $n->url() : url('work')],
+    ['label' => 'Contact', 'sub' => 'P700', 'href' => url('contact')],
+]]) ?>

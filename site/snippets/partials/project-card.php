@@ -1,10 +1,14 @@
 <?php
+
+use Breakfast\Platform\Teletext\Registry;
+
 /**
  * Project preview card. Never renders editor-entered HTML — only structured
  * fields, escaped. Uses responsive Kirby image generation.
  * @var \Kirby\Cms\Page $project
  */
 $card = $project->card_image()->toFile() ?? $project->hero_image()->toFile();
+$ttNumber = Registry::numberFor($project, $project->site());
 $services = $project->services()->toPages();
 $isConcept = $project->project_status()->value() === 'concept';
 $tags = [];
@@ -19,7 +23,7 @@ foreach ($project->industries()->split() as $ind) { $tags[] = \Kirby\Toolkit\Str
     <?php endif ?>
   </a>
   <div class="pcard__body">
-    <p class="pcard__cat"><?= esc($project->client()->or($services->first()?->title())) ?><?php if ($project->industries()->isNotEmpty()): ?> · <?= esc($project->industries()->split()[0] ?? '') ?><?php endif ?></p>
+    <p class="pcard__cat"><?php if ($ttNumber !== null): ?>P<?= esc($ttNumber) ?> · <?php endif ?><?= esc($project->client()->or($services->first()?->title())) ?><?php if ($project->industries()->isNotEmpty()): ?> · <?= esc($project->industries()->split()[0] ?? '') ?><?php endif ?></p>
     <h3 class="pcard__name"><a href="<?= esc($project->url()) ?>"><?= esc($project->title()) ?></a></h3>
     <?php if ($project->summary()->isNotEmpty()): ?>
       <p class="pcard__summary"><?= esc($project->summary()->excerptSafe(140)) ?></p>

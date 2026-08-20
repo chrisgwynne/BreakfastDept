@@ -311,6 +311,25 @@ details[open] .faq__q::after { content: "–"; }
 .cs__device-mobile { border: var(--border); }
 .cs-facts, .cs-comp, .cs-annot__notes { background: var(--tt-panel); }
 
+/* ---------- Services index: offer grid ---------- */
+.offer-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-6); align-items: stretch; }
+.scard--offer:last-child:nth-child(odd) { grid-column: 1 / -1; }
+.offer-help { margin-top: var(--s-8); display: flex; align-items: center; justify-content: space-between; gap: var(--s-6); }
+.offer-help p { color: var(--tt-grey); max-width: 62ch; margin-top: var(--s-2); }
+.offer-help .btn { flex: none; }
+.enquiry-next { max-width: 52rem; background: var(--tt-panel); border: var(--border); padding: var(--s-6); margin-bottom: var(--s-8); }
+.enquiry-next h2 { font-size: 1.1rem; margin-bottom: var(--s-4); color: var(--tt-yellow); }
+.enquiry-next ol { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s-5); counter-reset: enquiry-step; }
+.enquiry-next li { display: grid; gap: var(--s-2); color: var(--tt-grey); counter-increment: enquiry-step; }
+.enquiry-next li::before { content: counter(enquiry-step); display: grid; place-items: center; width: 26px; height: 26px; background: var(--tt-yellow); border: var(--border); color: var(--tt-black); font-weight: 700; }
+.enquiry-next strong { color: var(--tt-white); }
+@media (max-width: 720px) {
+  .offer-grid { grid-template-columns: 1fr; }
+  .scard--offer:last-child:nth-child(odd) { grid-column: auto; }
+  .offer-help { align-items: flex-start; flex-direction: column; }
+  .enquiry-next ol { grid-template-columns: 1fr; }
+}
+
 /* =========================================================
    New Teletext components
    ========================================================= */
