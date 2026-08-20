@@ -123,7 +123,7 @@ if (empty($tickerLines)) {
   <script src="<?= esc(url('assets/js/case-study.js')) ?>?v=<?= (int) (@filemtime($kirby->root('assets') . '/js/case-study.js') ?: 1) ?>" defer></script>
   <?php endif ?>
   <?php
-    $ttScripts = ['clock', 'navigation', 'display-mode', 'easter-eggs', 'ticker'];
+    $ttScripts = ['clock', 'navigation', 'display-mode', 'easter-eggs', 'ticker', 'form-transmit'];
     foreach ($ttScripts as $ttScript):
       $ttPath = "assets/js/teletext/{$ttScript}.js";
       $ttVer  = (int) (@filemtime($kirby->root('assets') . "/js/teletext/{$ttScript}.js") ?: 1);

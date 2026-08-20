@@ -20,7 +20,7 @@ $note = $notes[$mode] ?? $notes['informal'];
     <div class="grid grid--2" style="align-items:start;gap:var(--s-16)">
       <div>
         <div class="section__head" style="margin-bottom:var(--s-8)">
-          <?php if ($page->kicker()->isNotEmpty()): ?><span class="kicker"><?= esc($page->kicker()) ?></span><?php endif ?>
+          <span class="kicker">P110<?php if ($page->kicker()->isNotEmpty()): ?> · <?= esc($page->kicker()) ?><?php endif ?></span>
           <h1 class="section__title"><?= esc($page->title()) ?></h1>
         </div>
         <?php if ($page->intro()->isNotEmpty()): ?><div class="blocks"><?= $page->intro()->toBlocks() ?></div><?php endif ?>
@@ -43,4 +43,9 @@ $note = $notes[$mode] ?? $notes['informal'];
     </div>
   </div>
 </section>
-<?php snippet('layouts/footer') ?>
+<?php snippet('layouts/footer', ['softkeys' => [
+    ['label' => 'Back',  'sub' => 'P100', 'href' => url('/')],
+    ['label' => 'Start', 'sub' => 'P101', 'href' => url('start-a-project')],
+    ['label' => 'Work',  'sub' => 'P200', 'href' => page('work') ? page('work')->url() : url('work')],
+    ['label' => 'Contact', 'sub' => 'P700', 'href' => url('contact')],
+]]) ?>
