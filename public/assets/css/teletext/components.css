@@ -64,10 +64,18 @@
 .grid--3 { grid-template-columns: repeat(3, 1fr); }
 .grid--auto { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
 
-.pcard { display: flex; flex-direction: column; background: var(--tt-panel); border: var(--border); overflow: hidden; transition: outline-color var(--motion); }
+.pcard { position: relative; display: flex; flex-direction: column; background: var(--tt-panel); border: var(--border); overflow: hidden; transition: outline-color var(--motion); }
 .pcard:hover { outline: 2px solid var(--tt-cyan); outline-offset: -2px; }
+.pcard::before {
+  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px; z-index: 2;
+  background: var(--tt-yellow);
+}
+.pcard:nth-of-type(4n+2)::before { background: var(--tt-cyan); }
+.pcard:nth-of-type(4n+3)::before { background: var(--tt-green); }
+.pcard:nth-of-type(4n+4)::before { background: var(--tt-magenta); }
 .pcard__media { position: relative; aspect-ratio: 16 / 10; background: #151517; border-bottom: var(--border); overflow: hidden; }
-.pcard__media img { width: 100%; height: 100%; object-fit: cover; filter: contrast(1.05); }
+.pcard__media img { width: 100%; height: 100%; object-fit: cover; filter: saturate(1.4) contrast(1.12) brightness(0.92); transition: filter var(--dur-mid) var(--ease-out); }
+.pcard:hover .pcard__media img { filter: saturate(1.15) contrast(1.05) brightness(1); }
 .pcard__body { padding: var(--s-6); display: flex; flex-direction: column; gap: var(--s-2); flex: 1; }
 .pcard__cat { font-family: var(--mono); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--tt-cyan); }
 .pcard__name { font-size: 1.2rem; text-transform: uppercase; color: var(--tt-white); }
@@ -80,6 +88,27 @@
   background: var(--tt-yellow); color: var(--tt-black); border: var(--border); padding: 2px 10px;
 }
 .tag--concept { background: var(--tt-panel); border-color: var(--tt-grey); color: var(--tt-grey); }
+
+/* ---------- Teletext photo treatment ----------
+   Real photography (card thumbnails, article covers, body images) gets a
+   consistent punchy colour-grade plus a faint scanline/duotone wash instead
+   of looking like plain photography dropped onto a Teletext page. The
+   art-directed case-study "exhibit" screenshots (cs-*, project.php) are a
+   deliberate exception — they keep their own full-fidelity light
+   presentation so real client work still looks genuinely impressive. */
+.pcard__media::after,
+.article__cover::after,
+.block-image::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 1;
+  background:
+    repeating-linear-gradient(rgba(0,0,0,0) 0, rgba(0,0,0,0) 2px, rgba(0,0,0,0.14) 3px),
+    linear-gradient(180deg, rgba(53,230,230,0.08), rgba(255,89,214,0.06));
+  mix-blend-mode: multiply;
+}
+.article__cover, .block-image { position: relative; overflow: hidden; }
+.article__cover img, .block-image img, .hero__media img, .gallery img {
+  filter: saturate(1.4) contrast(1.1) brightness(0.94);
+}
 
 .scard { background: var(--tt-panel); border: var(--border); padding: var(--s-6); display: flex; flex-direction: column; gap: var(--s-3); }
 .scard__icon { display: grid; place-items: center; width: 44px; height: 44px; border: var(--border); background: var(--tt-yellow); }
