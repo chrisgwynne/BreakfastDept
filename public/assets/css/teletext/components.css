@@ -415,16 +415,16 @@ details[open] .faq__q::after { content: "–"; }
    optional small treated thumbnail, no card border/shadow separation. */
 .tt-list { display: grid; border-top: 2px solid var(--tt-white); }
 .tt-list__row {
-  display: grid; grid-template-columns: 3.2em 1fr auto; align-items: center;
+  display: grid; grid-template-columns: 3.2em minmax(0, 1fr) auto; align-items: center;
   gap: var(--s-4); padding: var(--s-3) var(--s-2); border-bottom: 1px solid #232326;
   transition: background-color var(--motion);
 }
 .tt-list__row:hover, .tt-list__row:focus-visible { background: var(--tt-panel); outline: none; }
 .tt-list__num { color: var(--tt-yellow); font-family: var(--mono); font-weight: 800; }
-.tt-list__body { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: var(--s-4); row-gap: 2px; }
+.tt-list__body { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: var(--s-4); row-gap: 2px; min-width: 0; }
 .tt-list__title { color: var(--tt-cyan); font-weight: 800; text-transform: uppercase; }
 .tt-list__row:hover .tt-list__title { text-decoration: underline; }
-.tt-list__meta { color: var(--tt-body); font-family: var(--mono); font-size: 0.78rem; text-transform: uppercase; white-space: nowrap; }
+.tt-list__meta { color: var(--tt-body); font-family: var(--mono); font-size: 0.78rem; text-transform: uppercase; overflow-wrap: break-word; min-width: 0; }
 .tt-list__status { font-family: var(--mono); font-size: 0.78rem; font-weight: 700; text-transform: uppercase; white-space: nowrap; color: var(--tt-green); margin-left: auto; }
 .tt-list__status::before { content: "● "; }
 .tt-list__thumb { width: 64px; height: 40px; object-fit: cover; border: 1px solid var(--tt-grey); filter: saturate(1.5) contrast(1.15) brightness(0.85); flex: none; }

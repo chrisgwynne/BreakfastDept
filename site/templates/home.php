@@ -73,7 +73,7 @@ snippet('layouts/header');
 <?php if ($homeWork && $homeWork->isNotEmpty()): ?>
 <section class="section" aria-labelledby="work-h">
   <div class="container">
-    <?php snippet('teletext/bar', ['number' => 'P200', 'title' => t('breakfast.work', 'Selected work'), 'sub' => 'See all →']) ?>
+    <?php snippet('teletext/bar', ['number' => 'P200', 'title' => t('breakfast.work', 'Selected work'), 'sub' => 'See all →', 'as' => 'h2', 'id' => 'work-h']) ?>
     <div class="tt-list">
       <?php foreach ($homeWork as $project): ?>
         <?php
@@ -102,7 +102,7 @@ snippet('layouts/header');
 <?php if ($page->services_enabled()->toBool(true) && $svc->isNotEmpty()): ?>
 <section class="section" aria-labelledby="svc-h">
   <div class="container">
-    <?php snippet('teletext/bar', ['number' => 'P300', 'title' => esc($page->services_heading()->or('Services'))]) ?>
+    <?php snippet('teletext/bar', ['number' => 'P300', 'title' => esc($page->services_heading()->or('Services')), 'as' => 'h2', 'id' => 'svc-h']) ?>
     <?php if ($page->services_intro()->isNotEmpty()): ?><p class="section__lead"><?= esc($page->services_intro()) ?></p><?php endif ?>
     <div class="tt-list" style="margin-top:var(--s-4)">
       <?php $sn = 300; foreach ($svc as $s): $sn++; ?>
@@ -124,7 +124,7 @@ snippet('layouts/header');
 <?php if ($page->why_enabled()->toBool(true) && $why->isNotEmpty()): ?>
 <section class="section" aria-labelledby="why-h">
   <div class="container">
-    <?php snippet('teletext/bar', ['number' => '', 'title' => esc($page->why_heading()->or('Why Breakfast')), 'tight' => true]) ?>
+    <?php snippet('teletext/bar', ['number' => '', 'title' => esc($page->why_heading()->or('Why Breakfast')), 'tight' => true, 'as' => 'h2', 'id' => 'why-h']) ?>
     <ol class="timeline">
       <?php foreach ($why as $i => $p): ?>
         <li class="timeline__item">
@@ -143,7 +143,7 @@ snippet('layouts/header');
 <?php if ($page->diagnostic_enabled()->toBool(true) && $checks->isNotEmpty()): ?>
 <section class="section" aria-labelledby="diag-h">
   <div class="container">
-    <?php snippet('teletext/bar', ['number' => 'P110', 'title' => esc($page->diagnostic_heading()->or('A quick check'))]) ?>
+    <?php snippet('teletext/bar', ['number' => 'P110', 'title' => esc($page->diagnostic_heading()->or('A quick check')), 'as' => 'h2', 'id' => 'diag-h']) ?>
     <?php if ($page->diagnostic_intro()->isNotEmpty()): ?><p class="section__lead"><?= esc($page->diagnostic_intro()) ?></p><?php endif ?>
     <div style="margin-top:var(--s-4)">
       <?php foreach ($checks as $c): ?>
@@ -167,7 +167,7 @@ snippet('layouts/header');
 <?php if ($page->process_enabled()->toBool(true) && $steps->isNotEmpty()): ?>
 <section class="section" id="how" aria-labelledby="proc-h">
   <div class="container">
-    <?php snippet('teletext/bar', ['number' => 'P400', 'title' => esc($page->process_heading()->or('How it goes'))]) ?>
+    <?php snippet('teletext/bar', ['number' => 'P400', 'title' => esc($page->process_heading()->or('How it goes')), 'as' => 'h2', 'id' => 'proc-h']) ?>
     <ol class="timeline">
       <?php $n = 0; foreach ($steps as $step): $n++; ?>
         <li class="timeline__item">
@@ -186,7 +186,7 @@ snippet('layouts/header');
 <?php if ($page->platform_enabled()->toBool(true) && $page->platform_heading()->isNotEmpty()): ?>
 <section class="section" aria-labelledby="plat-h">
   <div class="container">
-    <?php snippet('teletext/bar', ['number' => 'P410', 'title' => esc($page->platform_heading())]) ?>
+    <?php snippet('teletext/bar', ['number' => 'P410', 'title' => esc($page->platform_heading()), 'as' => 'h2', 'id' => 'plat-h']) ?>
     <?php if ($page->platform_text()->isNotEmpty()): ?><p class="section__lead"><?= esc($page->platform_text()) ?></p><?php endif ?>
     <?php if ($pts->isNotEmpty()): ?>
       <div style="margin-top:var(--s-6);max-width:36rem">
@@ -206,7 +206,7 @@ snippet('layouts/header');
   <?php if ($latest->isNotEmpty()): ?>
   <section class="section" aria-labelledby="jrnl-h">
     <div class="container">
-      <?php snippet('teletext/bar', ['number' => 'P600', 'title' => esc($page->journal_heading()->or('Journal')), 'sub' => 'All writing →']) ?>
+      <?php snippet('teletext/bar', ['number' => 'P600', 'title' => esc($page->journal_heading()->or('Journal')), 'sub' => 'All writing →', 'as' => 'h2', 'id' => 'jrnl-h']) ?>
       <nav class="tt-index" aria-label="Latest journal entries">
         <?php foreach ($latest as $article): ?>
           <?php $an = Registry::numberFor($article, $site); ?>
@@ -226,7 +226,7 @@ snippet('layouts/header');
 <?php if ($page->final_cta_enabled()->toBool(true)): ?>
 <section class="section" style="border-bottom:0">
   <div class="container">
-    <?php snippet('teletext/bar', ['number' => 'P101', 'title' => 'Start a Project']) ?>
+    <?php snippet('teletext/bar', ['number' => 'P101', 'title' => 'Start a Project', 'as' => 'h2']) ?>
     <div class="tt-box tt-box--blue">
       <p class="tt-box__title"><?= esc($page->final_cta_heading()->or($site->cta_heading())) ?></p>
       <p class="tt-box__text"><?= esc($page->final_cta_text()->or($site->cta_text())) ?></p>

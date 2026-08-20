@@ -2,7 +2,7 @@
 <article class="section">
   <div class="container">
     <?php snippet('partials/breadcrumbs') ?>
-    <?php snippet('teletext/bar', ['number' => 'P500', 'title' => esc($page->heading()->or($page->title()))]) ?>
+    <?php snippet('teletext/bar', ['number' => 'P500', 'title' => esc($page->heading()->or($page->title())), 'as' => 'h1']) ?>
     <div class="tt-split">
       <div class="tt-split__main">
         <?php if ($page->intro()->isNotEmpty()): ?><div class="prose" style="font-size:1.1rem"><?= $page->intro()->toBlocks() ?></div><?php endif ?>
@@ -37,14 +37,14 @@
     <?php /* ---------- How Breakfast works (this is also P400 — see Registry) ---------- */ ?>
     <?php if ($page->how_text()->isNotEmpty()): ?>
       <div id="how" style="margin-top:var(--s-12);scroll-margin-top:calc(var(--header-h) + 20px)">
-        <?php snippet('teletext/bar', ['number' => 'P400', 'title' => esc($page->how_heading()->or('How Breakfast works'))]) ?>
+        <?php snippet('teletext/bar', ['number' => 'P400', 'title' => esc($page->how_heading()->or('How Breakfast works')), 'as' => 'h2']) ?>
       </div>
       <p class="section__lead" style="max-width:46rem"><?= esc($page->how_text()) ?></p>
     <?php endif ?>
 
     <?php /* ---------- Principles ---------- */ ?>
     <?php if ($page->principles()->toStructure()->isNotEmpty()): ?>
-      <div style="margin-top:var(--s-12)"><?php snippet('teletext/bar', ['number' => '', 'title' => t('breakfast.about.principles', 'What Breakfast believes'), 'tight' => true]) ?></div>
+      <div style="margin-top:var(--s-12)"><?php snippet('teletext/bar', ['number' => '', 'title' => t('breakfast.about.principles', 'What Breakfast believes'), 'tight' => true, 'as' => 'h2']) ?></div>
       <div class="grid grid--2">
         <?php foreach ($page->principles()->toStructure() as $p): ?><div class="tt-box"><h3 class="scard__title"><?= esc($p->title()) ?></h3><p class="pcard__summary"><?= esc($p->text()) ?></p></div><?php endforeach ?>
       </div>
@@ -52,7 +52,7 @@
 
     <?php /* ---------- Who Breakfast is for ---------- */ ?>
     <?php if ($page->client_fit()->toStructure()->isNotEmpty() || $page->not_a_fit()->toStructure()->isNotEmpty()): ?>
-      <div style="margin-top:var(--s-12)"><?php snippet('teletext/bar', ['number' => '', 'title' => t('breakfast.about.who', 'Who Breakfast is for'), 'tight' => true]) ?></div>
+      <div style="margin-top:var(--s-12)"><?php snippet('teletext/bar', ['number' => '', 'title' => t('breakfast.about.who', 'Who Breakfast is for'), 'tight' => true, 'as' => 'h2']) ?></div>
       <div class="grid grid--2">
         <?php if ($page->client_fit()->toStructure()->isNotEmpty()): ?>
           <div class="tt-box"><h3 class="scard__title"><span class="fit__mark fit__mark--yes" aria-hidden="true"></span> <?= esc(t('breakfast.about.fit', 'A good fit if…')) ?></h3>

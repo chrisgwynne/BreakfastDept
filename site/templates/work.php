@@ -17,7 +17,7 @@ foreach ($projects as $p) {
 <section class="section">
   <div class="container">
     <?php snippet('partials/breadcrumbs') ?>
-    <?php snippet('teletext/bar', ['number' => 'P200', 'title' => $page->title()->value(), 'sub' => $projects->count() . ' listed']) ?>
+    <?php snippet('teletext/bar', ['number' => 'P200', 'title' => $page->title()->value(), 'sub' => $projects->count() . ' listed', 'as' => 'h1']) ?>
     <?php if ($page->intro()->isNotEmpty()): ?><p class="section__lead"><?= esc($page->intro()) ?></p><?php endif ?>
 
     <?php if ($page->filters_enabled()->toBool(true) && ($services || $industries)): ?>

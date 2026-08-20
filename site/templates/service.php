@@ -8,7 +8,7 @@ $ttNumber = Registry::numberFor($page, $site);
 <article class="section">
   <div class="container">
     <?php snippet('partials/breadcrumbs') ?>
-    <?php snippet('teletext/bar', ['number' => $ttNumber !== null ? 'P' . $ttNumber : '', 'title' => esc($page->heading()->or($page->title()))]) ?>
+    <?php snippet('teletext/bar', ['number' => $ttNumber !== null ? 'P' . $ttNumber : '', 'title' => esc($page->heading()->or($page->title())), 'as' => 'h1']) ?>
     <?php if ($page->summary()->isNotEmpty()): ?><p class="section__lead" style="max-width:52rem"><?= esc($page->summary()) ?></p><?php endif ?>
 
     <?php if ($page->introduction()->isNotEmpty()): ?>

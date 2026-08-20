@@ -2,7 +2,7 @@
 <section class="section" id="form">
   <div class="container">
     <?php snippet('partials/breadcrumbs') ?>
-    <?php snippet('teletext/bar', ['number' => 'P101', 'title' => 'Start a Project', 'sub' => '1/2']) ?>
+    <?php snippet('teletext/bar', ['number' => 'P101', 'title' => 'Start a Project', 'sub' => '1/2', 'as' => false]) ?>
     <div class="section__head" style="max-width:46rem;margin-top:var(--s-4)">
       <h1 class="tt-h1" style="font-size:clamp(1.6rem,3.2vw,2.2rem)">Let's make something great.</h1>
       <p class="section__lead"><?= esc($page->title()) ?></p>

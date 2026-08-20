@@ -14,7 +14,7 @@ $paginated = $articles->paginate(9);
 <section class="section">
   <div class="container">
     <?php snippet('partials/breadcrumbs') ?>
-    <?php snippet('teletext/bar', ['number' => 'P600', 'title' => esc($page->heading()->or($page->title())), 'sub' => $paginated->pagination()->page() . '/' . max(1, $paginated->pagination()->pages())]) ?>
+    <?php snippet('teletext/bar', ['number' => 'P600', 'title' => esc($page->heading()->or($page->title())), 'sub' => $paginated->pagination()->page() . '/' . max(1, $paginated->pagination()->pages()), 'as' => 'h1']) ?>
     <?php if ($page->intro()->isNotEmpty()): ?><p class="section__lead"><?= esc($page->intro()) ?></p><?php endif ?>
 
     <?php if ($featured && $featured->isListed()): ?>

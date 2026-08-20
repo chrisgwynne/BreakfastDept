@@ -2,7 +2,7 @@
 <section class="section" id="form">
   <div class="container">
     <?php snippet('partials/breadcrumbs') ?>
-    <?php snippet('teletext/bar', ['number' => 'P700', 'title' => esc($page->heading()->or($page->title()))]) ?>
+    <?php snippet('teletext/bar', ['number' => 'P700', 'title' => esc($page->heading()->or($page->title())), 'as' => 'h1']) ?>
     <div class="grid grid--2" style="align-items:start;gap:var(--s-16);margin-top:var(--s-4)">
       <div>
         <?php if ($page->intro()->isNotEmpty()): ?><div class="prose"><?= $page->intro()->toBlocks() ?></div><?php endif ?>
