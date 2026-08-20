@@ -208,6 +208,11 @@ tabs:
         label: Footer sign-off copy
         type: textarea
         buttons: false
+      footer_ticker:
+        label: Footer ticker messages
+        help: One short message per line. Rotates slowly in the footer (e.g. "Need a website? Start at 101."). Leave empty to use the built-in defaults.
+        type: textarea
+        buttons: false
 
   cta:
     label: CTA
