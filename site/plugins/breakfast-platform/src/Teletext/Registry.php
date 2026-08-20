@@ -41,12 +41,12 @@ final class Registry
     ];
 
     /**
-     * Listing pages whose visible children are numbered sequentially from a
-     * starting number. `field` is the slug of the site() lookup, `start` is
-     * the first child number, `override` is the optional content field a
-     * child can set to claim a specific number instead.
+     * Listing pages whose visible children are numbered sequentially. The
+     * array key is the slug of the site() lookup; `start` is the first
+     * child number. A child can also claim a specific number instead via
+     * its own `teletext_number` content field (see all()).
      *
-     * @var array<string,array{start:int,field:string}>
+     * @var array<string,array{start:int}>
      */
     private const SEQUENCES = [
         'work'     => ['start' => 201],
@@ -170,6 +170,9 @@ final class Registry
         return json_encode($out, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
     }
 
+    /**
+     * @return array{url:string,title:string,category:string}
+     */
     private static function entryFor(Page $child, string $category): array
     {
         return [
