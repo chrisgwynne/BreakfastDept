@@ -1,9 +1,15 @@
-<?php snippet('layouts/header') ?>
+<?php
+
+use Breakfast\Platform\Teletext\Registry;
+
+snippet('layouts/header');
+$ttNumber = Registry::numberFor($page, $site);
+?>
 <article class="section">
   <div class="container">
     <?php snippet('partials/breadcrumbs') ?>
     <header class="section__head" style="max-width:52rem">
-      <span class="kicker"><?= esc($page->short_name()->or(t('breakfast.service', 'Service'))) ?></span>
+      <span class="kicker"><?= $ttNumber !== null ? 'P' . esc($ttNumber) . ' · ' : '' ?><?= esc($page->short_name()->or(t('breakfast.service', 'Service'))) ?></span>
       <h1 class="section__title"><?= esc($page->heading()->or($page->title())) ?></h1>
       <?php if ($page->summary()->isNotEmpty()): ?><p class="section__lead"><?= esc($page->summary()) ?></p><?php endif ?>
     </header>
@@ -75,4 +81,9 @@
 <section class="section"><div class="container">
   <?php snippet('partials/cta-band', ['heading' => $page->cta_heading()->or($site->cta_heading()), 'text' => $page->cta_text()->or($site->cta_text())]) ?>
 </div></section>
-<?php snippet('layouts/footer') ?>
+<?php snippet('layouts/footer', ['softkeys' => [
+    ['label' => 'Back',     'sub' => 'P300', 'href' => page('services') ? page('services')->url() : url('services')],
+    ['label' => 'Ask',      'sub' => 'P101', 'href' => url('start-a-project') . '?service=' . rawurlencode($page->slug()) . '#form'],
+    ['label' => 'Our Work', 'sub' => 'P200', 'href' => page('work') ? page('work')->url() : url('work')],
+    ['label' => 'Contact',  'sub' => 'P700', 'href' => url('contact')],
+]]) ?>

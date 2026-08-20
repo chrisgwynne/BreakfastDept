@@ -106,6 +106,13 @@ tabs:
     label: Relationships
     icon: merge
     fields:
+      teletext_number:
+        label: Teletext page number
+        type: number
+        min: 301
+        max: 399
+        width: 1/3
+        help: Optional. Leave empty to number services automatically (P301, P302, …) in listing order.
       featured_projects:
         label: Featured projects
         type: pages

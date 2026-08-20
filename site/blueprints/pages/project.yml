@@ -450,6 +450,13 @@ tabs:
         default: false
         width: 1/3
         help: Hide the client name / limit detail on the public page.
+      teletext_number:
+        label: Teletext page number
+        type: number
+        min: 201
+        max: 299
+        width: 1/3
+        help: Optional. Leave empty to number projects automatically (P201, P202, …) in listing order. Set only to claim a specific number.
 
   seo:
     label: SEO & sharing

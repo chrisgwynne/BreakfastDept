@@ -3,8 +3,9 @@
   <div class="container">
     <?php snippet('partials/breadcrumbs') ?>
     <div class="section__head" style="max-width:46rem">
-      <span class="kicker"><?= esc(t('breakfast.startproject', 'Start a project')) ?></span>
-      <h1 class="section__title"><?= esc($page->title()) ?></h1>
+      <span class="kicker">P101</span>
+      <h1 class="section__title">LET'S MAKE SOMETHING GREAT</h1>
+      <p class="section__lead"><?= esc($page->title()) ?></p>
     </div>
     <?php if ($page->intro()->isNotEmpty()): ?><div class="blocks" style="margin-bottom:var(--s-8)"><?= $page->intro()->toBlocks() ?></div><?php endif ?>
     <div class="enquiry-next reveal" aria-labelledby="next-heading">
@@ -18,4 +19,9 @@
     <?php snippet('forms/project-form', ['page' => $page, 'result' => $result, 'old' => $old]) ?>
   </div>
 </section>
-<?php snippet('layouts/footer') ?>
+<?php snippet('layouts/footer', ['softkeys' => [
+    ['label' => 'Back',     'sub' => 'P100', 'href' => url('/')],
+    ['label' => 'Services', 'sub' => 'P300', 'href' => page('services') ? page('services')->url() : url('services')],
+    ['label' => 'Review',   'sub' => 'P110', 'href' => url('website-review')],
+    ['label' => 'Contact',  'sub' => 'P700', 'href' => url('contact')],
+]]) ?>

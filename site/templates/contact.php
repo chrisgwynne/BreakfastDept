@@ -5,7 +5,7 @@
     <div class="grid grid--2" style="align-items:start;gap:var(--s-16)">
       <div>
         <div class="section__head" style="margin-bottom:var(--s-6)">
-          <span class="kicker"><?= esc(t('breakfast.contact.kicker', 'Get in touch')) ?></span>
+          <span class="kicker">P700 · <?= esc(t('breakfast.contact.kicker', 'Get in touch')) ?></span>
           <h1 class="section__title"><?= esc($page->heading()->or($page->title())) ?></h1>
         </div>
         <?php if ($page->intro()->isNotEmpty()): ?><div class="prose"><?= $page->intro()->toBlocks() ?></div><?php endif ?>
@@ -35,4 +35,9 @@
     </div>
   </div>
 </section>
-<?php snippet('layouts/footer') ?>
+<?php snippet('layouts/footer', ['softkeys' => [
+    ['label' => 'Back',  'sub' => 'P100', 'href' => url('/')],
+    ['label' => 'Start', 'sub' => 'P101', 'href' => url('start-a-project')],
+    ['label' => 'Work',  'sub' => 'P200', 'href' => page('work') ? page('work')->url() : url('work')],
+    ['label' => 'About', 'sub' => 'P500', 'href' => page('about') ? page('about')->url() : url('about')],
+]]) ?>

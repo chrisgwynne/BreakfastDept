@@ -1,0 +1,15 @@
+##
+# P777 — Jackpot (easter egg). Copy/behaviour lives in the template.
+##
+title: Jackpot
+icon: emoji
+preview: true
+options:
+  changeStatus: false
+  changeSlug: false
+
+fields:
+  title:
+    label: Title
+    type: text
+    required: true

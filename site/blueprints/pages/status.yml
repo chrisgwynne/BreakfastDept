@@ -1,0 +1,16 @@
+##
+# P900 — Breakfast System (easter egg). Never exposes real infrastructure
+# data — see the template for exactly what each row represents.
+##
+title: Breakfast System
+icon: emoji
+preview: true
+options:
+  changeStatus: false
+  changeSlug: false
+
+fields:
+  title:
+    label: Title
+    type: text
+    required: true

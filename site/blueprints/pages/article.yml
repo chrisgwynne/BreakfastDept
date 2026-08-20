@@ -97,6 +97,13 @@ tabs:
         label: Show table of contents
         type: toggle
         default: false
+      teletext_number:
+        label: Teletext page number
+        type: number
+        min: 601
+        max: 699
+        width: 1/3
+        help: Optional — this is a display-only label (the real URL keeps its readable slug for SEO). Leave empty to number articles automatically (P601, P602, …) in listing order.
 
   seo:
     label: SEO & sharing

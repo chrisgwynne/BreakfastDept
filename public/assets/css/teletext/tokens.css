@@ -1,0 +1,81 @@
+/* =========================================================
+   BREAKFAST TEXT — design tokens
+   A modern British-Teletext-inspired information system.
+   Not a Ceefax clone: an original Breakfast visual identity
+   built on the same colour language and information density.
+   ========================================================= */
+
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: local("JetBrains Mono"), url("/assets/fonts/jetbrains-mono.woff2") format("woff2");
+}
+
+:root {
+  /* ---------- Teletext colour language ---------- */
+  --tt-black:   #050505;   /* page background */
+  --tt-panel:   #0d0d0f;   /* slightly-raised panel background */
+  --tt-white:   #f4f4f2;   /* body copy */
+  --tt-yellow:  #ffcf33;   /* headings / attention */
+  --tt-cyan:    #35e6e6;   /* navigation / links */
+  --tt-green:   #33e07a;   /* positive / live / status */
+  --tt-red:     #ff5252;   /* back / warning */
+  --tt-blue:    #4d6bff;   /* structural header bands */
+  --tt-magenta: #ff59d6;   /* occasional accent / experimental */
+  --tt-grey:    #8b8f96;   /* de-emphasised meta text */
+
+  /* Semantic aliases so shared partials/blocks keep working under the new
+     system without every selector needing a rewrite. */
+  --primary:   var(--tt-yellow);
+  --secondary: var(--tt-cyan);
+  --success:   var(--tt-green);
+  --danger:    var(--tt-red);
+  --surface:   var(--tt-panel);
+  --text:      var(--tt-white);
+  --muted:     var(--tt-grey);
+  --bg:        var(--tt-black);
+  --bg-alt:    var(--tt-panel);
+  --white:     var(--tt-white);
+  --ink:       var(--tt-black);
+
+  --font: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --hand: var(--font);
+
+  /* Spacing follows a loose "character cell" rhythm rather than a fluid
+     editorial scale — Teletext is a grid, not a magazine layout. */
+  --s-1: 4px;  --s-2: 8px;  --s-3: 12px; --s-4: 16px;
+  --s-6: 24px; --s-8: 32px; --s-12: 48px; --s-16: 64px;
+  --s-20: clamp(2.5rem, 5vw, 4rem);
+  --s-24: clamp(3rem, 6vw, 5rem);
+
+  /* Hard, flat borders. No radius, no soft shadow — solid colour blocks. */
+  --border: 2px solid var(--tt-white);
+  --border-3: 2px solid var(--tt-white);
+  --radius: 0;
+  --radius-sm: 0;
+  --radius-pill: 0;
+  --shadow-sm: none;
+  --shadow: none;
+  --shadow-lg: none;
+
+  --maxw: 1180px;
+  --maxw-prose: 42rem;
+  --header-h: 88px;
+
+  --z-header: 100;
+  --z-sticky: 200;
+  --z-skip: 1200;
+
+  --motion: 0.1s linear;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-soft: cubic-bezier(0.4, 0, 0.2, 1);
+  --dur-fast: 0.08s;
+  --dur-mid: 0.16s;
+  --dur-reveal: 0.18s;
+  --stagger: 18ms;
+}
+
+/* prefers-reduced-motion is handled once, globally, in components.css. */
