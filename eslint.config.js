@@ -5,7 +5,7 @@ module.exports = [
     languageOptions: {
       ecmaVersion: 2021,
       sourceType: "script",
-      globals: { window: "readonly", document: "readonly", localStorage: "readonly", panel: "readonly", Intl: "readonly", CustomEvent: "readonly", IntersectionObserver: "readonly", fetch: "readonly", FormData: "readonly", navigator: "readonly" },
+      globals: { window: "readonly", document: "readonly", localStorage: "readonly", sessionStorage: "readonly", panel: "readonly", Intl: "readonly", CustomEvent: "readonly", IntersectionObserver: "readonly", fetch: "readonly", FormData: "readonly", navigator: "readonly", setInterval: "readonly", clearInterval: "readonly", setTimeout: "readonly", clearTimeout: "readonly" },
     },
     rules: {
       "no-unused-vars": ["warn", { args: "none" }],

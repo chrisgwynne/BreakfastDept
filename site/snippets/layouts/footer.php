@@ -82,7 +82,8 @@ if (empty($tickerLines)) {
       <div class="footer__base">
         <?php /* One copyright line only. Prefer the editable footer_copy; fall back to year + brand. */ ?>
         <p><?= $site->footer_copy()->or('© ' . date('Y') . ' ' . esc($site->title()) . '. Independent web design in Wales.') ?></p>
-        <p>BREAKFAST TEXT · <?= esc(Registry::numberFor($page, $site) !== null ? 'P' . Registry::numberFor($page, $site) : 'P—') ?></p>
+        <?php $footerNumber = Registry::displayNumberFor($page, $site); ?>
+        <p>BREAKFAST TEXT · <?= $footerNumber !== null ? 'P' . esc($footerNumber) : 'P—' ?></p>
       </div>
     </div>
   </footer>

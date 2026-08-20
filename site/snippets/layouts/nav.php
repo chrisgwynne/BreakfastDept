@@ -4,12 +4,12 @@ use Breakfast\Platform\Teletext\Registry;
 
 /** Masthead (page number / brand / live clock) + primary navigation. */
 $nav = $site->nav()->toStructure();
-$currentNumber = Registry::numberFor($page, $site);
+$currentNumber = Registry::displayNumberFor($page, $site);
 $now = new DateTime('now', new DateTimeZone('Europe/London'));
 ?>
 <div class="tt-masthead">
   <div class="container tt-masthead__inner" style="display:flex;align-items:center;justify-content:space-between;gap:var(--s-4)">
-    <span class="tt-masthead__page"><?= $currentNumber !== null ? 'P' . esc($currentNumber) : 'P100' ?></span>
+    <span class="tt-masthead__page"><?= $currentNumber !== null ? 'P' . esc($currentNumber) : 'P—' ?></span>
     <span class="tt-masthead__brand">BREAKFAST TEXT</span>
     <span class="tt-masthead__clock" data-tt-clock data-live="true"><?= esc(strtoupper($now->format('D d M'))) ?>&nbsp;&nbsp;<?= esc($now->format('H:i:s')) ?></span>
   </div>

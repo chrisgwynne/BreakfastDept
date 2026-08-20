@@ -123,6 +123,28 @@ final class Registry
     }
 
     /**
+     * Same as numberFor(), but also resolves the number for an easter egg
+     * page (/text/{number}) by reading it straight off the slug — those
+     * pages are deliberately excluded from numberFor()/the public registry,
+     * but the page itself still needs to show its own number in the
+     * masthead/footer. The single place this fallback is defined.
+     */
+    public static function displayNumberFor(Page $page, Site $site): ?int
+    {
+        $direct = self::numberFor($page, $site);
+        if ($direct !== null) {
+            return $direct;
+        }
+
+        $textParent = $site->find('text');
+        if ($textParent !== null && $page->parent() !== null && $page->parent()->is($textParent) && ctype_digit($page->slug())) {
+            return (int) $page->slug();
+        }
+
+        return null;
+    }
+
+    /**
      * Resolve a typed number against the public registry only. Returns null
      * for anything not in it (including easter eggs) — the caller should then
      * try /text/{number} and let Kirby's own routing 404 correctly.
@@ -159,13 +181,16 @@ final class Registry
 
     private static function sameDestination(string $registryUrl, Page $page): bool
     {
-        if (str_starts_with($registryUrl, '/') === false) {
-            return false;
+        // Registry URLs are a mix of relative system paths ('/work') and
+        // absolute page URLs from Page::url() ('https://host/work/foo') —
+        // normalise both sides to a bare path before comparing.
+        $registryPath = (string) parse_url(strtok($registryUrl, '#'), PHP_URL_PATH);
+        $pagePath     = (string) parse_url($page->url(), PHP_URL_PATH);
+
+        if ($registryPath === '' || $registryPath === '/') {
+            return $page->isHomePage();
         }
 
-        // Strip any #anchor before comparing (e.g. /about#how still means /about).
-        $path = strtok($registryUrl, '#');
-
-        return $path === '/' ? $page->isHomePage() : rtrim((string) parse_url($page->url(), PHP_URL_PATH), '/') === rtrim($path, '/');
+        return rtrim($pagePath, '/') === rtrim($registryPath, '/');
     }
 }

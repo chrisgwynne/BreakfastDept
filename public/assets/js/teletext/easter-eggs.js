@@ -16,7 +16,7 @@
       var raw = window.localStorage.getItem(KEY);
       var parsed = raw ? JSON.parse(raw) : [];
       return Array.isArray(parsed) ? parsed : [];
-    } catch (e) {
+    } catch {
       return [];
     }
   }
@@ -24,7 +24,7 @@
   function writeDiscovered(list) {
     try {
       window.localStorage.setItem(KEY, JSON.stringify(list));
-    } catch (e) {
+    } catch {
       /* ignore — discovery just won't persist this session */
     }
   }

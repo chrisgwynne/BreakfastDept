@@ -22,7 +22,7 @@
   var stored = "clean";
   try {
     stored = window.localStorage.getItem(KEY) || "clean";
-  } catch (e) {
+  } catch {
     stored = "clean";
   }
   apply(stored);
@@ -33,7 +33,7 @@
       apply(mode);
       try {
         window.localStorage.setItem(KEY, mode);
-      } catch (e) {
+      } catch {
         /* localStorage unavailable (private mode etc.) — mode still applies this visit. */
       }
     });

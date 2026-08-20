@@ -24,7 +24,7 @@
   if (registryEl) {
     try {
       registry = JSON.parse(registryEl.textContent);
-    } catch (e) {
+    } catch {
       registry = {};
     }
   }

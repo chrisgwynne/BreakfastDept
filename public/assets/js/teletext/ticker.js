@@ -13,7 +13,7 @@
   var messages = [];
   try {
     messages = JSON.parse(el.getAttribute("data-tt-messages") || "[]");
-  } catch (e) {
+  } catch {
     messages = [];
   }
   if (messages.length < 2) return;
