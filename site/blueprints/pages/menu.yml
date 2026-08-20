@@ -1,0 +1,16 @@
+##
+# P123 — Breakfast Menu (easter egg). Copy lives in the template, not here:
+# it is a one-off joke, not a maintained content type. Move to draft to retire.
+##
+title: Breakfast Menu
+icon: emoji
+preview: true
+options:
+  changeStatus: false
+  changeSlug: false
+
+fields:
+  title:
+    label: Title
+    type: text
+    required: true

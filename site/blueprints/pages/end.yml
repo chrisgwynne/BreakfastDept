@@ -1,0 +1,15 @@
+##
+# P999 — End of the Internet (easter egg). Copy lives in the template.
+##
+title: End of the Internet
+icon: emoji
+preview: true
+options:
+  changeStatus: false
+  changeSlug: false
+
+fields:
+  title:
+    label: Title
+    type: text
+    required: true

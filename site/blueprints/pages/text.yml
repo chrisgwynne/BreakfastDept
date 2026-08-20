@@ -1,0 +1,18 @@
+##
+# /text — the invisible parent of every Breakfast Text easter egg. Never
+# linked from navigation; reachable only by typing its child's page number.
+# To retire an egg, move its page to draft in the Panel — no custom
+# enable/disable field needed, Kirby's own page status does the job.
+##
+title: Breakfast Text
+icon: emoji
+preview: true
+options:
+  changeStatus: false
+  changeSlug: false
+
+fields:
+  title:
+    label: Title
+    type: text
+    required: true

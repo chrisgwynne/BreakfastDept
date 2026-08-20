@@ -122,6 +122,10 @@ if (empty($tickerLines)) {
   <?php if ($page->intendedTemplate()->name() === 'project'): ?>
   <script src="<?= esc(url('assets/js/case-study.js')) ?>?v=<?= (int) (@filemtime($kirby->root('assets') . '/js/case-study.js') ?: 1) ?>" defer></script>
   <?php endif ?>
+  <?php /* P777 jackpot interaction — only ever loaded on its own page. */ ?>
+  <?php if ($page->intendedTemplate()->name() === 'jackpot'): ?>
+  <script src="<?= esc(url('assets/js/teletext/jackpot.js')) ?>?v=<?= (int) (@filemtime($kirby->root('assets') . '/js/teletext/jackpot.js') ?: 1) ?>" defer></script>
+  <?php endif ?>
   <?php
     $ttScripts = ['clock', 'navigation', 'display-mode', 'easter-eggs', 'ticker', 'form-transmit'];
     foreach ($ttScripts as $ttScript):
