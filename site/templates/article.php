@@ -9,7 +9,7 @@ $ttNumber = Registry::numberFor($page, $site);
   <div class="container">
     <?php snippet('partials/breadcrumbs') ?>
     <header class="article__header">
-      <?php if ($ttNumber !== null): ?><p class="kicker">P<?= esc($ttNumber) ?></p><?php endif ?>
+      <?php snippet('teletext/bar', ['number' => $ttNumber !== null ? 'P' . $ttNumber : '', 'title' => t('breakfast.journal', 'Journal'), 'tight' => true]) ?>
       <h1 class="section__title"><?= esc($page->title()) ?></h1>
       <?php if ($page->excerpt()->isNotEmpty()): ?><p class="section__lead"><?= esc($page->excerpt()) ?></p><?php endif ?>
       <div class="article__meta">
