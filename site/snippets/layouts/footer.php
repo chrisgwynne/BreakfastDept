@@ -1,22 +1,38 @@
 <?php
 
 use Breakfast\Platform\Support\Runtime;
+use Breakfast\Platform\Teletext\Registry;
 
-/** Site footer, cookie banner (only when required), scripts. */
+/** Site footer, soft keys, cookie banner (only when required), scripts. */
 $nonce     = Runtime::security()->nonce();
 $analytics = $site->analytics();
 $footerNav = $site->footer_nav()->toStructure();
 $social    = $site->social()->toStructure();
+
+// Ticker messages: editable via site.footer_ticker (one per line); a sane
+// fallback keeps the ticker meaningful even before an editor fills it in.
+$tickerLines = $site->footer_ticker()->split("\n");
+if (empty($tickerLines)) {
+    $tickerLines = [
+        'GOOD WEBSITES. PLAIN ENGLISH. MADE IN NORTH WALES.',
+        'WORDS BEFORE DECORATION.',
+        'NEED A WEBSITE? START AT 101.',
+    ];
+}
 ?>
   </main>
 
+  <?php /* A template can call snippet('layouts/footer', ['softkeys' => [...]])
+          before this to override the 4 default soft keys for its page. */ ?>
+  <?php snippet('teletext/softkeys', ['softkeys' => $softkeys ?? null]) ?>
+
   <footer class="site-footer">
+    <div class="tt-ticker" data-tt-ticker data-tt-messages="<?= esc(json_encode($tickerLines, JSON_UNESCAPED_SLASHES)) ?>"><?= esc($tickerLines[0]) ?></div>
     <div class="container">
       <div class="footer__inner">
         <div class="footer__brand">
           <a class="logo" href="<?= esc($site->url()) ?>" aria-label="<?= esc($site->title()) ?> home">
-            <span class="logo__word"><?= esc($site->title()->or('Breakfast')) ?></span>
-            <span class="logo__egg" aria-hidden="true"><span class="logo__white"><span class="logo__yolk"></span></span></span>
+            <span class="logo__word"><?= esc($site->title()->or('Breakfast')) ?> TEXT</span>
           </a>
           <?php if ($site->tagline()->isNotEmpty()): ?>
             <p class="footer__tagline"><?= esc($site->tagline()) ?></p>
@@ -28,6 +44,11 @@ $social    = $site->social()->toStructure();
               <?php endforeach ?>
             </ul>
           <?php endif ?>
+          <p class="tt-display-toggle" style="margin-top:16px">
+            DISPLAY:
+            <button type="button" data-tt-display="clean" aria-pressed="true">CLEAN</button>
+            <button type="button" data-tt-display="crt" aria-pressed="false">CRT</button>
+          </p>
         </div>
 
         <?php if ($footerNav->isNotEmpty()): ?>
@@ -61,9 +82,28 @@ $social    = $site->social()->toStructure();
       <div class="footer__base">
         <?php /* One copyright line only. Prefer the editable footer_copy; fall back to year + brand. */ ?>
         <p><?= $site->footer_copy()->or('© ' . date('Y') . ' ' . esc($site->title()) . '. Independent web design in Wales.') ?></p>
+        <p>BREAKFAST TEXT · <?= esc(Registry::numberFor($page, $site) !== null ? 'P' . Registry::numberFor($page, $site) : 'P—') ?></p>
       </div>
     </div>
   </footer>
+
+  <?php /* Go-to-page overlay + secret-page discovery toast — markup only,
+          behaviour lives in teletext/navigation.js and easter-eggs.js. */ ?>
+  <div class="tt-goto" data-tt-goto role="dialog" aria-modal="true" aria-label="Go to page">
+    <div class="tt-goto__box">
+      <p class="tt-goto__label">GO TO PAGE</p>
+      <p class="tt-goto__value" data-tt-goto-value>P---</p>
+      <p class="tt-goto__hint">Type a number · Enter to go · Esc to cancel</p>
+    </div>
+  </div>
+  <div class="tt-toast" data-tt-toast role="status" aria-live="polite"></div>
+  <?php /* Secret pages live at /text/{number} — the slug IS the number, so
+          discovery tracking never needs the number written anywhere else. */ ?>
+  <?php $textParent = $site->find('text'); ?>
+  <?php if ($textParent !== null && $page->parent() !== null && $page->parent()->is($textParent) && ctype_digit($page->slug())): ?>
+    <span hidden data-tt-secret="<?= esc($page->slug()) ?>" data-tt-secret-title="<?= esc($page->title()) ?>"></span>
+  <?php endif ?>
+  <script type="application/json" id="tt-registry"><?= Registry::toPublicJson($site) ?></script>
 
   <?php if ($analytics->enabled() && $analytics->requiresConsent()): ?>
   <div class="cookie-banner" data-cookie-banner role="dialog" aria-live="polite" aria-label="Cookie choices">
@@ -82,5 +122,13 @@ $social    = $site->social()->toStructure();
   <?php if ($page->intendedTemplate()->name() === 'project'): ?>
   <script src="<?= esc(url('assets/js/case-study.js')) ?>?v=<?= (int) (@filemtime($kirby->root('assets') . '/js/case-study.js') ?: 1) ?>" defer></script>
   <?php endif ?>
+  <?php
+    $ttScripts = ['clock', 'navigation', 'display-mode', 'easter-eggs', 'ticker'];
+    foreach ($ttScripts as $ttScript):
+      $ttPath = "assets/js/teletext/{$ttScript}.js";
+      $ttVer  = (int) (@filemtime($kirby->root('assets') . "/js/teletext/{$ttScript}.js") ?: 1);
+  ?>
+  <script src="<?= esc(url($ttPath)) ?>?v=<?= $ttVer ?>" defer></script>
+  <?php endforeach ?>
 </body>
 </html>

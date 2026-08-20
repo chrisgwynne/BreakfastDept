@@ -25,7 +25,7 @@ $meta      = $page->seoMeta();
 // Auto cache-bust: the stylesheet is served immutable, so tie the version to the
 // file's modified time. Every deploy changes it, so visitors always fetch the
 // current CSS instead of a stale cached copy. Falls back to a fixed version.
-$assetVer  = (string) (@filemtime($kirby->root('assets') . '/css/app.css') ?: '7');
+$assetVer  = (string) (@filemtime($kirby->root('assets') . '/css/teletext/components.css') ?: '1');
 $ogImage   = $meta->ogImage();
 $structured = new StructuredData($site);
 
@@ -65,7 +65,7 @@ if ($page->isHomePage() === false) {
   <meta name="twitter:card" content="summary">
   <?php endif ?>
 
-  <meta name="theme-color" content="#f7f2e7">
+  <meta name="theme-color" content="#050505">
   <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -75,14 +75,12 @@ if ($page->isHomePage() === false) {
           first. Only Inter (body) is preloaded — the mono + handwriting faces are
           decorative and font-display:swap covers them. crossorigin is required
           even same-origin because fonts are always fetched in CORS mode. */ ?>
-  <link rel="preload" href="<?= esc(url('assets/fonts/inter-variable.woff2')) ?>" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="<?= esc(url('assets/css/app.css')) ?>?v=<?= $assetVer ?>">
-  <?php /* The art-directed case-study system is loaded ONLY on project pages, so
-          the extra CSS never touches the rest of the site's payload. */ ?>
-  <?php if ($page->intendedTemplate()->name() === 'project'): ?>
-  <?php $csVer = (string) (@filemtime($kirby->root('assets') . '/css/case-study.css') ?: $assetVer); ?>
-  <link rel="stylesheet" href="<?= esc(url('assets/css/case-study.css')) ?>?v=<?= $csVer ?>">
-  <?php endif ?>
+  <link rel="preload" href="<?= esc(url('assets/fonts/jetbrains-mono.woff2')) ?>" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="<?= esc(url('assets/css/teletext/tokens.css')) ?>?v=<?= $assetVer ?>">
+  <link rel="stylesheet" href="<?= esc(url('assets/css/teletext/layout.css')) ?>?v=<?= $assetVer ?>">
+  <link rel="stylesheet" href="<?= esc(url('assets/css/teletext/components.css')) ?>?v=<?= $assetVer ?>">
+  <?php /* Case-study (cs-*) primitives are reskinned inside components.css now,
+          so project pages need no extra stylesheet load. */ ?>
 
   <?= StructuredData::toScript($structured->business()) ?>
   <?= StructuredData::toScript($structured->website()) ?>
