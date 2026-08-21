@@ -500,4 +500,12 @@ details[open] .faq__q::after { content: "–"; }
 
 /* ---------- Egg easter-egg pages: shared frame ---------- */
 .tt-egg { max-width: 40rem; margin: 0 auto; }
+.tt-system-message {
+  margin-top: var(--s-8);
+  color: var(--tt-yellow);
+  font-family: var(--mono);
+  font-weight: 800;
+  line-height: 1.45;
+  letter-spacing: 0.04em;
+}
 .tt-egg__title { color: var(--tt-magenta); }

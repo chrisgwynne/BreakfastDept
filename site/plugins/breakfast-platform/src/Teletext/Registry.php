@@ -114,6 +114,15 @@ final class Registry
     public static function numberFor(Page $page, Site $site): ?int
     {
         foreach (self::all($site) as $number => $entry) {
+            // Anchored destinations are navigable targets (for example P400
+            // takes a visitor to the process section on the About page), but
+            // they are not the page's own masthead number. Without this guard
+            // /about would resolve to P400 simply because its path matches
+            // /about#how after the fragment is stripped.
+            if (str_contains($entry['url'], '#')) {
+                continue;
+            }
+
             if (self::sameDestination($entry['url'], $page)) {
                 return $number;
             }
