@@ -2,23 +2,20 @@
 <section class="section">
   <div class="container">
     <?php snippet('partials/breadcrumbs') ?>
-    <div class="section__head">
-      <span class="kicker">P300 · <?= esc(t('breakfast.services', 'Services')) ?></span>
-      <h1 class="section__title"><?= esc($page->heading()->or($page->title())) ?></h1>
-      <?php if ($page->intro()->isNotEmpty()): ?><p class="section__lead"><?= esc($page->intro()) ?></p><?php endif ?>
-    </div>
-    <div class="offer-grid">
+    <?php snippet('teletext/bar', ['number' => 'P300', 'title' => esc($page->heading()->or($page->title())), 'as' => 'h1']) ?>
+    <?php if ($page->intro()->isNotEmpty()): ?><p class="section__lead"><?= esc($page->intro()) ?></p><?php endif ?>
+
+    <div class="offer-grid" style="margin-top:var(--s-6)">
       <?php $offerNumber = 0; foreach ($page->children()->listed() as $service) {
           $offerNumber++;
           snippet('partials/service-card', ['service' => $service, 'offerNumber' => $offerNumber]);
       } ?>
     </div>
-    <div class="offer-help card reveal">
-      <div>
-        <h2 class="scard__title">Not sure which fits?</h2>
-        <p>Choose “Not sure yet” on the enquiry form and describe what is getting in the way. You do not need to diagnose the website or write a finished brief first.</p>
-      </div>
-      <a class="btn btn--secondary" data-track="cta_click" data-track-label="services-unsure" href="<?= esc(url('start-a-project')) ?>#form">Tell me what you need</a>
+
+    <div class="tt-box" style="margin-top:var(--s-6)">
+      <p class="tt-box__title">Not sure which fits?</p>
+      <p class="tt-box__text">Choose "Not sure yet" on the enquiry form and describe what is getting in the way. You do not need to diagnose the website or write a finished brief first.</p>
+      <a class="tt-box__link" data-track="cta_click" data-track-label="services-unsure" href="<?= esc(url('start-a-project')) ?>#form">Tell me what you need</a>
     </div>
   </div>
 </section>

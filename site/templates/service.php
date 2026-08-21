@@ -8,11 +8,8 @@ $ttNumber = Registry::numberFor($page, $site);
 <article class="section">
   <div class="container">
     <?php snippet('partials/breadcrumbs') ?>
-    <header class="section__head" style="max-width:52rem">
-      <span class="kicker"><?= $ttNumber !== null ? 'P' . esc($ttNumber) . ' · ' : '' ?><?= esc($page->short_name()->or(t('breakfast.service', 'Service'))) ?></span>
-      <h1 class="section__title"><?= esc($page->heading()->or($page->title())) ?></h1>
-      <?php if ($page->summary()->isNotEmpty()): ?><p class="section__lead"><?= esc($page->summary()) ?></p><?php endif ?>
-    </header>
+    <?php snippet('teletext/bar', ['number' => $ttNumber !== null ? 'P' . $ttNumber : '', 'title' => esc($page->heading()->or($page->title())), 'as' => 'h1']) ?>
+    <?php if ($page->summary()->isNotEmpty()): ?><p class="section__lead" style="max-width:52rem"><?= esc($page->summary()) ?></p><?php endif ?>
 
     <?php if ($page->introduction()->isNotEmpty()): ?>
       <div class="blocks container--prose" style="margin-inline:0"><?= $page->introduction()->toBlocks() ?></div>
@@ -20,10 +17,10 @@ $ttNumber = Registry::numberFor($page, $site);
 
     <div class="grid grid--2" style="margin-top:var(--s-12)">
       <?php if ($page->suitable_for()->isNotEmpty()): ?>
-        <div class="card"><h2 class="scard__title"><?= esc(t('breakfast.service.suitable', 'Who it’s for')) ?></h2><div class="prose"><?= $page->suitable_for()->kt() ?></div></div>
+        <div class="tt-box"><h2 class="scard__title"><?= esc(t('breakfast.service.suitable', 'Who it’s for')) ?></h2><div class="prose"><?= $page->suitable_for()->kt() ?></div></div>
       <?php endif ?>
       <?php if ($page->problems()->toStructure()->isNotEmpty()): ?>
-        <div class="card"><h2 class="scard__title"><?= esc(t('breakfast.service.problems', 'Problems it solves')) ?></h2>
+        <div class="tt-box"><h2 class="scard__title"><?= esc(t('breakfast.service.problems', 'Problems it solves')) ?></h2>
           <ul class="prose" style="list-style:disc;padding-left:var(--s-6)"><?php foreach ($page->problems()->toStructure() as $p): ?><li><?= esc($p->text()) ?></li><?php endforeach ?></ul>
         </div>
       <?php endif ?>
@@ -32,7 +29,7 @@ $ttNumber = Registry::numberFor($page, $site);
     <?php if ($page->deliverables()->toStructure()->isNotEmpty()): ?>
       <div class="section__head" style="margin-top:var(--s-12)"><h2 class="section__title" style="font-size:1.8rem"><?= esc(t('breakfast.service.deliverables', 'What you get')) ?></h2></div>
       <div class="grid grid--3">
-        <?php foreach ($page->deliverables()->toStructure() as $d): ?><div class="card"><p><?= esc($d->text()) ?></p></div><?php endforeach ?>
+        <?php foreach ($page->deliverables()->toStructure() as $d): ?><div class="tt-box"><p><?= esc($d->text()) ?></p></div><?php endforeach ?>
       </div>
     <?php endif ?>
 
@@ -47,10 +44,10 @@ $ttNumber = Registry::numberFor($page, $site);
 
     <div class="grid grid--2" style="margin-top:var(--s-12)">
       <?php if ($page->pricing_guidance()->isNotEmpty()): ?>
-        <div class="card"><h2 class="scard__title"><?= esc(t('breakfast.service.pricing', 'What it costs')) ?></h2><div class="prose"><?= $page->pricing_guidance()->kt() ?></div></div>
+        <div class="tt-box"><h2 class="scard__title"><?= esc(t('breakfast.service.pricing', 'What it costs')) ?></h2><div class="prose"><?= $page->pricing_guidance()->kt() ?></div></div>
       <?php endif ?>
       <?php if ($page->timescale()->isNotEmpty()): ?>
-        <div class="card"><h2 class="scard__title"><?= esc(t('breakfast.service.timescale', 'How long it takes')) ?></h2><p><?= esc($page->timescale()) ?></p></div>
+        <div class="tt-box"><h2 class="scard__title"><?= esc(t('breakfast.service.timescale', 'How long it takes')) ?></h2><p><?= esc($page->timescale()) ?></p></div>
       <?php endif ?>
     </div>
 
@@ -69,10 +66,17 @@ $ttNumber = Registry::numberFor($page, $site);
     ?>
     <?php if ($serviceWork && $serviceWork->isNotEmpty()): ?>
       <div class="section__head" style="margin-top:var(--s-16)"><h2 class="section__title" style="font-size:1.8rem"><?= esc(t('breakfast.service.work', 'Work using this service')) ?></h2></div>
-      <div class="grid grid--3">
-        <?php foreach ($serviceWork as $project) {
-            snippet('partials/project-card', ['project' => $project]);
-        } ?>
+      <div class="tt-list">
+        <?php foreach ($serviceWork as $project): ?>
+          <?php $wNum = Registry::numberFor($project, $site); ?>
+          <a class="tt-list__row" href="<?= esc($project->url()) ?>">
+            <span class="tt-list__num"><?= $wNum !== null ? esc($wNum) : '' ?></span>
+            <span class="tt-list__body">
+              <span class="tt-list__title"><?= esc($project->title()) ?></span>
+              <span class="tt-list__meta"><?= esc($project->client()) ?></span>
+            </span>
+          </a>
+        <?php endforeach ?>
       </div>
     <?php endif ?>
   </div>

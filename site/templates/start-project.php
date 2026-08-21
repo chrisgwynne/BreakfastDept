@@ -2,9 +2,9 @@
 <section class="section" id="form">
   <div class="container">
     <?php snippet('partials/breadcrumbs') ?>
-    <div class="section__head" style="max-width:46rem">
-      <span class="kicker">P101</span>
-      <h1 class="section__title">LET'S MAKE SOMETHING GREAT</h1>
+    <?php snippet('teletext/bar', ['number' => 'P101', 'title' => 'Start a Project', 'sub' => '1/2', 'as' => false]) ?>
+    <div class="section__head" style="max-width:46rem;margin-top:var(--s-4)">
+      <h1 class="tt-h1" style="font-size:clamp(1.6rem,3.2vw,2.2rem)">Let's make something great.</h1>
       <p class="section__lead"><?= esc($page->title()) ?></p>
     </div>
     <?php if ($page->intro()->isNotEmpty()): ?><div class="blocks" style="margin-bottom:var(--s-8)"><?= $page->intro()->toBlocks() ?></div><?php endif ?>

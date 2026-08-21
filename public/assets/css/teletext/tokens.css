@@ -24,7 +24,8 @@
   --tt-red:     #ff5252;   /* back / warning */
   --tt-blue:    #4d6bff;   /* structural header bands */
   --tt-magenta: #ff59d6;   /* occasional accent / experimental */
-  --tt-grey:    #8b8f96;   /* de-emphasised meta text */
+  --tt-grey:    #9296a0;   /* meta/timestamps only — never body copy */
+  --tt-body:    #d7dae0;   /* body copy — bright, not faded */
 
   /* Semantic aliases so shared partials/blocks keep working under the new
      system without every selector needing a rewrite. */
@@ -34,7 +35,7 @@
   --danger:    var(--tt-red);
   --surface:   var(--tt-panel);
   --text:      var(--tt-white);
-  --muted:     var(--tt-grey);
+  --muted:     var(--tt-body);
   --bg:        var(--tt-black);
   --bg-alt:    var(--tt-panel);
   --white:     var(--tt-white);
@@ -44,12 +45,17 @@
   --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   --hand: var(--font);
 
-  /* Spacing follows a loose "character cell" rhythm rather than a fluid
-     editorial scale — Teletext is a grid, not a magazine layout. */
+  /* Spacing follows a tight "character cell" rhythm — Teletext is a dense
+     information grid, not a magazine layout with generous air. Sections
+     stack close enough that several "pages" are visible per scroll. */
   --s-1: 4px;  --s-2: 8px;  --s-3: 12px; --s-4: 16px;
-  --s-6: 24px; --s-8: 32px; --s-12: 48px; --s-16: 64px;
-  --s-20: clamp(2.5rem, 5vw, 4rem);
-  --s-24: clamp(3rem, 6vw, 5rem);
+  --s-6: 20px; --s-8: 28px; --s-12: 36px; --s-16: 44px;
+  --s-20: clamp(1.75rem, 3vw, 2.5rem);
+  --s-24: clamp(2rem, 3.5vw, 3rem);
+
+  /* A loose 40-column rhythm: labels, numbers and metadata align to this
+     unit rather than filling arbitrary space. */
+  --tt-col: 1.6ch;
 
   /* Hard, flat borders. No radius, no soft shadow — solid colour blocks. */
   --border: 2px solid var(--tt-white);
@@ -63,7 +69,7 @@
 
   --maxw: 1180px;
   --maxw-prose: 42rem;
-  --header-h: 88px;
+  --header-h: 46px;
 
   --z-header: 100;
   --z-sticky: 200;

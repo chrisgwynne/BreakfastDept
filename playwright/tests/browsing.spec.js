@@ -5,7 +5,7 @@ const { test, expect } = require("@playwright/test");
 
 test("journal lists articles and article opens", async ({ page }) => {
   await page.goto("/journal");
-  const first = page.locator("article a").first();
+  const first = page.locator(".tt-list__row").first();
   await first.click();
   await expect(page.locator("h1")).toBeVisible();
   await expect(page.locator("body")).toContainText(/min read/i);

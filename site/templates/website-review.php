@@ -17,24 +17,21 @@ $note = $notes[$mode] ?? $notes['informal'];
 <section class="section" id="form">
   <div class="container">
     <?php snippet('partials/breadcrumbs') ?>
-    <div class="grid grid--2" style="align-items:start;gap:var(--s-16)">
+    <?php snippet('teletext/bar', ['number' => 'P110', 'title' => esc($page->title()) . ($page->kicker()->isNotEmpty() ? ' — ' . esc($page->kicker()) : ''), 'as' => 'h1']) ?>
+    <div class="grid grid--2" style="align-items:start;gap:var(--s-16);margin-top:var(--s-4)">
       <div>
-        <div class="section__head" style="margin-bottom:var(--s-8)">
-          <span class="kicker">P110<?php if ($page->kicker()->isNotEmpty()): ?> · <?= esc($page->kicker()) ?><?php endif ?></span>
-          <h1 class="section__title"><?= esc($page->title()) ?></h1>
-        </div>
         <?php if ($page->intro()->isNotEmpty()): ?><div class="blocks"><?= $page->intro()->toBlocks() ?></div><?php endif ?>
         <?php if ($mode !== 'disabled'): ?>
-          <div class="card card--accent" style="margin-top:var(--s-8)">
-            <p><strong><?= esc($note) ?></strong></p>
+          <div class="tt-box" style="margin-top:var(--s-6)">
+            <p class="tt-box__text" style="text-transform:none;font-weight:700;color:var(--tt-white)"><?= esc($note) ?></p>
           </div>
         <?php endif ?>
       </div>
       <div>
         <?php if ($mode === 'disabled'): ?>
-          <div class="card">
-            <p><?= esc($page->closed_message()->or('Website reviews aren’t open right now. Drop me a line and I’ll still be glad to take a look when I can.')) ?></p>
-            <p style="margin-top:var(--s-4)"><a class="btn btn--secondary" href="<?= esc(url('contact')) ?>">Get in touch</a></p>
+          <div class="tt-box">
+            <p class="tt-box__text"><?= esc($page->closed_message()->or('Website reviews aren’t open right now. Drop me a line and I’ll still be glad to take a look when I can.')) ?></p>
+            <a class="tt-box__link" href="<?= esc(url('contact')) ?>">Get in touch</a>
           </div>
         <?php else: ?>
           <?php snippet('forms/review-form', ['page' => $page, 'result' => $result, 'old' => $old]) ?>

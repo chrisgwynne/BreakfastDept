@@ -54,7 +54,7 @@
 .section__head--center { margin-inline: auto; text-align: center; }
 .section__head--row { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--s-6); max-width: none; flex-wrap: wrap; }
 .section__title { margin-top: var(--s-2); font-size: clamp(1.6rem, 3.6vw, 2.6rem); color: var(--tt-yellow); }
-.section__lead { margin-top: var(--s-3); font-size: 1.05rem; color: var(--tt-grey); text-transform: none; }
+.section__lead { margin-top: var(--s-3); font-size: 1.05rem; color: var(--tt-body); text-transform: none; }
 
 /* ---------- Cards & grids: bordered blocks, no shadow, no radius ---------- */
 .card { background: var(--tt-panel); border: var(--border); padding: var(--s-6); }
@@ -64,14 +64,22 @@
 .grid--3 { grid-template-columns: repeat(3, 1fr); }
 .grid--auto { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
 
-.pcard { display: flex; flex-direction: column; background: var(--tt-panel); border: var(--border); overflow: hidden; transition: outline-color var(--motion); }
+.pcard { position: relative; display: flex; flex-direction: column; background: var(--tt-panel); border: var(--border); overflow: hidden; transition: outline-color var(--motion); }
 .pcard:hover { outline: 2px solid var(--tt-cyan); outline-offset: -2px; }
+.pcard::before {
+  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px; z-index: 2;
+  background: var(--tt-yellow);
+}
+.pcard:nth-of-type(4n+2)::before { background: var(--tt-cyan); }
+.pcard:nth-of-type(4n+3)::before { background: var(--tt-green); }
+.pcard:nth-of-type(4n+4)::before { background: var(--tt-magenta); }
 .pcard__media { position: relative; aspect-ratio: 16 / 10; background: #151517; border-bottom: var(--border); overflow: hidden; }
-.pcard__media img { width: 100%; height: 100%; object-fit: cover; filter: contrast(1.05); }
+.pcard__media img { width: 100%; height: 100%; object-fit: cover; filter: saturate(1.4) contrast(1.12) brightness(0.92); transition: filter var(--dur-mid) var(--ease-out); }
+.pcard:hover .pcard__media img { filter: saturate(1.15) contrast(1.05) brightness(1); }
 .pcard__body { padding: var(--s-6); display: flex; flex-direction: column; gap: var(--s-2); flex: 1; }
 .pcard__cat { font-family: var(--mono); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--tt-cyan); }
 .pcard__name { font-size: 1.2rem; text-transform: uppercase; color: var(--tt-white); }
-.pcard__summary { color: var(--tt-grey); }
+.pcard__summary { color: var(--tt-body); }
 .pcard__outcome { font-weight: 700; color: var(--tt-green); }
 .pcard__link { margin-top: auto; }
 .pcard__badge {
@@ -81,11 +89,32 @@
 }
 .tag--concept { background: var(--tt-panel); border-color: var(--tt-grey); color: var(--tt-grey); }
 
+/* ---------- Teletext photo treatment ----------
+   Real photography (card thumbnails, article covers, body images) gets a
+   consistent punchy colour-grade plus a faint scanline/duotone wash instead
+   of looking like plain photography dropped onto a Teletext page. The
+   art-directed case-study "exhibit" screenshots (cs-*, project.php) are a
+   deliberate exception — they keep their own full-fidelity light
+   presentation so real client work still looks genuinely impressive. */
+.pcard__media::after,
+.article__cover::after,
+.block-image::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 1;
+  background:
+    repeating-linear-gradient(rgba(0,0,0,0) 0, rgba(0,0,0,0) 2px, rgba(0,0,0,0.14) 3px),
+    linear-gradient(180deg, rgba(53,230,230,0.08), rgba(255,89,214,0.06));
+  mix-blend-mode: multiply;
+}
+.article__cover, .block-image { position: relative; overflow: hidden; }
+.article__cover img, .block-image img, .hero__media img, .gallery img {
+  filter: saturate(1.4) contrast(1.1) brightness(0.94);
+}
+
 .scard { background: var(--tt-panel); border: var(--border); padding: var(--s-6); display: flex; flex-direction: column; gap: var(--s-3); }
 .scard__icon { display: grid; place-items: center; width: 44px; height: 44px; border: var(--border); background: var(--tt-yellow); }
 .scard__icon svg { width: 22px; height: 22px; fill: none; stroke: var(--tt-black); stroke-width: 2; }
 .scard__title { font-size: 1.1rem; color: var(--tt-white); }
-.scard__summary { color: var(--tt-grey); }
+.scard__summary { color: var(--tt-body); }
 .scard__aud { font-family: var(--mono); font-size: 0.8rem; color: var(--tt-cyan); font-weight: 700; text-transform: uppercase; }
 .scard__meta { display: inline-flex; align-items: center; gap: var(--s-2); font-family: var(--mono); font-size: 0.78rem; color: var(--tt-grey); }
 .scard__meta-dot { width: 8px; height: 8px; background: var(--tt-cyan); }
@@ -98,7 +127,7 @@
 .scard__package { font-family: var(--mono); color: var(--tt-cyan); font-size: 0.75rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
 .scard__includes { border-top: 1px solid #232326; padding-top: var(--s-4); }
 .scard__includes h3 { font-size: 0.8rem; margin-bottom: var(--s-2); color: var(--tt-yellow); }
-.scard__includes ul { display: grid; gap: var(--s-2); color: var(--tt-grey); }
+.scard__includes ul { display: grid; gap: var(--s-2); color: var(--tt-body); }
 .scard__includes li { position: relative; padding-left: var(--s-5); }
 .scard__includes li::before { content: "●"; position: absolute; left: 0; color: var(--tt-green); font-size: 0.7em; top: 0.35em; }
 .scard__actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--s-4); margin-top: auto; padding-top: var(--s-2); }
@@ -108,7 +137,7 @@
 .stat { background: var(--tt-panel); border: var(--border); padding: var(--s-6); }
 .stat__value { font-size: clamp(2rem, 4.5vw, 2.6rem); font-weight: 700; color: var(--tt-yellow); }
 .stat__label { font-weight: 700; margin-top: var(--s-2); text-transform: uppercase; font-size: 0.85rem; }
-.stat__context { color: var(--tt-grey); margin-top: var(--s-1); font-size: 0.9rem; }
+.stat__context { color: var(--tt-body); margin-top: var(--s-1); font-size: 0.9rem; }
 
 /* Process timeline */
 .timeline { display: grid; gap: var(--s-6); grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); counter-reset: step; }
@@ -133,7 +162,7 @@
 .faq__q::-webkit-details-marker { display: none; }
 .faq__q::after { content: "+"; font-size: 1.3rem; line-height: 1; color: var(--tt-yellow); }
 details[open] .faq__q::after { content: "–"; }
-.faq__a { padding: 0 var(--s-6) var(--s-4); color: var(--tt-grey); }
+.faq__a { padding: 0 var(--s-6) var(--s-4); color: var(--tt-body); }
 
 /* Prose */
 .prose { max-width: var(--maxw-prose); text-transform: none; }
@@ -234,11 +263,11 @@ details[open] .faq__q::after { content: "–"; }
 .tag { display: inline-block; padding: 2px var(--s-3); border: var(--border); font-size: 0.78rem; font-weight: 700; background: var(--tt-black); text-transform: uppercase; }
 
 /* ---------- CTA band ---------- */
-.cta-band { background: var(--tt-blue); color: var(--tt-black); border: var(--border); padding: var(--s-12) var(--s-8); text-align: center; }
+.cta-band { background: var(--tt-blue); color: var(--tt-white); border: none; padding: var(--s-8) var(--s-8); text-align: center; }
 .cta-band .btn { color: var(--tt-black); }
 .cta-band .btn--primary { background: var(--tt-black); color: var(--tt-yellow); }
-.cta-band__title { font-size: clamp(1.4rem, 3.2vw, 2.1rem); color: var(--tt-black); }
-.cta-band__text { margin: var(--s-4) auto 0; max-width: 40ch; }
+.cta-band__title { font-size: clamp(1.2rem, 2.6vw, 1.7rem); color: var(--tt-white); }
+.cta-band__text { margin: var(--s-3) auto 0; max-width: 40ch; color: rgba(255,255,255,0.85); }
 .cta-band__actions { display: flex; gap: var(--s-4); justify-content: center; flex-wrap: wrap; margin-top: var(--s-6); }
 .cta-band--rich .cta-band__egg { display: none; }
 
@@ -256,10 +285,10 @@ details[open] .faq__q::after { content: "–"; }
 .embed iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
 .comparison { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-6); }
 .comparison figcaption { color: var(--tt-magenta); font-weight: 700; }
-.hero { padding-block: var(--s-16) var(--s-12); }
+.hero { padding-block: var(--s-12) var(--s-8); }
 .hero__inner { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: var(--s-12); align-items: center; }
-.hero__title { margin-top: var(--s-4); font-size: clamp(2rem, 5vw, 3.6rem); color: var(--tt-yellow); }
-.hero__sub { margin-top: var(--s-4); font-size: clamp(1rem, 1rem + 0.3vw, 1.2rem); color: var(--tt-grey); max-width: 34ch; text-transform: none; }
+.hero__title { margin-top: var(--s-3); font-size: clamp(1.8rem, 3.4vw, 2.6rem); color: var(--tt-yellow); line-height: 1.02; }
+.hero__sub { margin-top: var(--s-3); font-size: clamp(1rem, 1rem + 0.2vw, 1.1rem); color: var(--tt-body); max-width: 34ch; text-transform: none; }
 .hero__media, .hero__object { border: var(--border); overflow: hidden; background: var(--tt-panel); }
 
 @media (max-width: 900px) {
@@ -315,12 +344,12 @@ details[open] .faq__q::after { content: "–"; }
 .offer-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-6); align-items: stretch; }
 .scard--offer:last-child:nth-child(odd) { grid-column: 1 / -1; }
 .offer-help { margin-top: var(--s-8); display: flex; align-items: center; justify-content: space-between; gap: var(--s-6); }
-.offer-help p { color: var(--tt-grey); max-width: 62ch; margin-top: var(--s-2); }
+.offer-help p { color: var(--tt-body); max-width: 62ch; margin-top: var(--s-2); }
 .offer-help .btn { flex: none; }
 .enquiry-next { max-width: 52rem; background: var(--tt-panel); border: var(--border); padding: var(--s-6); margin-bottom: var(--s-8); }
 .enquiry-next h2 { font-size: 1.1rem; margin-bottom: var(--s-4); color: var(--tt-yellow); }
 .enquiry-next ol { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s-5); counter-reset: enquiry-step; }
-.enquiry-next li { display: grid; gap: var(--s-2); color: var(--tt-grey); counter-increment: enquiry-step; }
+.enquiry-next li { display: grid; gap: var(--s-2); color: var(--tt-body); counter-increment: enquiry-step; }
 .enquiry-next li::before { content: counter(enquiry-step); display: grid; place-items: center; width: 26px; height: 26px; background: var(--tt-yellow); border: var(--border); color: var(--tt-black); font-weight: 700; }
 .enquiry-next strong { color: var(--tt-white); }
 @media (max-width: 720px) {
@@ -345,6 +374,80 @@ details[open] .faq__q::after { content: "–"; }
 .tt-index__label { color: var(--tt-cyan); text-transform: uppercase; }
 .tt-index__row:hover .tt-index__label { text-decoration: underline; }
 .tt-index__status { margin-left: auto; font-family: var(--mono); font-size: 0.78rem; color: var(--tt-green); text-transform: uppercase; white-space: nowrap; }
+
+/* ---------- P100 split screen: two information panels side by side ---------- */
+.tt-split { display: grid; grid-template-columns: 1.9fr 1fr; gap: var(--s-16); align-items: start; }
+.tt-split__aside { display: grid; gap: var(--s-6); }
+@media (max-width: 900px) {
+  .tt-split { grid-template-columns: 1fr; gap: var(--s-8); }
+  .tt-split__aside { max-width: 300px; margin-inline: auto; }
+}
+.tt-h1 { font-size: clamp(2.1rem, 5vw, 3.2rem); color: var(--tt-yellow); line-height: 0.98; letter-spacing: 0.01em; }
+.tt-tagline { margin-top: var(--s-2); color: var(--tt-cyan); font-weight: 800; text-transform: uppercase; font-size: 1rem; letter-spacing: 0.04em; }
+/* The REAL <h1> — kept semantically meaningful for SEO (the full marketing
+   sentence) but visually subordinate to the brand mark above it, so it
+   reads as a Teletext sub-heading, not a 60px agency hero. */
+.tt-h1-copy { margin-top: var(--s-4); font-size: clamp(1.05rem, 1.6vw, 1.3rem); font-weight: 700; color: var(--tt-white); text-transform: none; letter-spacing: 0; max-width: 34ch; }
+.tt-h1-copy .tt-accent { color: var(--tt-yellow); }
+.tt-intro { margin-top: var(--s-4); color: var(--tt-body); font-size: 1.05rem; max-width: 42ch; text-transform: none; }
+.tt-rule { border: 0; border-top: 1px dashed #2a2a2e; margin-block: var(--s-5); }
+
+/* ---------- Page title bar: THE defining structural device ----------
+   A solid colour band carrying the page number, title and an optional
+   subpage counter. Every information page/section opens with one of
+   these instead of an eyebrow+h1 pair — this is what makes a screen
+   read as Teletext before a single word is read. */
+.tt-bar {
+  display: flex; align-items: center; gap: var(--s-4);
+  background: var(--tt-blue); color: var(--tt-white);
+  padding: var(--s-2) var(--s-4); margin-bottom: var(--s-6);
+  font-family: var(--mono); font-weight: 800; text-transform: uppercase;
+}
+.tt-bar__num { color: var(--tt-yellow); letter-spacing: 0.04em; }
+.tt-bar__title { color: var(--tt-white); letter-spacing: 0.03em; font-size: 1.05rem; }
+.tt-bar__sub { margin-left: auto; color: var(--tt-cyan); font-weight: 700; font-size: 0.85rem; white-space: nowrap; }
+.tt-bar--tight { margin-bottom: var(--s-4); padding-block: var(--s-1); font-size: 0.85rem; }
+@media (max-width: 560px) { .tt-bar { gap: var(--s-2); padding: var(--s-2) var(--s-3); flex-wrap: wrap; } .tt-bar__title { font-size: 0.92rem; } }
+
+/* ---------- Information listing (replaces conventional cards) ----------
+   Used for the work index, services index and similar "select a page"
+   screens: a numbered row per item with category + live status, an
+   optional small treated thumbnail, no card border/shadow separation. */
+.tt-list { display: grid; border-top: 2px solid var(--tt-white); }
+.tt-list__row {
+  display: grid; grid-template-columns: 3.2em minmax(0, 1fr) auto; align-items: center;
+  gap: var(--s-4); padding: var(--s-3) var(--s-2); border-bottom: 1px solid #232326;
+  transition: background-color var(--motion);
+}
+.tt-list__row:hover, .tt-list__row:focus-visible { background: var(--tt-panel); outline: none; }
+.tt-list__num { color: var(--tt-yellow); font-family: var(--mono); font-weight: 800; }
+.tt-list__body { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: var(--s-4); row-gap: 2px; min-width: 0; }
+.tt-list__title { color: var(--tt-cyan); font-weight: 800; text-transform: uppercase; }
+.tt-list__row:hover .tt-list__title { text-decoration: underline; }
+.tt-list__meta { color: var(--tt-body); font-family: var(--mono); font-size: 0.78rem; text-transform: uppercase; overflow-wrap: break-word; min-width: 0; }
+.tt-list__status { font-family: var(--mono); font-size: 0.78rem; font-weight: 700; text-transform: uppercase; white-space: nowrap; color: var(--tt-green); margin-left: auto; }
+.tt-list__status::before { content: "● "; }
+.tt-list__thumb { width: 64px; height: 40px; object-fit: cover; border: 1px solid var(--tt-grey); filter: saturate(1.5) contrast(1.15) brightness(0.85); flex: none; }
+@media (max-width: 640px) {
+  .tt-list__row { grid-template-columns: 2.6em 1fr; }
+  .tt-list__thumb { display: none; }
+  .tt-list__status { margin-left: 0; }
+}
+
+/* ---------- Information box (bordered callout — NOT a generic card) ----------
+   For genuine "read this" moments: a heading, a line or two, a plain
+   coloured text link. This replaces oversized filled CTA buttons as the
+   primary way P100/P101/etc. invite the next action. */
+.tt-box { border: var(--border); padding: var(--s-4) var(--s-5); }
+.tt-box__title { color: var(--tt-yellow); font-weight: 800; text-transform: uppercase; font-size: 0.95rem; }
+.tt-box__text { color: var(--tt-body); margin-top: var(--s-2); text-transform: none; font-weight: 400; }
+.tt-box__link { display: inline-flex; align-items: center; gap: 6px; margin-top: var(--s-3); color: var(--tt-cyan); font-weight: 800; text-transform: uppercase; }
+.tt-box__link::after { content: "›"; }
+.tt-box__link:hover { text-decoration: underline; }
+.tt-box--blue { background: var(--tt-blue); border-color: var(--tt-blue); }
+.tt-box--blue .tt-box__title { color: var(--tt-white); }
+.tt-box--blue .tt-box__text { color: rgba(255,255,255,0.85); }
+.tt-box--blue .tt-box__link { color: var(--tt-yellow); }
 
 /* ---------- Status rows (● LIVE / ● ONLINE etc.) ---------- */
 .tt-status-list { display: grid; gap: var(--s-2); }
@@ -392,6 +495,8 @@ details[open] .faq__q::after { content: "–"; }
 
 /* ---------- Pixel-art placeholder ---------- */
 .tt-pixel { display: block; image-rendering: pixelated; }
+.tt-pixel--sm { width: 32px; height: 32px; }
+.tt-pixel--lg { width: 100%; max-width: 340px; height: auto; margin-inline: auto; }
 
 /* ---------- Egg easter-egg pages: shared frame ---------- */
 .tt-egg { max-width: 40rem; margin: 0 auto; }
