@@ -6,8 +6,6 @@ use Breakfast\Platform\Teletext\Registry;
 /** Site footer, soft keys, cookie banner (only when required), scripts. */
 $nonce     = Runtime::security()->nonce();
 $analytics = $site->analytics();
-$footerNav = $site->footer_nav()->toStructure();
-$social    = $site->social()->toStructure();
 $footerNumber = Registry::displayNumberFor($page, $site);
 
 // Ticker messages: editable via site.footer_ticker (one per line); a sane
@@ -50,68 +48,7 @@ if (empty($tickerLines)) {
       </div>
     </div>
     <?php snippet('teletext/softkeys', ['softkeys' => $softkeys ?? null]) ?>
-    <div class="tt-ticker tt-ticker--final" data-tt-ticker data-tt-messages="<?= esc(json_encode($tickerLines, JSON_UNESCAPED_SLASHES)) ?>"><span><?= esc($tickerLines[0]) ?></span><b><?= $footerNumber !== null ? 'P' . esc($footerNumber) : 'P—' ?></b></div>
-    <p class="tt-service-footer__copyright"><?= $site->footer_copy()->or('© ' . date('Y') . ' ' . esc($site->title()) . '. Independent web design in Wales.') ?></p>
-
-    <div class="tt-ticker" data-tt-ticker data-tt-messages="<?= esc(json_encode($tickerLines, JSON_UNESCAPED_SLASHES)) ?>"><?= esc($tickerLines[0]) ?></div>
-    <div class="container">
-      <div class="footer__inner">
-        <div class="footer__brand">
-          <a class="logo" href="<?= esc($site->url()) ?>" aria-label="<?= esc($site->title()) ?> home">
-            <span class="logo__word"><?= esc($site->title()->or('Breakfast')) ?> TEXT</span>
-          </a>
-          <?php if ($site->tagline()->isNotEmpty()): ?>
-            <p class="footer__tagline"><?= esc($site->tagline()) ?></p>
-          <?php endif ?>
-          <?php if ($social->isNotEmpty()): ?>
-            <ul class="footer__social" aria-label="Social links" style="display:flex;gap:12px;margin-top:16px">
-              <?php foreach ($social as $s): ?>
-                <li><a href="<?= esc($s->url()) ?>" rel="me noopener"><?= esc($s->platform()) ?></a></li>
-              <?php endforeach ?>
-            </ul>
-          <?php endif ?>
-          <p class="tt-display-toggle" style="margin-top:16px">
-            DISPLAY:
-            <button type="button" data-tt-display="clean" aria-pressed="true">CLEAN</button>
-            <button type="button" data-tt-display="crt" aria-pressed="false">CRT</button>
-          </p>
-        </div>
-
-        <?php if ($footerNav->isNotEmpty()): ?>
-        <nav class="footer__col" aria-label="Footer">
-          <h3><?= esc(t('breakfast.footer.explore', 'Explore')) ?></h3>
-          <ul>
-            <?php foreach ($footerNav as $item): ?>
-              <?php $t = $item->link()->toPage(); $href = $t ? $t->url() : $item->link()->value(); ?>
-              <li><a href="<?= esc($href) ?>"><?= esc($item->label()) ?></a></li>
-            <?php endforeach ?>
-          </ul>
-        </nav>
-        <?php endif ?>
-
-        <div class="footer__col">
-          <h3><?= esc(t('breakfast.footer.contact', 'Get in touch')) ?></h3>
-          <ul>
-            <?php if ($site->email()->isNotEmpty()): ?>
-              <li><a href="mailto:<?= esc($site->email()) ?>"><?= esc($site->email()) ?></a></li>
-            <?php endif ?>
-            <?php if ($site->phone()->isNotEmpty()): ?>
-              <li><a href="tel:<?= esc(preg_replace('/\s+/', '', $site->phone()->value())) ?>"><?= esc($site->phone()) ?></a></li>
-            <?php endif ?>
-            <?php if ($site->availability_text()->isNotEmpty()): ?>
-              <li><?= esc($site->availability_text()) ?></li>
-            <?php endif ?>
-          </ul>
-        </div>
-      </div>
-
-      <div class="footer__base">
-        <?php /* One copyright line only. Prefer the editable footer_copy; fall back to year + brand. */ ?>
-        <p><?= $site->footer_copy()->or('© ' . date('Y') . ' ' . esc($site->title()) . '. Independent web design in Wales.') ?></p>
-        <?php $footerNumber = Registry::displayNumberFor($page, $site); ?>
-        <p>BREAKFAST TEXT · <?= $footerNumber !== null ? 'P' . esc($footerNumber) : 'P—' ?></p>
-      </div>
-    </div>
+    <div class="tt-ticker tt-ticker--final" data-tt-ticker data-tt-messages="<?= esc(json_encode($tickerLines, JSON_UNESCAPED_SLASHES)) ?>"><span>BREAKFAST DEPT. LTD · <?= esc($tickerLines[0]) ?></span><b><?= $footerNumber !== null ? 'P' . esc($footerNumber) : 'P—' ?></b></div>
   </footer>
 
   <?php /* Go-to-page overlay + secret-page discovery toast — markup only,

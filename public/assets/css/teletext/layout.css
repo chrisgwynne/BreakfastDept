@@ -76,10 +76,6 @@ button { font: inherit; color: inherit; background: none; border: 0; }
   .tt-masthead__brand { order: 3; flex-basis: 100%; font-size: 0.72rem; }
 }
 
-/* Brand mark used only in the footer sign-off now (no header logo). */
-.logo { display: inline-flex; align-items: baseline; gap: var(--s-2); font-weight: 800; font-size: 1.1rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--tt-white); }
-.logo__egg { display: none; }
-
 /* ---------- Announcement banner ---------- */
 .announcement { background: var(--tt-blue); color: var(--tt-white); text-align: center; padding: var(--s-2) var(--s-4); font-weight: 700; text-transform: uppercase; font-size: 0.85rem; border-bottom: 2px solid var(--tt-black); }
 
@@ -103,22 +99,9 @@ button { font: inherit; color: inherit; background: none; border: 0; }
 .tt-softkey:focus-visible, .tt-softkey:hover { outline: 3px solid var(--tt-white); outline-offset: -3px; }
 @media (max-width: 560px) { .tt-softkeys { display: grid; grid-template-columns: repeat(2, 1fr); } .tt-softkey { font-size: 0.68rem; min-height: 34px; padding-inline: 8px; } }
 
-/* ---------- Footer ---------- */
-.site-footer { background: var(--tt-black); border-top: 2px solid var(--tt-white); padding-block: 10px 0; margin-top: 22px; }
-.footer__inner { display: grid; grid-template-columns: 1.5fr 1fr 1fr; gap: var(--s-12); padding-block: var(--s-8); }
-.footer__brand .logo { font-size: 1.2rem; }
-.footer__tagline { color: var(--tt-cyan); margin-top: var(--s-3); max-width: 30ch; text-transform: uppercase; font-size: 0.85rem; }
-.footer__col h3 { font-size: 0.8rem; font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.06em; color: var(--tt-yellow); margin-bottom: var(--s-3); }
-.footer__col li + li { margin-top: var(--s-2); }
-.footer__col a { color: var(--tt-cyan); }
-.footer__col a:hover { color: var(--tt-yellow); text-decoration: underline; }
-.footer__base { padding: var(--s-4) 0 var(--s-8); border-top: 1px solid #232326; display: flex; justify-content: space-between; flex-wrap: wrap; gap: var(--s-4); color: var(--tt-grey); font-size: 0.82rem; }
-.footer__base p:last-child { color: var(--tt-grey); }
-
 /* ---------- P900 transmission end-cap ---------- */
-.site-footer { padding-top: 14px; }
-.site-footer > .tt-ticker:not(.tt-ticker--final), .site-footer > .container { display: none; }
-.tt-service-footer, .tt-ticker--final, .tt-service-footer__copyright { width: min(calc(100% - 32px), 1440px); margin-inline: auto; }
+.site-footer { background: var(--tt-black); border-top: 2px solid var(--tt-white); padding-top: 14px; margin-top: 22px; }
+.tt-service-footer, .tt-ticker--final { width: min(calc(100% - 32px), 1440px); margin-inline: auto; }
 .tt-service-footer { font-family: var(--mono); }
 .tt-service-footer__head { display: grid; grid-template-columns: 1fr auto auto; gap: 18px; align-items: center; padding: 8px 14px; background: var(--tt-blue); color: var(--tt-white); text-transform: uppercase; border-block: 1px solid var(--tt-white); }
 .tt-service-footer__head strong { color: var(--tt-yellow); }
@@ -135,7 +118,6 @@ button { font: inherit; color: inherit; background: none; border: 0; }
 .tt-service-footer__utility nav { display: flex; flex-wrap: wrap; gap: 18px; }
 .tt-service-footer__utility a { color: var(--tt-cyan); }
 .tt-service-footer__utility .tt-display-toggle { margin: 0; }
-.tt-service-footer__copyright { padding: 5px 14px 12px; color: var(--tt-grey); font-size: .68rem; text-align: right; }
 .tt-ticker--final { display: flex; justify-content: space-between; gap: 16px; margin-top: 0; text-align: left; }
 .tt-ticker--final b { color: var(--tt-yellow); }
 @media (max-width: 720px) { .tt-service-footer__index { grid-template-columns: repeat(2, 1fr); } .tt-service-footer__status, .tt-service-footer__utility { display: grid; gap: 8px; } .tt-service-footer__utility nav { gap: 10px; } .tt-service-footer__head { grid-template-columns: 1fr auto; } .tt-service-footer__head span { grid-column: 1 / -1; grid-row: 2; } }
@@ -144,14 +126,6 @@ button { font: inherit; color: inherit; background: none; border: 0; }
 .cookie-banner { position: fixed; inset-inline: var(--s-4); bottom: var(--s-4); z-index: var(--z-sticky); background: var(--tt-panel); border: var(--border); padding: var(--s-6); display: none; gap: var(--s-4); align-items: center; flex-wrap: wrap; justify-content: space-between; }
 .cookie-banner[data-visible="true"] { display: flex; }
 .cookie-banner__actions { display: flex; gap: var(--s-3); }
-
-/* ---------- Responsive ---------- */
-@media (max-width: 900px) {
-  .footer__inner { grid-template-columns: 1fr 1fr; }
-}
-@media (max-width: 640px) {
-  .footer__inner { grid-template-columns: 1fr; }
-}
 
 /* ---------- Reduced motion: the single global switch-off ---------- */
 @media (prefers-reduced-motion: reduce) {
