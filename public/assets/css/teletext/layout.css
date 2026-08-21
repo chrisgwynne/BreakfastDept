@@ -83,14 +83,20 @@ button { font: inherit; color: inherit; background: none; border: 0; }
 /* =========================================================
    Soft keys — the coloured footer control row (RED/GREEN/YELLOW/CYAN)
    ========================================================= */
-.tt-softkeys { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 2px solid var(--tt-white); }
-.tt-softkey { display: flex; flex-direction: column; gap: 2px; align-items: center; justify-content: center; min-height: 56px; padding: var(--s-2); font-weight: 700; text-transform: uppercase; font-size: 0.8rem; text-align: center; color: var(--tt-black); border-right: 2px solid var(--tt-black); }
+.tt-softkeys { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--tt-white); background: var(--tt-black); }
+.tt-softkey { display: grid; grid-template-columns: auto auto 1fr; gap: 10px; align-items: center; min-height: 54px; padding: var(--s-2) 18px; font-weight: 700; text-transform: uppercase; font-size: 0.8rem; color: var(--tt-white); border-right: 1px solid var(--tt-white); }
 .tt-softkey:last-child { border-right: 0; }
-.tt-softkey small { font-weight: 700; opacity: 0.75; font-size: 0.7rem; }
-.tt-softkey--red { background: var(--tt-red); }
-.tt-softkey--green { background: var(--tt-green); }
-.tt-softkey--yellow { background: var(--tt-yellow); }
-.tt-softkey--cyan { background: var(--tt-cyan); }
+.tt-softkey__dot { width: 16px; height: 16px; border-radius: 50%; }
+.tt-softkey__label { font-weight: 800; }
+.tt-softkey small { font-weight: 700; opacity: 1; font-size: 0.72rem; color: var(--tt-white); white-space: nowrap; }
+.tt-softkey--red .tt-softkey__dot { background-color: var(--tt-red); }
+.tt-softkey--red .tt-softkey__label { color: var(--tt-red); }
+.tt-softkey--green .tt-softkey__dot { background-color: var(--tt-green); }
+.tt-softkey--green .tt-softkey__label { color: var(--tt-green); }
+.tt-softkey--yellow .tt-softkey__dot { background-color: var(--tt-yellow); }
+.tt-softkey--yellow .tt-softkey__label { color: var(--tt-yellow); }
+.tt-softkey--cyan .tt-softkey__dot { background-color: var(--tt-cyan); }
+.tt-softkey--cyan .tt-softkey__label { color: var(--tt-cyan); }
 .tt-softkey:focus-visible, .tt-softkey:hover { outline: 3px solid var(--tt-white); outline-offset: -3px; }
 @media (max-width: 560px) { .tt-softkeys { grid-template-columns: repeat(4, 1fr); } .tt-softkey { font-size: 0.7rem; min-height: 52px; } }
 

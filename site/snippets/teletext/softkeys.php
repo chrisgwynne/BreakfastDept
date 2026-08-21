@@ -23,7 +23,8 @@ $colours = ['red', 'green', 'yellow', 'cyan'];
 <nav class="tt-softkeys" aria-label="Quick navigation">
   <?php foreach ($keys as $i => $key): ?>
     <a class="tt-softkey tt-softkey--<?= $colours[$i] ?>" href="<?= esc($key['href']) ?>">
-      <span><?= esc($key['label']) ?></span>
+      <span class="tt-softkey__dot" aria-hidden="true"></span>
+      <span class="tt-softkey__label"><?= esc($key['label']) ?></span>
       <?php if (!empty($key['sub'])): ?><small><?= esc($key['sub']) ?></small><?php endif ?>
     </a>
   <?php endforeach ?>
