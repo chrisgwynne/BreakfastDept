@@ -1,6 +1,9 @@
 # Fonts
 
-The design uses **Inter** (body/UI), **JetBrains Mono** (labels/eyebrows) and
+The primary Breakfast Text face is `pixel-operator-mono-bold.ttf`, a blocky
+bitmap monospace by Jayvee Enaguas (HarvettFox96), released under CC0.
+
+The legacy design uses **Inter** (body/UI), **JetBrains Mono** (labels/eyebrows) and
 **Caveat** (handwritten accents). All three are open-source (OFL) and safe to
 self-host.
 

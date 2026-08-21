@@ -6,6 +6,14 @@
    ========================================================= */
 
 @font-face {
+  font-family: "Pixel Operator Mono";
+  font-style: normal;
+  font-weight: 400 900;
+  font-display: swap;
+  src: url("/assets/fonts/pixel-operator-mono-bold.ttf") format("truetype");
+}
+
+@font-face {
   font-family: "JetBrains Mono";
   font-style: normal;
   font-weight: 400 800;
@@ -41,8 +49,8 @@
   --white:     var(--tt-white);
   --ink:       var(--tt-black);
 
-  --font: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
-  --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --font: "Pixel Operator Mono", "JetBrains Mono", ui-monospace, monospace;
+  --mono: "Pixel Operator Mono", "JetBrains Mono", ui-monospace, monospace;
   --hand: var(--font);
 
   /* Spacing follows a tight "character cell" rhythm — Teletext is a dense

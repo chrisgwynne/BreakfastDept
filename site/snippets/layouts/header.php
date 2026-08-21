@@ -75,7 +75,7 @@ if ($page->isHomePage() === false) {
           first. Only Inter (body) is preloaded — the mono + handwriting faces are
           decorative and font-display:swap covers them. crossorigin is required
           even same-origin because fonts are always fetched in CORS mode. */ ?>
-  <link rel="preload" href="<?= esc(url('assets/fonts/jetbrains-mono.woff2')) ?>" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="<?= esc(url('assets/fonts/pixel-operator-mono-bold.ttf')) ?>" as="font" type="font/ttf" crossorigin>
   <link rel="stylesheet" href="<?= esc(url('assets/css/teletext/tokens.css')) ?>?v=<?= $assetVer ?>">
   <link rel="stylesheet" href="<?= esc(url('assets/css/teletext/layout.css')) ?>?v=<?= $assetVer ?>">
   <link rel="stylesheet" href="<?= esc(url('assets/css/teletext/components.css')) ?>?v=<?= $assetVer ?>">

@@ -14,9 +14,12 @@ body {
   font-family: var(--font);
   font-size: clamp(0.95rem, 0.92rem + 0.15vw, 1.0625rem);
   line-height: 1.55;
+  font-weight: 700;
+  letter-spacing: 0.015em;
   color: var(--text);
   background: var(--bg);
-  -webkit-font-smoothing: antialiased;
+  -webkit-font-smoothing: none;
+  text-rendering: geometricPrecision;
   overflow-x: hidden;
 }
 h1, h2, h3, h4, p, ul, ol, dl, dd, figure, blockquote { margin: 0; }
