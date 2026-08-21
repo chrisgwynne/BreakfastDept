@@ -40,19 +40,6 @@ snippet('layouts/header');
 ?>
 
 <section class="tt-home" id="top" aria-labelledby="home-heading">
-  <div class="tt-home__hero">
-    <div class="tt-home__brand">
-      <h1 id="home-heading"><?= esc($site->title()->or('Breakfast')) ?></h1>
-      <p><?= esc($page->hero_eyebrow()->or('Web design in North Wales')) ?></p>
-    </div>
-    <div class="tt-home__mug"><?php snippet('teletext/pixel-art', ['motif' => 'mug', 'size' => 'sm', 'colour' => 'var(--tt-white)']) ?></div>
-    <a class="tt-home__start" href="<?= esc(url('start-a-project')) ?>">
-      <strong>Need a website?</strong>
-      <span>Start at <b>101</b></span>
-      <small>Let’s make something great.</small>
-    </a>
-  </div>
-
   <div class="tt-home__body">
     <div class="tt-home__left">
       <div class="tt-home__index">

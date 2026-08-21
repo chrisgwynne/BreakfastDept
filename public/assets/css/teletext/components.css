@@ -549,6 +549,9 @@ details[open] .faq__q::after { content: "–"; }
    P100 home screen — dense broadcast board
    ========================================================= */
 .tt-home { width: min(100% - 32px, 1480px); margin: 0 auto; padding: 10px 0 0; font-family: var(--mono); }
+.tt-site-brandbar { width: min(100% - 32px, 1480px); margin: 10px auto 0; }
+.tt-site-brandbar .tt-site-brandbar__name { color: var(--tt-yellow); font-size: clamp(3.2rem, 8vw, 7rem); line-height: .82; font-weight: 800; letter-spacing: .01em; text-transform: uppercase; }
+.tt-site-brandbar__egg .tt-pixel--sm { width: 88px; height: 88px; }
 .tt-home__hero { display: grid; grid-template-columns: minmax(0, 1fr) 120px minmax(280px, 390px); align-items: center; gap: 18px; min-height: 170px; padding: 24px 38px; background: #1414d2; border: 1px solid var(--tt-white); }
 .tt-home__brand h1 { color: var(--tt-yellow); font-size: clamp(3.2rem, 8vw, 7rem); line-height: .82; letter-spacing: .01em; }
 .tt-home__brand p { margin-top: 14px; color: var(--tt-white); font-size: clamp(.9rem, 1.5vw, 1.6rem); font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
@@ -614,6 +617,7 @@ details[open] .faq__q::after { content: "–"; }
   .tt-home { width: min(100% - 16px, 560px); padding-top: 6px; }
   .tt-home__hero { grid-template-columns: 1fr 64px; gap: 8px; min-height: 0; padding: 17px 15px; }
   .tt-home__brand h1 { font-size: clamp(2.5rem, 12vw, 4rem); }
+  .tt-site-brandbar .tt-site-brandbar__name { font-size: clamp(2.5rem, 12vw, 4rem); }
   .tt-home__brand p { margin-top: 9px; font-size: .7rem; }
   .tt-home__mug .tt-pixel--sm { width: 58px; height: 58px; }
   .tt-home__start { grid-column: 1 / -1; margin-top: 4px; padding: 10px 13px; }
