@@ -1,5 +1,5 @@
 <?php snippet('layouts/header') ?>
-<article class="section">
+<article class="section tt-page tt-about-page">
   <div class="container">
     <?php snippet('partials/breadcrumbs') ?>
     <?php snippet('teletext/bar', ['number' => 'P500', 'title' => esc($page->heading()->or($page->title())), 'as' => 'h1']) ?>

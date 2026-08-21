@@ -18,12 +18,12 @@
   --tt-black:   #050505;   /* page background */
   --tt-panel:   #0d0d0f;   /* slightly-raised panel background */
   --tt-white:   #f4f4f2;   /* body copy */
-  --tt-yellow:  #ffcf33;   /* headings / attention */
-  --tt-cyan:    #35e6e6;   /* navigation / links */
-  --tt-green:   #33e07a;   /* positive / live / status */
-  --tt-red:     #ff5252;   /* back / warning */
-  --tt-blue:    #4d6bff;   /* structural header bands */
-  --tt-magenta: #ff59d6;   /* occasional accent / experimental */
+  --tt-yellow:  #ffe600;   /* headings / attention */
+  --tt-cyan:    #15e8f0;   /* navigation / links */
+  --tt-green:   #00ef00;   /* positive / live / status */
+  --tt-red:     #ff3030;   /* back / warning */
+  --tt-blue:    #1414d2;   /* structural header bands */
+  --tt-magenta: #ff20d4;   /* occasional accent / experimental */
   --tt-grey:    #9296a0;   /* meta/timestamps only — never body copy */
   --tt-body:    #d7dae0;   /* body copy — bright, not faded */
 

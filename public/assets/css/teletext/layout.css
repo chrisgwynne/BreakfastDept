@@ -36,7 +36,7 @@ button { font: inherit; color: inherit; background: none; border: 0; }
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
   overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
 }
-.section { padding-block: var(--s-16); border-bottom: 1px solid #232326; }
+.section { padding-block: 22px; border-bottom: 1px solid #232326; }
 .section--tight { padding-block: var(--s-8); }
 .section--alt { background: var(--bg-alt); }
 .section--ink { background: var(--tt-blue); color: var(--tt-black); border-block: var(--border); }
@@ -101,7 +101,7 @@ button { font: inherit; color: inherit; background: none; border: 0; }
 @media (max-width: 560px) { .tt-softkeys { grid-template-columns: repeat(4, 1fr); } .tt-softkey { font-size: 0.7rem; min-height: 52px; } }
 
 /* ---------- Footer ---------- */
-.site-footer { background: var(--tt-black); border-top: 2px solid var(--tt-white); padding-block: var(--s-12) 0; margin-top: var(--s-24); }
+.site-footer { background: var(--tt-black); border-top: 2px solid var(--tt-white); padding-block: 10px 0; margin-top: 22px; }
 .footer__inner { display: grid; grid-template-columns: 1.5fr 1fr 1fr; gap: var(--s-12); padding-block: var(--s-8); }
 .footer__brand .logo { font-size: 1.2rem; }
 .footer__tagline { color: var(--tt-cyan); margin-top: var(--s-3); max-width: 30ch; text-transform: uppercase; font-size: 0.85rem; }

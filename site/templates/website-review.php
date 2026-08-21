@@ -14,7 +14,7 @@ $notes = [
 $note = $notes[$mode] ?? $notes['informal'];
 ?>
 <?php snippet('layouts/header') ?>
-<section class="section" id="form">
+<section class="section tt-page" id="form">
   <div class="container">
     <?php snippet('partials/breadcrumbs') ?>
     <?php snippet('teletext/bar', ['number' => 'P110', 'title' => esc($page->title()) . ($page->kicker()->isNotEmpty() ? ' — ' . esc($page->kicker()) : ''), 'as' => 'h1']) ?>

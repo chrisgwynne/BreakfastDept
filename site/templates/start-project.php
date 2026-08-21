@@ -1,5 +1,5 @@
 <?php snippet('layouts/header') ?>
-<section class="section" id="form">
+<section class="section tt-page" id="form">
   <div class="container">
     <?php snippet('partials/breadcrumbs') ?>
     <?php snippet('teletext/bar', ['number' => 'P101', 'title' => 'Start a Project', 'sub' => '1/2', 'as' => false]) ?>

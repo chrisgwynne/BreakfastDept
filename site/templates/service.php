@@ -5,7 +5,7 @@ use Breakfast\Platform\Teletext\Registry;
 snippet('layouts/header');
 $ttNumber = Registry::numberFor($page, $site);
 ?>
-<article class="section">
+<article class="section tt-page tt-service-detail">
   <div class="container">
     <?php snippet('partials/breadcrumbs') ?>
     <?php snippet('teletext/bar', ['number' => $ttNumber !== null ? 'P' . $ttNumber : '', 'title' => esc($page->heading()->or($page->title())), 'as' => 'h1']) ?>
