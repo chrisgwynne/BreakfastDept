@@ -536,6 +536,20 @@ details[open] .faq__q::after { content: "–"; }
 
 .tt-service-detail .section__head { margin-top: 22px !important; padding: 8px 12px; background: var(--tt-blue); }
 .tt-service-detail .section__head .section__title { margin: 0 !important; color: var(--tt-white); font-size: 1rem !important; }
+.tt-service-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0; border: 1px solid var(--tt-white); }
+.tt-service-fact { padding: 16px; border-right: 1px solid var(--tt-white); }
+.tt-service-fact:last-child { border-right: 0; }
+.tt-service-fact h2 { margin: -16px -16px 14px; padding: 8px 12px; background: var(--tt-blue); color: var(--tt-white); font-size: .9rem; text-transform: uppercase; }
+.tt-service-checklist { display: grid; gap: 8px; }
+.tt-service-checklist li { padding-left: 20px; position: relative; }
+.tt-service-checklist li::before { content: '■'; position: absolute; left: 0; color: var(--tt-green); }
+.tt-service-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border: 1px solid var(--tt-white); }
+.tt-service-item { display: flex; gap: 10px; padding: 13px 15px; border-bottom: 1px dotted var(--tt-grey); }
+.tt-service-item:nth-child(odd) { border-right: 1px solid var(--tt-white); }
+.tt-service-item > span { color: var(--tt-yellow); }
+.tt-service-detail--website-rescue .tt-service-fact:first-child h2 { background: var(--tt-red); color: var(--tt-white); }
+.tt-service-detail--website-rescue .tt-service-checklist li::before { content: '?'; color: var(--tt-yellow); }
+@media (max-width: 640px) { .tt-service-facts, .tt-service-list { grid-template-columns: 1fr; } .tt-service-fact { border-right: 0; border-bottom: 1px solid var(--tt-white); } .tt-service-fact:last-child { border-bottom: 0; } .tt-service-item:nth-child(odd) { border-right: 0; } }
 .tt-service-detail .timeline { display: grid; gap: 0; border: 1px solid var(--tt-white); }
 .tt-service-detail .timeline__item { display: grid; grid-template-columns: 3em minmax(0, 1fr); gap: 12px; padding: 12px; border-bottom: 1px dotted var(--tt-grey); }
 .tt-service-detail .timeline__item:last-child { border-bottom: 0; }
@@ -544,6 +558,8 @@ details[open] .faq__q::after { content: "–"; }
 .tt-service-detail .timeline__item p { grid-column: 2; color: var(--tt-white); }
 .tt-about-page .tt-box, .tt-service-detail .tt-box, .tt-article-page .tt-box { border-color: var(--tt-white); }
 .tt-article-page .article__meta { color: var(--tt-green); font-family: var(--mono); font-size: .75rem; }
+.tt-project-bar { width: min(100% - 32px, 1180px); margin: 18px auto 0; }
+.tt-project-bar .tt-bar { margin-bottom: 0; }
 
 /* =========================================================
    P100 home screen — dense broadcast board

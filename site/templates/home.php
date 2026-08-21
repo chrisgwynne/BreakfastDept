@@ -43,11 +43,13 @@ snippet('layouts/header');
   <div class="tt-home__body">
     <div class="tt-home__left">
       <div class="tt-home__index">
+        <h1 id="home-heading" class="tt-h1-copy"><?= esc($page->hero_headline()->or('Web design in North Wales that helps local businesses')) ?><?= $page->hero_highlight()->isNotEmpty() ? ' ' . esc($page->hero_highlight()) : '' ?></h1>
         <p class="tt-home__intro"><?= esc($page->hero_text()->or("Websites you’ll be proud to send people to.")) ?></p>
         <div class="tt-home__index-art">
           <nav class="tt-home__links" aria-label="Breakfast Text index">
             <?php foreach ([
                 ['101', 'Start a project', url('start-a-project')],
+                ['110', 'Website review', url('website-review')],
                 ['200', 'Our work', $workPage ? $workPage->url() : url('work')],
                 ['300', 'Services', page('services') ? page('services')->url() : url('services')],
                 ['400', 'How it works', '/about#how'],

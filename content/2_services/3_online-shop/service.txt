@@ -16,6 +16,8 @@ Meta_description: A Shopify online shop for North Wales makers and independents 
 
 Short_name: Online shop
 
+Teletext_number: 302
+
 ----
 
 Summary: A shop you can actually run yourself, built on Shopify so payments, postage and stock are handled by tools that are boringly reliable.

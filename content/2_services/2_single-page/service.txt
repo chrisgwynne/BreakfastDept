@@ -16,6 +16,8 @@ Meta_description: One well-made landing page that does a single job — launch a
 
 Short_name: Single page
 
+Teletext_number: 304
+
 ----
 
 Summary: One well-made page that does one job — launch a thing, promote an offer, or give you a proper home online without the cost of a whole site.

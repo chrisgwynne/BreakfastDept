@@ -1,18 +1,20 @@
 <?php
 
+use Breakfast\Platform\Teletext\Registry;
+
 snippet('layouts/header');
 $services = $page->children()->listed();
 ?>
 <section class="section tt-page" aria-labelledby="services-heading">
   <div class="container">
-    <?php snippet('teletext/bar', ['number' => 'P300', 'title' => esc($page->heading()->or($page->title())), 'sub' => '1/2', 'as' => 'h1', 'id' => 'services-heading']) ?>
+    <?php snippet('teletext/bar', ['number' => 'P300', 'title' => 'SERVICES', 'sub' => '1/1', 'as' => 'h1', 'id' => 'services-heading']) ?>
     <?php if ($page->intro()->isNotEmpty()): ?><p class="tt-page__intro"><?= esc($page->intro()) ?></p><?php endif ?>
 
     <div class="tt-page__panel">
-      <div class="tt-page__panel-head"><span>PAGE</span><span>DESCRIPTION</span><span>STATUS</span></div>
-      <?php $number = 301; foreach ($services as $service): ?>
+      <div class="tt-page__panel-head"><span>PAGE</span><span>STARTING POINT</span><span>STATUS</span></div>
+      <?php foreach ($services as $service): $number = Registry::numberFor($service, $site); ?>
         <a class="tt-page__row" href="<?= esc($service->url()) ?>">
-          <b>P<?= $number++ ?></b>
+          <b><?= $number !== null ? 'P' . esc($number) : '' ?></b>
           <span><strong><?= esc($service->title()) ?></strong><small><?= esc($service->summary()->or($service->description())) ?></small></span>
           <em>READY</em>
         </a>

@@ -31,6 +31,9 @@ foreach (['challenge' => 'The challenge', 'approach' => 'The approach', 'strateg
 $metrics = $page->metrics()->toStructure();
 ?>
 <article class="cs" <?= ArtDirection::dataAttrs($ad['data']) ?><?= $style !== '' ? ' style="' . esc($style, 'attr') . '"' : '' ?>>
+  <div class="tt-project-bar">
+    <?php snippet('teletext/bar', ['number' => $ttNumber !== null ? 'P' . $ttNumber : '', 'title' => 'PROJECT REPORT', 'sub' => '1/3', 'as' => 'h1']) ?>
+  </div>
   <div class="cs__inner cs__crumbs">
     <?php if ($ttNumber !== null): ?><p class="kicker">P<?= esc($ttNumber) ?></p><?php endif ?>
     <?php snippet('partials/breadcrumbs') ?>

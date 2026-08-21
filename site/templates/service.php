@@ -5,7 +5,7 @@ use Breakfast\Platform\Teletext\Registry;
 snippet('layouts/header');
 $ttNumber = Registry::numberFor($page, $site);
 ?>
-<article class="section tt-page tt-service-detail">
+<article class="section tt-page tt-service-detail tt-service-detail--<?= esc($page->slug()) ?>">
   <div class="container">
     <?php snippet('partials/breadcrumbs') ?>
     <?php snippet('teletext/bar', ['number' => $ttNumber !== null ? 'P' . $ttNumber : '', 'title' => esc($page->heading()->or($page->title())), 'as' => 'h1']) ?>
@@ -15,21 +15,21 @@ $ttNumber = Registry::numberFor($page, $site);
       <div class="blocks container--prose" style="margin-inline:0"><?= $page->introduction()->toBlocks() ?></div>
     <?php endif ?>
 
-    <div class="grid grid--2" style="margin-top:var(--s-12)">
+    <div class="tt-service-facts" style="margin-top:var(--s-12)">
       <?php if ($page->suitable_for()->isNotEmpty()): ?>
-        <div class="tt-box"><h2 class="scard__title"><?= esc(t('breakfast.service.suitable', 'Who it’s for')) ?></h2><div class="prose"><?= $page->suitable_for()->kt() ?></div></div>
+        <div class="tt-service-fact"><h2><?= esc(t('breakfast.service.suitable', 'Who it’s for')) ?></h2><div class="prose"><?= $page->suitable_for()->kt() ?></div></div>
       <?php endif ?>
       <?php if ($page->problems()->toStructure()->isNotEmpty()): ?>
-        <div class="tt-box"><h2 class="scard__title"><?= esc(t('breakfast.service.problems', 'Problems it solves')) ?></h2>
-          <ul class="prose" style="list-style:disc;padding-left:var(--s-6)"><?php foreach ($page->problems()->toStructure() as $p): ?><li><?= esc($p->text()) ?></li><?php endforeach ?></ul>
+        <div class="tt-service-fact"><h2><?= esc(t('breakfast.service.problems', 'Problems it solves')) ?></h2>
+          <ul class="tt-service-checklist"><?php foreach ($page->problems()->toStructure() as $p): ?><li><?= esc($p->text()) ?></li><?php endforeach ?></ul>
         </div>
       <?php endif ?>
     </div>
 
     <?php if ($page->deliverables()->toStructure()->isNotEmpty()): ?>
       <div class="section__head" style="margin-top:var(--s-12)"><h2 class="section__title" style="font-size:1.8rem"><?= esc(t('breakfast.service.deliverables', 'What you get')) ?></h2></div>
-      <div class="grid grid--3">
-        <?php foreach ($page->deliverables()->toStructure() as $d): ?><div class="tt-box"><p><?= esc($d->text()) ?></p></div><?php endforeach ?>
+      <div class="tt-service-list">
+        <?php foreach ($page->deliverables()->toStructure() as $d): ?><div class="tt-service-item"><span aria-hidden="true">■</span><p><?= esc($d->text()) ?></p></div><?php endforeach ?>
       </div>
     <?php endif ?>
 
@@ -42,12 +42,12 @@ $ttNumber = Registry::numberFor($page, $site);
       </ol>
     <?php endif ?>
 
-    <div class="grid grid--2" style="margin-top:var(--s-12)">
+    <div class="tt-service-facts" style="margin-top:var(--s-12)">
       <?php if ($page->pricing_guidance()->isNotEmpty()): ?>
-        <div class="tt-box"><h2 class="scard__title"><?= esc(t('breakfast.service.pricing', 'What it costs')) ?></h2><div class="prose"><?= $page->pricing_guidance()->kt() ?></div></div>
+        <div class="tt-service-fact"><h2><?= esc(t('breakfast.service.pricing', 'What it costs')) ?></h2><div class="prose"><?= $page->pricing_guidance()->kt() ?></div></div>
       <?php endif ?>
       <?php if ($page->timescale()->isNotEmpty()): ?>
-        <div class="tt-box"><h2 class="scard__title"><?= esc(t('breakfast.service.timescale', 'How long it takes')) ?></h2><p><?= esc($page->timescale()) ?></p></div>
+        <div class="tt-service-fact"><h2><?= esc(t('breakfast.service.timescale', 'How long it takes')) ?></h2><p><?= esc($page->timescale()) ?></p></div>
       <?php endif ?>
     </div>
 
