@@ -6,6 +6,7 @@ use Breakfast\Platform\Teletext\Registry;
 /** Site footer, soft keys, cookie banner (only when required), scripts. */
 $nonce     = Runtime::security()->nonce();
 $analytics = $site->analytics();
+$footerNav = $site->footer_nav()->toStructure();
 $social    = $site->social()->toStructure();
 $footerNumber = Registry::displayNumberFor($page, $site);
 
