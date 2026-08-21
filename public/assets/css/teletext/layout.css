@@ -82,7 +82,7 @@ button { font: inherit; color: inherit; background: none; border: 0; }
 /* =========================================================
    Soft keys — the coloured footer control row (RED/GREEN/YELLOW/CYAN)
    ========================================================= */
-.tt-softkeys { width: min(calc(100% - 32px), 1440px); margin-inline: auto; display: flex; flex-wrap: wrap; justify-content: space-between; border-block: 1px solid var(--tt-white); background: var(--tt-black); }
+.tt-softkeys { width: 100%; max-width: var(--maxw); padding-inline: var(--s-6); margin-inline: auto; display: flex; flex-wrap: wrap; justify-content: space-between; border-block: 1px solid var(--tt-white); background: var(--tt-black); }
 .tt-softkey { display: inline-flex; align-items: center; gap: 8px; min-height: 38px; padding: 5px 14px; font-weight: 700; text-transform: uppercase; font-size: 0.76rem; color: var(--tt-white); }
 .tt-softkey:last-child { border-right: 0; }
 .tt-softkey__dot { width: 16px; height: 16px; border-radius: 50%; }
@@ -101,7 +101,7 @@ button { font: inherit; color: inherit; background: none; border: 0; }
 
 /* ---------- P900 transmission end-cap ---------- */
 .site-footer { background: var(--tt-black); border-top: 2px solid var(--tt-white); padding-top: 14px; margin-top: 22px; }
-.tt-service-footer, .tt-ticker--final { width: min(calc(100% - 32px), 1440px); margin-inline: auto; }
+.tt-service-footer, .tt-ticker--final { width: 100%; max-width: var(--maxw); padding-inline: var(--s-6); margin-inline: auto; }
 .tt-service-footer { font-family: var(--mono); }
 .tt-service-footer__head { display: grid; grid-template-columns: 1fr auto auto; gap: 18px; align-items: center; padding: 8px 14px; background: var(--tt-blue); color: var(--tt-white); text-transform: uppercase; border-block: 1px solid var(--tt-white); }
 .tt-service-footer__head strong { color: var(--tt-yellow); }
