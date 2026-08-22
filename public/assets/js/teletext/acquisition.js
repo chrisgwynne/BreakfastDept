@@ -52,9 +52,7 @@
   }
 
   function scaleScreen() {
-    // Keep the acquisition panel at the native Teletext raster on large
-    // screens; only shrink it when the viewport cannot contain 640x480.
-    var scale = Math.min(window.innerWidth / 640, window.innerHeight / 480, 1);
+    var scale = Math.min(window.innerWidth / 640, window.innerHeight / 480);
     screen.style.transform = "scale(" + scale + ")";
     holder.style.width = 640 * scale + "px";
     holder.style.height = 480 * scale + "px";
