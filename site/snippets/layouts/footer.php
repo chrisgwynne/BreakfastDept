@@ -28,12 +28,12 @@ if (empty($tickerLines)) {
 
   <footer class="site-footer">
     <div class="tt-service-footer">
-      <div class="tt-service-footer__head"><strong>BREAKFAST TEXT</strong><span>SERVICE INFORMATION</span><b>P900</b></div>
-      <nav class="tt-service-footer__index" aria-label="Breakfast Text service index">
+      <div class="tt-service-footer__head"><strong>BREAKFAST</strong><span>SERVICE INFORMATION</span><b>P900</b></div>
+      <nav class="tt-service-footer__index" aria-label="Breakfast service index">
         <?php $indexLinks = [
           ['100', 'INDEX', url('/')], ['110', 'WEBSITE REVIEW', url('website-review')],
           ['200', 'OUR WORK', page('work')?->url() ?? url('work')], ['300', 'SERVICES', page('services')?->url() ?? url('services')],
-          ['400', 'HOW IT WORKS', '/about#how'], ['500', 'ABOUT', page('about')?->url() ?? url('about')],
+          ['500', 'ABOUT', page('about')?->url() ?? url('about')],
           ['600', 'JOURNAL', page('journal')?->url() ?? url('journal')], ['700', 'CONTACT', page('contact')?->url() ?? url('contact')],
         ]; foreach ($indexLinks as [$number, $label, $href]): ?>
           <a href="<?= esc($href) ?>"><b><?= esc($number) ?></b><span><?= esc($label) ?></span></a>

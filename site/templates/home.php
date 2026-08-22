@@ -14,7 +14,6 @@ $directory = [
     ['110', 'Website review', url('website-review')],
     ['200', 'Our work', page('work')?->url() ?? url('work')],
     ['300', 'Services', page('services')?->url() ?? url('services')],
-    ['400', 'How it works', '/about#how'],
     ['500', 'About Breakfast', page('about')?->url() ?? url('about')],
     ['600', 'Journal', page('journal')?->url() ?? url('journal')],
     ['700', 'Contact', url('contact')],
@@ -123,7 +122,7 @@ snippet('layouts/header');
         </div>
       </header>
 
-      <div class="tt-p100__servicebar" aria-label="Breakfast Text service title">
+      <div class="tt-p100__servicebar" aria-label="Breakfast service title">
         <span>P100</span><strong>WEB DESIGN · NORTH WALES</strong><span>INDEX</span>
       </div>
 
@@ -133,7 +132,7 @@ snippet('layouts/header');
       </div>
 
       <div class="tt-p100__indexfield">
-        <nav class="tt-p100__directory" aria-label="Breakfast Text index">
+        <nav class="tt-p100__directory" aria-label="Breakfast index">
           <?php foreach ($directory as [$number, $label, $href]): ?>
             <a href="<?= esc($href) ?>"><b><?= esc($number) ?></b><span><?= esc($label) ?></span><i aria-hidden="true">................................</i><em aria-hidden="true">›</em></a>
           <?php endforeach ?>
