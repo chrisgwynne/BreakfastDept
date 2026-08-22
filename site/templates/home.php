@@ -143,7 +143,7 @@ snippet('layouts/header');
           <div class="tt-p100__art" aria-hidden="true">
             <?php foreach ($artCells as $colour): ?><i<?= $colour !== '' ? ' class="' . esc($colour, 'attr') . '"' : '' ?>></i><?php endforeach ?>
           </div>
-          <div class="tt-p100__caption"><strong>GOOD MORNING</strong><span>BREAKFAST IS ONLINE</span></div>
+          <div class="tt-p100__caption"><strong data-tt-greeting>GOOD MORNING</strong><span>BREAKFAST IS ONLINE</span></div>
         </aside>
       </div>
 
