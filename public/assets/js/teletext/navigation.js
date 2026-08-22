@@ -69,7 +69,12 @@
     var number = String(parseInt(buffer, 10));
     var entry = registry[number];
     var destination = entry ? entry.url : "/text/" + number;
-    window.location.href = destination;
+    close();
+    if (window.BreakfastTeletext && typeof window.BreakfastTeletext.acquire === "function") {
+      window.BreakfastTeletext.acquire(destination, number, entry ? entry.title : "UNKNOWN PAGE");
+    } else {
+      window.location.href = destination;
+    }
   }
 
   function scheduleAutoNavigate() {

@@ -59,6 +59,23 @@ if (empty($tickerLines)) {
 
   <?php /* Go-to-page overlay + secret-page discovery toast — markup only,
           behaviour lives in teletext/navigation.js and easter-eggs.js. */ ?>
+  <div class="tt-acquire" data-tt-acquire role="status" aria-live="polite" aria-label="Acquiring Teletext page">
+    <div class="tt-acquire__holder" data-tt-acquire-holder>
+      <div class="tt-acquire__screen" data-tt-acquire-screen>
+        <div class="tt-acquire__header"><span data-tt-acquire-received>P100</span><strong>BREAKFAST</strong><time data-tt-clock>00:00:00</time></div>
+        <div class="tt-acquire__band">BREAKFAST TEXT &middot; PAGE ACQUISITION</div>
+        <div class="tt-acquire__field">
+          <p>REQUESTED PAGE</p>
+          <strong data-tt-acquire-requested>P---</strong>
+          <span data-tt-acquire-title>SEARCHING TRANSMISSION</span>
+        </div>
+        <div class="tt-acquire__meter" aria-hidden="true"><i data-tt-acquire-meter></i></div>
+        <p class="tt-acquire__status" data-tt-acquire-status>WAITING FOR PAGE HEADER...</p>
+        <p class="tt-acquire__hint"><b>H</b> HOLD&nbsp;&nbsp; <b>ESC</b> CANCEL&nbsp;&nbsp; DATA SERVICE ONLINE</p>
+      </div>
+    </div>
+  </div>
+
   <div class="tt-goto" data-tt-goto role="dialog" aria-modal="true" aria-label="Go to page">
     <div class="tt-goto__box">
       <p class="tt-goto__label">GO TO PAGE</p>
@@ -102,7 +119,7 @@ if (empty($tickerLines)) {
   <script src="<?= esc(url('assets/js/teletext/jackpot.js')) ?>?v=<?= (int) (@filemtime($kirby->root('assets') . '/js/teletext/jackpot.js') ?: 1) ?>" defer></script>
   <?php endif ?>
   <?php
-    $ttScripts = ['clock', 'navigation', 'display-mode', 'easter-eggs', 'ticker', 'form-transmit'];
+    $ttScripts = ['clock', 'acquisition', 'navigation', 'display-mode', 'easter-eggs', 'ticker', 'form-transmit'];
     foreach ($ttScripts as $ttScript):
       $ttPath = "assets/js/teletext/{$ttScript}.js";
       $ttVer  = (int) (@filemtime($kirby->root('assets') . "/js/teletext/{$ttScript}.js") ?: 1);

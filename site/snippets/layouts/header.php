@@ -107,7 +107,7 @@ if ($page->isHomePage() === false) {
     <?= $analytics->script($nonce) ?>
   <?php endif ?>
 </head>
-<body class="page-<?= esc($page->intendedTemplate()->name(), 'attr') ?>">
+<body class="page-<?= esc($page->intendedTemplate()->name(), 'attr') ?><?= get('tt') === '1' ? ' tt-arrival' : '' ?>">
   <a class="skip-link" href="#main"><?= esc(t('breakfast.skip', 'Skip to main content')) ?></a>
 
   <?php if ($page->isHomePage() === false): ?>

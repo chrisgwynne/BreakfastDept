@@ -1369,3 +1369,68 @@ body.page-project .cs-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); 
 body.page-project .cs-facts__item:nth-child(odd) { border-right: 1px dotted var(--tt-cyan); }
 
 body.page-jackpot .grid--3 { grid-template-columns: repeat(3, 1fr); }
+
+/* =========================================================
+   PAGE ACQUISITION
+   A decoder-like interstitial: requested page remains fixed while received
+   page headers advance through the transmitted magazine carousel.
+   ========================================================= */
+.tt-acquire {
+  position: fixed;
+  inset: 0;
+  z-index: 1800;
+  display: none;
+  place-items: center;
+  overflow: hidden;
+  color: var(--tt-white);
+  background: var(--tt-black);
+}
+.tt-acquire[data-open="true"],
+body.tt-arrival .tt-acquire { display: grid; }
+.tt-acquire__holder { position: relative; flex: none; width: 640px; height: 480px; }
+.tt-acquire__screen {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-rows: 40px 40px 240px 20px 60px 40px;
+  width: 640px;
+  height: 480px;
+  overflow: hidden;
+  background: var(--tt-black);
+  transform-origin: top left;
+}
+.tt-acquire__header {
+  display: grid;
+  grid-template-columns: 144px 224px 1fr;
+  align-items: center;
+  padding-inline: 16px;
+  font-size: 20px;
+}
+.tt-acquire__header strong { padding: 2px 16px; color: var(--tt-yellow); background: var(--tt-blue); text-align: center; }
+.tt-acquire__header time { color: var(--tt-yellow); text-align: right; }
+.tt-acquire__band { padding: 8px 16px; color: var(--tt-yellow); background: var(--tt-blue); font-size: 24px; text-align: center; }
+.tt-acquire__field { display: grid; place-content: center; text-align: center; }
+.tt-acquire__field p { color: var(--tt-cyan); font-size: 20px; }
+.tt-acquire__field strong { color: var(--tt-yellow); font-size: 88px; line-height: 100px; }
+.tt-acquire__field span { color: var(--tt-white); font-size: 20px; text-transform: uppercase; }
+.tt-acquire__meter { width: 608px; height: 12px; margin-inline: 16px; background: var(--tt-blue); }
+.tt-acquire__meter i { display: block; width: 0; height: 12px; background: var(--tt-green); }
+.tt-acquire__status { padding: 16px; color: var(--tt-cyan); font-size: 22px; text-align: center; }
+.tt-acquire[data-held] .tt-acquire__status { color: var(--tt-yellow); }
+.tt-acquire__hint { padding: 8px 16px; border-top: 2px solid var(--tt-red); color: var(--tt-white); text-align: center; }
+.tt-acquire__hint b:first-child { color: var(--tt-yellow); }
+.tt-acquire__hint b:nth-child(2) { color: var(--tt-red); }
+
+body.tt-arrival :where(.tt-page-stage, .tt-p100) { visibility: hidden; }
+body.tt-arrival-reveal :where(.tt-page-stage, .tt-p100) {
+  visibility: visible;
+  animation: tt-row-acquire 900ms steps(24, end) both;
+}
+@keyframes tt-row-acquire {
+  from { clip-path: inset(0 0 100% 0); }
+  to { clip-path: inset(0 0 0 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.tt-arrival-reveal :where(.tt-page-stage, .tt-p100) { animation-duration: 120ms; }
+}

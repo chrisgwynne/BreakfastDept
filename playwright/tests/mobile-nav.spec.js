@@ -20,3 +20,15 @@ test("mobile index navigation works with no horizontal overflow", async ({ page 
   await page.keyboard.press("Escape");
   await expect(page.locator("[data-tt-goto]")).not.toHaveAttribute("data-open", "true");
 });
+
+test("internal navigation acquires the requested page from the carousel", async ({ page }) => {
+  await page.goto("/");
+
+  await page.locator(".tt-p100__directory a", { hasText: "SERVICES" }).click();
+  await expect(page.locator("[data-tt-acquire]")).toHaveAttribute("data-open", "true");
+  await expect(page.locator("[data-tt-acquire-requested]")).toHaveText("P300");
+  await expect(page.locator("[data-tt-acquire-status]")).toContainText(/WAITING|RECEIVING|FOUND/);
+
+  await page.waitForURL(/\/services(?:\?|$)/);
+  await expect(page.locator("[data-tt-page-stage]")).toBeVisible();
+});
