@@ -1446,6 +1446,12 @@ body.page-start-project .start-project__columns > .form { min-width: 0; }
 body.page-start-project .tt-page > .container > .blocks { display: none; }
 body.page-start-project .tt-page > .container > .section__head { margin-top: 4px !important; }
 body.page-start-project .tt-page > .container > .section__head .tt-h1 { font-size: 24px !important; }
+body.page-start-project .form--steps .fstep[data-step="1"] { gap: 4px; }
+body.page-start-project .form--steps .fstep[data-step="1"] .field { gap: 1px; }
+body.page-start-project .form--steps .fstep[data-step="1"] .field__hint { display: none; }
+body.page-start-project .form--steps .fstep[data-step="1"] textarea { min-height: 30px; height: 30px; }
+body.page-start-project .form--steps .fstep[data-step="1"] .fstep__title { font-size: 18px; }
+body.page-start-project .form--steps .fstep[data-step="1"] .fstep__nav { margin-top: 2px; }
 @media (max-width: 560px) {
   body.page-services .tt-page__panel { grid-template-columns: 1fr; }
   body.page-start-project .start-project__columns { grid-template-columns: 1fr; }
