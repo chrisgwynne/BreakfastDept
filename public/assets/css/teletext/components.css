@@ -1141,6 +1141,26 @@ body:not(.page-home) .tt-softkey small { grid-column: 2; font-size: 11px; }
   body:not(.page-home) .tt-page__row em { grid-column: 2; }
   body:not(.page-home) .tt-softkeys { grid-template-columns: repeat(2, 1fr); }
 }
+/* Route shells: pages without a bespoke panel still use two reading lanes. */
+body:not(.page-home) .tt-page-content > :is(section, article):not(.tt-project) > .container:not(:has(.form)) {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 16px;
+}
+body:not(.page-home) .tt-page-content > :is(section, article):not(.tt-project) > .container:not(:has(.form)) > :where(.breadcrumbs, .tt-bar, .section__head, .section__title, .section__lead, .article__header, .article__cover, .article__body, .blocks, .tt-list, .tt-page__panel, .tt-page__notice, .timeline, .tt-service-facts, .tt-service-list, .faq__item, .filters, .tt-box, .tt-project__end) {
+  grid-column: 1 / -1;
+}
+body:not(.page-home) .tt-page-content > :is(section, article):not(.tt-project) > .container:not(:has(.form)) > .blocks {
+  column-count: 2;
+  column-gap: 16px;
+}
+body:not(.page-home) .tt-page-content > :is(section, article):not(.tt-project) > .container:not(:has(.form)) > .blocks > * { break-inside: avoid; }
+@media (max-width: 560px) {
+  body:not(.page-home) .tt-page-content > :is(section, article):not(.tt-project) > .container:not(:has(.form)) {
+    grid-template-columns: 1fr;
+  }
+  body:not(.page-home) .tt-page-content > :is(section, article):not(.tt-project) > .container:not(:has(.form)) > .blocks { column-count: 1; }
+}
 
 /* =========================================================
    TRANSMISSION CORRECTION
@@ -1619,6 +1639,26 @@ body.tt-arrival :where(.tt-page-content, .tt-p100) { visibility: hidden; }
 body.tt-arrival-reveal :where(.tt-page-content, .tt-p100) {
   visibility: visible;
   animation: tt-row-acquire 900ms steps(24, end) both;
+}
+/* Final route-shell pass: every non-form page gets two reading lanes. */
+body:not(.page-home) .tt-page-content > :is(section, article):not(.tt-project) > .container:not(:has(.form)) {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 16px;
+}
+body:not(.page-home) .tt-page-content > :is(section, article):not(.tt-project) > .container:not(:has(.form)) > :where(.breadcrumbs, .tt-bar, .section__head, .section__title, .section__lead, .article__header, .article__cover, .article__body, .blocks, .tt-list, .tt-page__panel, .tt-page__notice, .timeline, .tt-service-facts, .tt-service-list, .faq__item, .filters, .tt-box) {
+  grid-column: 1 / -1;
+}
+body:not(.page-home) .tt-page-content > :is(section, article):not(.tt-project) > .container:not(:has(.form)) > .blocks {
+  column-count: 2;
+  column-gap: 16px;
+}
+body:not(.page-home) .tt-page-content > :is(section, article):not(.tt-project) > .container:not(:has(.form)) > .blocks > * { break-inside: avoid; }
+@media (max-width: 560px) {
+  body:not(.page-home) .tt-page-content > :is(section, article):not(.tt-project) > .container:not(:has(.form)) {
+    grid-template-columns: 1fr;
+  }
+  body:not(.page-home) .tt-page-content > :is(section, article):not(.tt-project) > .container:not(:has(.form)) > .blocks { column-count: 1; }
 }
 @keyframes tt-row-acquire {
   from { clip-path: inset(0 0 100% 0); }
