@@ -23,15 +23,15 @@
 
 :root {
   /* ---------- Teletext colour language ---------- */
-  --tt-black:   #050505;   /* page background */
-  --tt-panel:   #0d0d0f;   /* slightly-raised panel background */
-  --tt-white:   #f4f4f2;   /* body copy */
-  --tt-yellow:  #ffe600;   /* headings / attention */
-  --tt-cyan:    #15e8f0;   /* navigation / links */
-  --tt-green:   #00ef00;   /* positive / live / status */
-  --tt-red:     #ff3030;   /* back / warning */
-  --tt-blue:    #1414d2;   /* structural header bands */
-  --tt-magenta: #ff20d4;   /* occasional accent / experimental */
+  --tt-black:   #000000;   /* transmitted black */
+  --tt-panel:   #000000;   /* Teletext has no raised surfaces */
+  --tt-white:   #ffffff;   /* primary copy */
+  --tt-yellow:  #ffff00;   /* headings / attention */
+  --tt-cyan:    #00ffff;   /* navigation / links */
+  --tt-green:   #00ff00;   /* positive / live / status */
+  --tt-red:     #ff0000;   /* back / warning */
+  --tt-blue:    #0000ff;   /* structural header bands */
+  --tt-magenta: #ff00ff;   /* occasional accent */
   --tt-grey:    #9296a0;   /* meta/timestamps only — never body copy */
   --tt-body:    #d7dae0;   /* body copy — bright, not faded */
 
@@ -75,9 +75,9 @@
   --shadow: none;
   --shadow-lg: none;
 
-  --maxw: 1180px;
-  --maxw-prose: 42rem;
-  --header-h: 46px;
+  --maxw: 640px;
+  --maxw-prose: 608px;
+  --header-h: 40px;
 
   --z-header: 100;
   --z-sticky: 200;

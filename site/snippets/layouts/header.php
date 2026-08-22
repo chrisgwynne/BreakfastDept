@@ -114,4 +114,4 @@ if ($page->isHomePage() === false) {
 
   <?php snippet('layouts/nav') ?>
 
-  <main id="main">
+  <main id="main" class="tt-transmission">
