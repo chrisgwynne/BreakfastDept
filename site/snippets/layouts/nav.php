@@ -14,8 +14,8 @@ $now = new DateTime('now', new DateTimeZone('Europe/London'));
   </div>
 </header>
 
-<div class="tt-site-brandbar" aria-label="Current Breakfast Text page">
-  <strong>BREAKFAST TEXT</strong>
+<div class="tt-site-brandbar" aria-label="Current Breakfast page">
+  <strong>BREAKFAST</strong>
   <span><?= esc(strtoupper($page->title())) ?></span>
   <b><?= $currentNumber !== null ? 'P' . esc($currentNumber) : 'P---' ?></b>
 </div>
