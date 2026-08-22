@@ -15,12 +15,7 @@ $now = new DateTime('now', new DateTimeZone('Europe/London'));
 </header>
 
 <div class="tt-site-brandbar" aria-label="Current Breakfast Text page">
-  <div class="tt-site-brandbar__channel">
-    <p class="tt-site-brandbar__name"><?= esc(strtoupper($page->title())) ?></p>
-    <p>BREAKFAST TEXT &middot; NORTH WALES</p>
-  </div>
-  <a class="tt-home__start" href="<?= esc(url('start-a-project')) ?>">
-    <strong>NEED A WEBSITE?</strong>
-    <span>START AT <b>P101</b></span>
-  </a>
+  <strong>BREAKFAST TEXT</strong>
+  <span><?= esc(strtoupper($page->title())) ?></span>
+  <b><?= $currentNumber !== null ? 'P' . esc($currentNumber) : 'P---' ?></b>
 </div>

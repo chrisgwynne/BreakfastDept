@@ -1116,3 +1116,198 @@ body:not(.page-home) .tt-softkey small { grid-column: 2; font-size: 11px; }
   body:not(.page-home) .tt-page__row em { grid-column: 2; }
   body:not(.page-home) .tt-softkeys { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* =========================================================
+   TRANSMISSION CORRECTION
+   P100 and every subpage now share the same 640-unit raster and viewport
+   scale. The subpage shell is a broadcast screen, not a centred website.
+   ========================================================= */
+body:not(.page-home) { overflow-x: hidden; background: var(--tt-black); }
+.tt-page-viewport {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  width: 100%;
+  min-height: 100vh;
+  overflow: hidden;
+  background: var(--tt-black);
+}
+.tt-page-holder { position: relative; flex: none; width: 640px; }
+.tt-page-stage {
+  width: 640px;
+  min-height: 480px;
+  overflow: hidden;
+  color: var(--tt-white);
+  background: var(--tt-black);
+  transform-origin: top left;
+}
+body:not(.page-home) :where(.announcement, .site-header, .tt-site-brandbar, .tt-transmission, .site-footer) {
+  width: 640px;
+  max-width: none;
+  margin: 0;
+}
+body:not(.page-home) .tt-transmission { width: 640px; border: 0; }
+body:not(.page-home) .site-header { height: 40px; }
+
+body:not(.page-home) .tt-site-brandbar {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: 32px 20px;
+  gap: 0 16px;
+  width: 640px;
+  min-height: 0;
+  height: 56px;
+  padding: 2px 16px;
+  border: 0;
+  border-block: 4px solid var(--tt-blue);
+  background: var(--tt-blue);
+}
+body:not(.page-home) .tt-site-brandbar strong {
+  overflow: hidden;
+  color: var(--tt-yellow);
+  font-size: 30px;
+  line-height: 30px;
+  white-space: nowrap;
+}
+body:not(.page-home) .tt-site-brandbar span {
+  grid-column: 1 / -1;
+  overflow: hidden;
+  color: var(--tt-white);
+  font-size: 16px;
+  line-height: 18px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+body:not(.page-home) .tt-site-brandbar > b {
+  grid-column: 2;
+  grid-row: 1;
+  color: var(--tt-cyan);
+  font-size: 20px;
+  line-height: 30px;
+}
+
+body:not(.page-home) .breadcrumbs { display: none; }
+body:not(.page-home) .section { padding-block: 8px; border-bottom: 2px solid var(--tt-red); }
+body:not(.page-home) .section + .section { border-top: 0; }
+body:not(.page-home) .tt-page { min-height: 0; }
+body:not(.page-home) .tt-page__intro,
+body:not(.page-home) .section__lead {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 8px 0;
+  color: var(--tt-cyan);
+  line-height: 20px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+body:not(.page-home) .tt-page__panel-head,
+body:not(.page-home) .tt-page__row {
+  grid-template-columns: 64px minmax(0, 1fr) 64px;
+  min-height: 40px;
+  padding: 4px 8px;
+}
+body:not(.page-home) .tt-page__row small { display: none; }
+body:not(.page-home) .tt-page__row strong { font-size: 18px; line-height: 20px; }
+body:not(.page-home) .tt-page__notice { margin-top: 8px; padding: 6px 8px; }
+body:not(.page-home) .tt-page__notice span { display: none; }
+
+body:not(.page-home) .tt-list__row { min-height: 40px; padding-block: 4px; }
+body:not(.page-home) .tt-list__meta { overflow: hidden; max-height: 16px; white-space: nowrap; }
+body:not(.page-home) .filters { margin-block: 6px !important; }
+body:not(.page-home) .filter { min-height: 24px; padding: 2px 6px; border: 0; color: var(--tt-black); background: var(--tt-cyan); }
+body:not(.page-home) .filter[aria-pressed="true"] { color: var(--tt-black); background: var(--tt-yellow); }
+
+body:not(.page-home) .enquiry-next { margin-bottom: 8px; padding: 8px; border-color: var(--tt-blue); }
+body:not(.page-home) .enquiry-next h2 { margin-bottom: 4px; color: var(--tt-yellow); }
+body:not(.page-home) .enquiry-next ol { grid-template-columns: 1fr; gap: 0; }
+body:not(.page-home) .enquiry-next li { grid-template-columns: 28px 1fr; gap: 4px 8px; padding-block: 3px; border-bottom: 1px dotted var(--tt-cyan); }
+body:not(.page-home) .enquiry-next li::before { grid-row: span 2; width: 24px; height: 24px; border: 0; }
+body:not(.page-home) .enquiry-next li span { display: none; }
+body:not(.page-home) .fprogress { margin-bottom: 8px !important; }
+body:not(.page-home) .fprogress__num { border: 0; border-radius: 0; }
+body:not(.page-home) .fstep { gap: 10px; }
+
+body:not(.page-home) .cta-band {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  text-align: left;
+}
+body:not(.page-home) .cta-band__title { color: var(--tt-yellow); font-size: 18px; }
+body:not(.page-home) .cta-band__text { display: none; }
+body:not(.page-home) .cta-band__actions { margin: 0; }
+body:not(.page-home) .cta-band .btn { min-height: 28px; padding: 3px 8px; color: var(--tt-black); background: var(--tt-yellow); }
+
+body:not(.page-home) .article__header { margin-bottom: 8px; }
+body:not(.page-home) .article__meta { margin-top: 6px; color: var(--tt-green); }
+body:not(.page-home) .article__cover { max-height: 220px; margin-bottom: 8px; border-color: var(--tt-blue); }
+body:not(.page-home) .article__cover img { width: 100%; height: 220px; object-fit: cover; }
+
+body.page-project .cs { --cs-space: 8px !important; --cs-maxw: 640px !important; --cs-prose: 608px !important; }
+body.page-project :where(.cs__hero, .cs__hero--cinematic, .cs__hero--split, .cs__hero--minimal, .cs__hero--editorial, .cs__hero--collage, .cs__hero--layered-devices) {
+  display: block;
+  min-height: 0 !important;
+  padding-block: 8px !important;
+  color: var(--tt-white) !important;
+  background: var(--tt-black) !important;
+  background-image: none !important;
+  text-align: left;
+}
+body.page-project .cs__hero * { transform: none !important; text-shadow: none !important; }
+body.page-project .cs__hero .cs__inner { display: grid; grid-template-columns: 1fr; gap: 8px; min-height: 0; }
+body.page-project .cs__title { margin-block: 4px; color: var(--tt-yellow) !important; font-size: 28px !important; line-height: 1; }
+body.page-project .cs__lead { color: var(--tt-cyan); font-size: 18px; line-height: 1.1; }
+body.page-project .cs__hero-media { max-height: 220px; overflow: hidden; border: 2px solid var(--tt-blue); }
+body.page-project .cs__hero-media img { width: 100%; min-height: 0 !important; height: 220px !important; object-fit: cover; }
+body.page-project .cs__body > * { margin-block: 0; }
+body.page-project :where(.cs-strip, .cs-gallery, .cs-composition, .cs__collage) { display: grid; grid-template-columns: 1fr !important; gap: 4px; }
+body.page-project :where(.cs-strip, .cs-gallery) img { max-height: 240px; object-fit: cover; }
+body.page-project .cs__end { margin-top: 0; padding-block: 8px; border-top: 2px solid var(--tt-red); }
+
+body:not(.page-home) .site-footer { height: 40px; overflow: hidden; background: var(--tt-black); }
+body:not(.page-home) :where(.tt-service-footer, .tt-ticker--final) { display: none; }
+body:not(.page-home) .tt-softkeys {
+  grid-template-columns: repeat(4, 160px);
+  width: 640px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-top: 2px solid var(--tt-white);
+}
+body:not(.page-home) .tt-softkey {
+  display: grid;
+  grid-template-columns: 48px 1fr;
+  min-height: 38px;
+  padding: 4px 8px;
+  font-size: 13px;
+}
+body:not(.page-home) .tt-softkey__dot { width: 48px; height: 12px; }
+body:not(.page-home) .tt-softkey small { display: none; }
+
+/* Consent is a Teletext system message, not a full-width website banner. */
+.cookie-banner {
+  inset: auto auto 8px 50%;
+  width: min(calc(100% - 16px), 640px);
+  padding: 8px;
+  border: 4px solid var(--tt-white);
+  color: var(--tt-white);
+  background: var(--tt-black);
+  transform: translateX(-50%);
+}
+.cookie-banner p { max-width: 36ch; color: var(--tt-cyan); line-height: 1.1; }
+.cookie-banner__actions { display: grid; grid-template-columns: repeat(2, 112px); gap: 8px; }
+.cookie-banner__actions .btn { min-height: 32px; padding: 4px 8px; border: 0; color: var(--tt-black); background: var(--tt-white); }
+.cookie-banner__actions .btn--primary { background: var(--tt-yellow); }
+
+@media (max-width: 560px) {
+  body:not(.page-home) { font-size: 18px; }
+  body:not(.page-home) .tt-site-brandbar { grid-template-columns: 1fr auto; }
+  body:not(.page-home) .tt-site-brandbar strong { font-size: 30px; line-height: 30px; }
+  body:not(.page-home) .tt-site-brandbar span { font-size: 16px; }
+  body:not(.page-home) .tt-page__panel-head { display: grid; }
+  body:not(.page-home) .tt-page__row { grid-template-columns: 64px minmax(0, 1fr) 64px; }
+  body:not(.page-home) .tt-page__row em { grid-column: auto; }
+  body:not(.page-home) .tt-softkeys { grid-template-columns: repeat(4, 160px); }
+}

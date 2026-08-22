@@ -78,7 +78,6 @@ if ($page->isHomePage() === false) {
   <link rel="preload" href="<?= esc(url('assets/fonts/pixel-operator-mono-bold.ttf')) ?>" as="font" type="font/ttf" crossorigin>
   <link rel="stylesheet" href="<?= esc(url('assets/css/teletext/tokens.css')) ?>?v=<?= $assetVer ?>">
   <link rel="stylesheet" href="<?= esc(url('assets/css/teletext/layout.css')) ?>?v=<?= $assetVer ?>">
-  <link rel="stylesheet" href="<?= esc(url('assets/css/teletext/components.css')) ?>?v=<?= $assetVer ?>">
   <?php /* The bespoke, per-project art-directed case-study system (case-study.css)
           is kept as-is and loaded only on project pages — it already reads the
           shared --text/--font/--mono/motion tokens above, which now resolve to
@@ -88,6 +87,9 @@ if ($page->isHomePage() === false) {
   <?php $csVer = (string) (@filemtime($kirby->root('assets') . '/css/case-study.css') ?: $assetVer); ?>
   <link rel="stylesheet" href="<?= esc(url('assets/css/case-study.css')) ?>?v=<?= $csVer ?>">
   <?php endif ?>
+  <?php /* Components load last so the site-wide Teletext transmission rules
+          remain authoritative over optional project art direction. */ ?>
+  <link rel="stylesheet" href="<?= esc(url('assets/css/teletext/components.css')) ?>?v=<?= $assetVer ?>">
 
   <?= StructuredData::toScript($structured->business()) ?>
   <?= StructuredData::toScript($structured->website()) ?>
@@ -107,6 +109,12 @@ if ($page->isHomePage() === false) {
 </head>
 <body class="page-<?= esc($page->intendedTemplate()->name(), 'attr') ?>">
   <a class="skip-link" href="#main"><?= esc(t('breakfast.skip', 'Skip to main content')) ?></a>
+
+  <?php if ($page->isHomePage() === false): ?>
+  <div class="tt-page-viewport">
+    <div class="tt-page-holder" data-tt-page-holder>
+      <div class="tt-page-stage" data-tt-page-stage>
+  <?php endif ?>
 
   <?php if ($site->announcement_enabled()->toBool() && $site->announcement_text()->isNotEmpty()): ?>
   <div class="announcement" role="region" aria-label="Announcement"><?= esc($site->announcement_text()) ?></div>

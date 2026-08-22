@@ -51,6 +51,12 @@ if (empty($tickerLines)) {
     <div class="tt-ticker tt-ticker--final" data-tt-ticker data-tt-messages="<?= esc(json_encode($tickerLines, JSON_UNESCAPED_SLASHES)) ?>"><span>BREAKFAST DEPT. LTD · <?= esc($tickerLines[0]) ?></span><b><?= $footerNumber !== null ? 'P' . esc($footerNumber) : 'P—' ?></b></div>
   </footer>
 
+  <?php if ($page->isHomePage() === false): ?>
+      </div>
+    </div>
+  </div>
+  <?php endif ?>
+
   <?php /* Go-to-page overlay + secret-page discovery toast — markup only,
           behaviour lives in teletext/navigation.js and easter-eggs.js. */ ?>
   <div class="tt-goto" data-tt-goto role="dialog" aria-modal="true" aria-label="Go to page">
@@ -83,6 +89,8 @@ if (empty($tickerLines)) {
   <script src="<?= esc(url('assets/js/app.js')) ?>?v=6" defer></script>
   <?php if ($page->isHomePage()): ?>
   <script src="<?= esc(url('assets/js/teletext/home-screen.js')) ?>?v=<?= (int) (@filemtime($kirby->root('assets') . '/js/teletext/home-screen.js') ?: 1) ?>" defer></script>
+  <?php else: ?>
+  <script src="<?= esc(url('assets/js/teletext/page-screen.js')) ?>?v=<?= (int) (@filemtime($kirby->root('assets') . '/js/teletext/page-screen.js') ?: 1) ?>" defer></script>
   <?php endif ?>
   <?php /* Case-study enhancements (before/after slider, pan, parallax, strip
           keyboard) load only on project pages and degrade fully without JS. */ ?>
