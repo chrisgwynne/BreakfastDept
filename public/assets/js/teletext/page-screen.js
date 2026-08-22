@@ -27,12 +27,9 @@
     stage.style.transform = `scale(${scale})`;
     holder.style.width = `${640 * scale}px`;
     holder.style.height = `${480 * scale}px`;
-    if (isFormPage) {
-      const fit = Math.min(1, contentHeight / Math.max(content.scrollHeight, contentHeight));
-      content.style.transform = `scale(${fit})`;
-    } else {
-      content.style.transform = `translateY(-${currentPage * contentHeight}px)`;
-    }
+    // Forms use their own step navigation. Keep the transmission at its full
+    // width instead of shrinking the whole form into a narrow column.
+    content.style.transform = isFormPage ? 'none' : `translateY(-${currentPage * contentHeight}px)`;
     if (controls) {
       controls.style.transform = `translateX(-50%) scale(${scale})`;
       controls.style.bottom = `${40 * scale}px`;
