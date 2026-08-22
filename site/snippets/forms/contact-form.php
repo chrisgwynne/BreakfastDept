@@ -28,7 +28,7 @@ $old    = $old ?? [];
   </div>
 <?php endif ?>
 
-<form class="form" method="post" action="<?= esc($page->url()) ?>#form" data-guarded data-form="contact" novalidate>
+<form class="form form--teletext-contact" method="post" action="<?= esc($page->url()) ?>#form" data-guarded data-form="contact" novalidate>
   <input type="hidden" name="csrf" value="<?= esc(csrf()) ?>">
   <input type="hidden" name="rendered_at" value="<?= time() ?>">
   <input type="hidden" name="landing_page" value="">

@@ -1550,6 +1550,18 @@ body.tt-form-page .tt-page-content textarea { min-height: 48px; }
 body.tt-form-page .tt-page-content .fstep { gap: 6px; }
 body.tt-form-page .tt-page-content .fprogress { margin-bottom: 4px !important; }
 body.tt-form-page .tt-page-content .btn { min-height: 28px; padding: 3px 8px; }
+body.page-contact .form--teletext-contact {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px 8px;
+}
+body.page-contact .form--teletext-contact > .field:nth-child(5),
+body.page-contact .form--teletext-contact > .field:nth-child(6) { grid-row: 1; }
+body.page-contact .form--teletext-contact > .field:nth-child(7) { grid-column: 1 / -1; }
+body.page-contact .form--teletext-contact > .field:nth-child(8),
+body.page-contact .form--teletext-contact > .checkbox,
+body.page-contact .form--teletext-contact > :last-child { grid-column: 1 / -1; }
+body.page-contact .form--teletext-contact textarea { min-height: 38px; height: 38px; }
+body.page-contact .form--teletext-contact .checkbox { max-height: 28px; overflow: hidden; font-size: 11px; line-height: 1; }
 body.tt-arrival :where(.tt-page-content, .tt-p100) { visibility: hidden; }
 body.tt-arrival-reveal :where(.tt-page-content, .tt-p100) {
   visibility: visible;
