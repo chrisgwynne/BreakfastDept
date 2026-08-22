@@ -78,15 +78,6 @@ if ($page->isHomePage() === false) {
   <link rel="preload" href="<?= esc(url('assets/fonts/pixel-operator-mono-bold.ttf')) ?>" as="font" type="font/ttf" crossorigin>
   <link rel="stylesheet" href="<?= esc(url('assets/css/teletext/tokens.css')) ?>?v=<?= $assetVer ?>">
   <link rel="stylesheet" href="<?= esc(url('assets/css/teletext/layout.css')) ?>?v=<?= $assetVer ?>">
-  <?php /* The bespoke, per-project art-directed case-study system (case-study.css)
-          is kept as-is and loaded only on project pages — it already reads the
-          shared --text/--font/--mono/motion tokens above, which now resolve to
-          the Teletext palette, so it inherits the new system automatically
-          while keeping its sophisticated per-project layout engine intact. */ ?>
-  <?php if ($page->intendedTemplate()->name() === 'project'): ?>
-  <?php $csVer = (string) (@filemtime($kirby->root('assets') . '/css/case-study.css') ?: $assetVer); ?>
-  <link rel="stylesheet" href="<?= esc(url('assets/css/case-study.css')) ?>?v=<?= $csVer ?>">
-  <?php endif ?>
   <?php /* Components load last so the site-wide Teletext transmission rules
           remain authoritative over optional project art direction. */ ?>
   <link rel="stylesheet" href="<?= esc(url('assets/css/teletext/components.css')) ?>?v=<?= $assetVer ?>">
