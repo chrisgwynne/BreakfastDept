@@ -1420,10 +1420,16 @@ body.page-project .tt-project__meta { display: grid; grid-template-columns: 1fr 
 body.page-project .tt-project__meta p, body.page-project .tt-project__meta li { color: var(--tt-cyan); font-size: 14px; }
 body.page-project .tt-project__end { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-block: 10px; color: var(--tt-cyan); }
 body.page-project .tt-project__end p { max-width: 55%; font-size: 14px; }
+body.page-journal .tt-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 8px;
+}
+body.page-journal .tt-list__row { min-width: 0; }
 @media (max-width: 560px) {
   body.page-project .tt-project__hero, body.page-project .tt-project__meta { grid-template-columns: 1fr; }
   body.page-project .tt-project__facts { grid-template-columns: 1fr; }
   body.page-project .tt-project__facts > div { border-right: 0; border-bottom: 1px dotted var(--tt-cyan); }
+  body.page-journal .tt-list { grid-template-columns: 1fr; }
 }
 
 body.page-jackpot .grid--3 { grid-template-columns: repeat(3, 1fr); }
