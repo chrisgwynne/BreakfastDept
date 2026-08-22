@@ -886,10 +886,10 @@ details[open] .faq__q::after { content: "–"; }
 .tt-p100__art[data-tt-time-art="evening"]::after {
   display: block;
   color: var(--p100-yellow);
-  font-size: 42px;
-  transform: rotate(-14deg) scale(1.15);
+  font-size: 56px;
+  transform: rotate(-8deg) scale(1.1);
   text-shadow: 4px 4px 0 var(--p100-blue);
-  content: "☾\A ZZZ'S";
+  content: "●\A ZZZ'S";
 }
 .tt-p100__caption {
   display: grid;
