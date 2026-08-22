@@ -8,6 +8,7 @@
       <p class="section__lead"><?= esc($page->title()) ?></p>
     </div>
     <?php if ($page->intro()->isNotEmpty()): ?><div class="blocks" style="margin-bottom:var(--s-8)"><?= $page->intro()->toBlocks() ?></div><?php endif ?>
+    <div class="start-project__columns">
     <div class="enquiry-next reveal" aria-labelledby="next-heading">
       <h2 id="next-heading">What happens next</h2>
       <ol>
@@ -17,6 +18,7 @@
       </ol>
     </div>
     <?php snippet('forms/project-form', ['page' => $page, 'result' => $result, 'old' => $old]) ?>
+    </div>
   </div>
 </section>
 <?php snippet('layouts/footer', ['softkeys' => [
