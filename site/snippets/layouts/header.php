@@ -54,7 +54,7 @@ if ($page->isHomePage() === false) {
   <meta property="og:title" content="<?= esc($page->content()->get('social_title')->or($meta->title())) ?>">
   <meta property="og:description" content="<?= esc($page->content()->get('social_description')->or($meta->description())) ?>">
   <meta property="og:url" content="<?= esc($page->url()) ?>">
-  <meta property="og:site_name" content="<?= esc($site->title()) ?>">
+  <meta property="og:site_name" content="Breakfast">
   <meta name="twitter:title" content="<?= esc($page->content()->get('social_title')->or($meta->title())) ?>">
   <meta name="twitter:description" content="<?= esc($page->content()->get('social_description')->or($meta->description())) ?>">
   <?php if ($ogImage): ?>
@@ -70,7 +70,7 @@ if ($page->isHomePage() === false) {
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
-  <link rel="alternate" type="application/rss+xml" title="<?= esc($site->title()) ?> — Journal" href="<?= esc($site->url()) ?>/journal/feed.rss">
+  <link rel="alternate" type="application/rss+xml" title="Breakfast — Journal" href="<?= esc($site->url()) ?>/journal/feed.rss">
   <?php /* Preload the body font so text paints without waiting for CSS to be parsed
           first. Only Inter (body) is preloaded — the mono + handwriting faces are
           decorative and font-display:swap covers them. crossorigin is required

@@ -27,7 +27,7 @@ final class StructuredData
         $data = [
             '@context' => 'https://schema.org',
             '@type'    => 'Organization',
-            'name'     => $content->get('legal_name')->value() ?: $this->site->title()->value(),
+            'name'     => $content->get('legal_name')->value() ?: 'Breakfast',
             'url'      => $this->site->url(),
         ];
 
@@ -61,7 +61,7 @@ final class StructuredData
         // Public brand name is the site title ("Breakfast"), matching og:site_name
         // and the footer. The registered entity name goes in legalName so the two
         // never contradict each other.
-        $brand = $this->site->title()->value() ?: 'Breakfast';
+        $brand = 'Breakfast';
         $legal = $content->get('legal_name')->value();
 
         $data = [
@@ -150,7 +150,7 @@ final class StructuredData
             '@type'      => 'WebSite',
             '@id'        => $this->site->url() . '#website',
             'url'        => $this->site->url(),
-            'name'       => $this->site->title()->value(),
+            'name'       => 'Breakfast',
             'inLanguage' => 'en-GB',
             'publisher'  => ['@id' => $this->site->url() . '#business'],
         ];

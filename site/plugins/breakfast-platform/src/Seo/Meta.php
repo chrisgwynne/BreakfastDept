@@ -27,7 +27,8 @@ final class Meta
             ? $seo
             : ($this->page->content()->get('title')->value() ?? $this->page->title()->value());
 
-        $siteName = $this->site->title()->value() ?: 'Breakfast';
+        // Public brand is intentionally shorter than the former Teletext label.
+        $siteName = 'Breakfast';
 
         // Home page shows the site title as-is; others append it.
         if ($this->page->isHomePage()) {
