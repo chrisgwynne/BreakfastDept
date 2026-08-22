@@ -81,6 +81,9 @@ if (empty($tickerLines)) {
   <?php endif ?>
 
   <script src="<?= esc(url('assets/js/app.js')) ?>?v=6" defer></script>
+  <?php if ($page->isHomePage()): ?>
+  <script src="<?= esc(url('assets/js/teletext/home-screen.js')) ?>?v=<?= (int) (@filemtime($kirby->root('assets') . '/js/teletext/home-screen.js') ?: 1) ?>" defer></script>
+  <?php endif ?>
   <?php /* Case-study enhancements (before/after slider, pan, parallax, strip
           keyboard) load only on project pages and degrade fully without JS. */ ?>
   <?php if ($page->intendedTemplate()->name() === 'project'): ?>

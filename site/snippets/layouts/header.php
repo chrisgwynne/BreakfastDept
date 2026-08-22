@@ -105,7 +105,7 @@ if ($page->isHomePage() === false) {
     <?= $analytics->script($nonce) ?>
   <?php endif ?>
 </head>
-<body>
+<body class="page-<?= esc($page->intendedTemplate()->name(), 'attr') ?>">
   <a class="skip-link" href="#main"><?= esc(t('breakfast.skip', 'Skip to main content')) ?></a>
 
   <?php if ($site->announcement_enabled()->toBool() && $site->announcement_text()->isNotEmpty()): ?>

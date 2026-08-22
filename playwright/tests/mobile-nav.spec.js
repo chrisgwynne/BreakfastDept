@@ -12,7 +12,7 @@ test("mobile index navigation works with no horizontal overflow", async ({ page 
   expect(overflow).toBeTruthy();
 
   // The numbered index list is the primary mobile navigation.
-  await expect(page.locator(".tt-index__row", { hasText: "OUR WORK" })).toBeVisible();
+  await expect(page.locator(".tt-p100__directory a", { hasText: "OUR WORK" })).toBeVisible();
 
   // Typed page-number navigation: "/" opens the go-to-page overlay.
   await page.keyboard.press("/");

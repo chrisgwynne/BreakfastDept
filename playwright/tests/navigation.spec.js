@@ -2,14 +2,14 @@ const { test, expect } = require("@playwright/test");
 
 test("homepage loads with the P100 index and primary CTA", async ({ page }) => {
   await page.goto("/");
-  await expect(page.locator("#hero-h")).toBeVisible();
+  await expect(page.locator("#home-heading")).toBeAttached();
   // The in-page numbered index is the primary navigation (Teletext model).
-  await expect(page.locator(".tt-index__row", { hasText: "START A PROJECT" })).toBeVisible();
+  await expect(page.locator(".tt-p100__directory a", { hasText: "START A PROJECT" })).toBeVisible();
 });
 
 test("primary navigation links work", async ({ page }) => {
   await page.goto("/");
-  await page.locator(".tt-index__row", { hasText: "SERVICES" }).click();
+  await page.locator(".tt-p100__directory a", { hasText: "SERVICES" }).click();
   await expect(page).toHaveURL(/\/services$/);
   await expect(page.locator("h1")).toBeVisible();
 });

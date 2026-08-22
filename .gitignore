@@ -71,6 +71,7 @@ Thumbs.db
 
 # Never track scratch/temp artifacts.
 /tmp/
+/.superdesign/
 
 # Standalone admin app — deps and build output (built in CI, shipped by deploy)
 /admin/node_modules/
