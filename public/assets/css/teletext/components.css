@@ -1523,6 +1523,12 @@ body:not(.page-home) .tt-subpage-controls {
   border-top: 2px solid var(--tt-white);
 }
 body:not(.page-home) .cookie-banner { bottom: 68px; }
+/* Keep subpage copy compact enough for a 40-column transmission. */
+body:not(.page-home) { font-size: 16px; }
+body:not(.page-home) .tt-page-content { font-size: 16px; }
+body:not(.page-home) .section__lead { font-size: 16px; }
+body:not(.page-home) .prose { font-size: 15px; }
+body:not(.page-home) .tt-page__row strong { font-size: 16px; }
 /* A form is one task, so keep its controls together in the single data
    window. The project form still uses its own explicit three-step flow. */
 body.tt-form-page .tt-page-content .form {
