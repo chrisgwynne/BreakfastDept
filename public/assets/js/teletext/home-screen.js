@@ -4,9 +4,12 @@
   if (!stage || !holder) return;
 
   const greeting = document.querySelector('[data-tt-greeting]');
+  const timeArt = document.querySelector('[data-tt-time-art]');
   if (greeting) {
     const hour = new Date().getHours();
-    greeting.textContent = hour < 12 ? 'GOOD MORNING' : hour < 18 ? 'GOOD AFTERNOON' : 'GOOD EVENING';
+    const mode = hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening';
+    greeting.textContent = mode === 'morning' ? 'GOOD MORNING' : mode === 'afternoon' ? 'GOOD AFTERNOON' : 'GOOD EVENING';
+    if (timeArt) timeArt.dataset.ttTimeArt = mode;
   }
 
   const scaleStage = () => {

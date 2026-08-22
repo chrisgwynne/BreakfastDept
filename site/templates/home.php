@@ -140,7 +140,7 @@ snippet('layouts/header');
         </nav>
 
         <aside class="tt-p100__feature" aria-label="Breakfast transmission graphic">
-          <div class="tt-p100__art" aria-hidden="true">
+          <div class="tt-p100__art" data-tt-time-art="morning" aria-hidden="true">
             <?php foreach ($artCells as $colour): ?><i<?= $colour !== '' ? ' class="' . esc($colour, 'attr') . '"' : '' ?>></i><?php endforeach ?>
           </div>
           <div class="tt-p100__caption"><strong data-tt-greeting>GOOD MORNING</strong><span>BREAKFAST IS ONLINE</span></div>

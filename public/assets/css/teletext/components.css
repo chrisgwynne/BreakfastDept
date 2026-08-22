@@ -866,6 +866,28 @@ details[open] .faq__q::after { content: "–"; }
 .tt-p100__art i.green { background: var(--p100-green); }
 .tt-p100__art i.red { background: var(--p100-red); }
 .tt-p100__art i.blue { background: var(--p100-blue); }
+.tt-p100__art[data-tt-time-art="afternoon"] i,
+.tt-p100__art[data-tt-time-art="evening"] i { display: none; }
+.tt-p100__art::after {
+  display: none;
+  grid-column: 1 / -1;
+  grid-row: 1 / -1;
+  place-self: center;
+  color: var(--p100-yellow);
+  font-size: 28px;
+  line-height: 1;
+  text-align: center;
+  white-space: pre;
+}
+.tt-p100__art[data-tt-time-art="afternoon"]::after {
+  display: block;
+  content: "☀\A AFTERNOON";
+}
+.tt-p100__art[data-tt-time-art="evening"]::after {
+  display: block;
+  color: var(--p100-white);
+  content: "☾\A ZZZ'S";
+}
 .tt-p100__caption {
   display: grid;
   grid-template-rows: 20px 20px;
