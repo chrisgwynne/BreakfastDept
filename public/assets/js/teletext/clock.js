@@ -28,7 +28,9 @@
     var now = new Date();
     var text = dateFmt.format(now).toUpperCase() + "  " + timeFmt.format(now);
     for (var i = 0; i < els.length; i++) {
-      els[i].textContent = text;
+      els[i].textContent = els[i].getAttribute("data-tt-clock") === "time-only"
+        ? timeFmt.format(now)
+        : text;
     }
   }
 

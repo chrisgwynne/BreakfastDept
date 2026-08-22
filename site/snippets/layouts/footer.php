@@ -55,6 +55,12 @@ if (empty($tickerLines)) {
       </div>
     </div>
   </div>
+  <nav class="tt-subpage-controls" data-tt-subpage-controls aria-label="Teletext subpage controls">
+    <button class="tt-subpage-controls__prev" type="button" data-tt-subpage-prev><b>RED</b> PREV</button>
+    <span data-tt-subpage-label>P---/01</span>
+    <button class="tt-subpage-controls__hold" type="button" data-tt-subpage-hold>HOLD</button>
+    <button class="tt-subpage-controls__next" type="button" data-tt-subpage-next><b>GREEN</b> NEXT</button>
+  </nav>
   <?php endif ?>
 
   <?php /* Go-to-page overlay + secret-page discovery toast — markup only,

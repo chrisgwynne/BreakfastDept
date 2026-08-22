@@ -25,15 +25,16 @@ $tight  = $tight ?? false;
 $as     = $as ?? 'h1';
 $id     = $id ?? null;
 $idAttr = $id !== null ? ' id="' . esc($id, 'attr') . '"' : '';
+$displayTitle = html_entity_decode((string) $title, ENT_QUOTES | ENT_HTML5, 'UTF-8');
 $allowedTags = ['h1', 'h2', 'h3'];
 $tag = in_array($as, $allowedTags, true) ? $as : null;
 ?>
 <div class="tt-bar<?= $tight ? ' tt-bar--tight' : '' ?>">
   <span class="tt-bar__num"><?= esc($number) ?></span>
   <?php if ($tag !== null): ?>
-    <<?= $tag ?> class="tt-bar__title"<?= $idAttr ?>><?= esc($title) ?></<?= $tag ?>>
+    <<?= $tag ?> class="tt-bar__title"<?= $idAttr ?>><?= esc($displayTitle) ?></<?= $tag ?>>
   <?php else: ?>
-    <span class="tt-bar__title"<?= $idAttr ?>><?= esc($title) ?></span>
+    <span class="tt-bar__title"<?= $idAttr ?>><?= esc($displayTitle) ?></span>
   <?php endif ?>
   <?php if ($sub !== null && $sub !== ''): ?><span class="tt-bar__sub"><?= esc($sub) ?></span><?php endif ?>
 </div>

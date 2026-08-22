@@ -1426,6 +1426,35 @@ body.tt-arrival-reveal :where(.tt-page-stage, .tt-p100) {
   visibility: visible;
   animation: tt-row-acquire 900ms steps(24, end) both;
 }
+
+body:not(.page-home) .tt-subpage-controls {
+  position: fixed;
+  left: 50%;
+  bottom: 0;
+  z-index: 1600;
+  display: grid;
+  grid-template-columns: 160px 160px 160px 160px;
+  width: 640px;
+  height: 40px;
+  transform-origin: bottom center;
+  border-top: 2px solid var(--tt-white);
+  background: var(--tt-black);
+  color: var(--tt-white);
+  font: 14px/20px var(--font);
+  text-transform: uppercase;
+}
+body:not(.page-home) .tt-subpage-controls[hidden] { display: none; }
+body:not(.page-home) .tt-subpage-controls button,
+body:not(.page-home) .tt-subpage-controls span { display: grid; place-items: center; min-width: 0; padding: 0 4px; }
+body:not(.page-home) .tt-subpage-controls button { cursor: pointer; }
+body:not(.page-home) .tt-subpage-controls button:hover,
+body:not(.page-home) .tt-subpage-controls button:focus-visible { outline: 2px solid var(--tt-white); outline-offset: -2px; }
+body:not(.page-home) .tt-subpage-controls__prev { color: var(--tt-red); }
+body:not(.page-home) .tt-subpage-controls__hold { color: var(--tt-yellow); }
+body:not(.page-home) .tt-subpage-controls__next { color: var(--tt-green); }
+body:not(.page-home) .tt-subpage-controls b { display: none; }
+body:not(.page-home) .tt-subpage-controls[data-held] .tt-subpage-controls__hold { background: var(--tt-yellow); color: var(--tt-black); }
+body:not(.page-home) .cookie-banner { bottom: 48px; }
 @keyframes tt-row-acquire {
   from { clip-path: inset(0 0 100% 0); }
   to { clip-path: inset(0 0 0 0); }

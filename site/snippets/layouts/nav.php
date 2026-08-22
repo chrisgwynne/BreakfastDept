@@ -10,7 +10,7 @@ $now = new DateTime('now', new DateTimeZone('Europe/London'));
   <div class="tt-masthead">
     <span class="tt-masthead__page"><?= $currentNumber !== null ? 'P' . esc($currentNumber) . '/01' : 'P---/01' ?></span>
     <span class="tt-masthead__brand"><?= esc($site->title()->or('Breakfast')) ?></span>
-    <span class="tt-masthead__clock"><b><?= $currentNumber !== null ? esc($currentNumber) : '---' ?></b>&nbsp;<?= esc(strtoupper($now->format('d M'))) ?>&nbsp;<time data-tt-clock data-live="true"><?= esc($now->format('H:i:s')) ?></time></span>
+    <span class="tt-masthead__clock"><b><?= $currentNumber !== null ? esc($currentNumber) : '---' ?></b>&nbsp;<?= esc(strtoupper($now->format('d M'))) ?>&nbsp;<time data-tt-clock="time-only" data-live="true"><?= esc($now->format('H:i:s')) ?></time></span>
   </div>
 </header>
 
