@@ -1429,6 +1429,16 @@ body.page-journal .tt-list {
   gap: 0 8px;
 }
 body.page-journal .tt-list__row { min-width: 0; }
+body.page-services .tt-page__panel {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 8px;
+}
+body.page-services .tt-page__panel-head,
+body.page-services .tt-page__notice { grid-column: 1 / -1; }
+@media (max-width: 560px) {
+  body.page-services .tt-page__panel { grid-template-columns: 1fr; }
+}
 body.page-article .article__body .blocks {
   column-count: 2;
   column-gap: 16px;
