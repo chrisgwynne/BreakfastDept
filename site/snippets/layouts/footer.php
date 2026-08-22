@@ -78,6 +78,7 @@ if (empty($tickerLines)) {
         </div>
         <div class="tt-acquire__meter" aria-hidden="true"><i data-tt-acquire-meter></i></div>
         <p class="tt-acquire__status" data-tt-acquire-status>WAITING FOR PAGE HEADER...</p>
+        <p class="tt-acquire__clue" data-tt-acquire-clue>CLUE: THE INDEX DOES NOT SHOW EVERYTHING.</p>
         <p class="tt-acquire__hint"><b>H</b> HOLD&nbsp;&nbsp; <b>ESC</b> CANCEL&nbsp;&nbsp; DATA SERVICE ONLINE</p>
       </div>
     </div>

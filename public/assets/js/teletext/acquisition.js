@@ -18,6 +18,7 @@
   var requestedEl = overlay.querySelector("[data-tt-acquire-requested]");
   var titleEl = overlay.querySelector("[data-tt-acquire-title]");
   var statusEl = overlay.querySelector("[data-tt-acquire-status]");
+  var clueEl = overlay.querySelector("[data-tt-acquire-clue]");
   var meterEl = overlay.querySelector("[data-tt-acquire-meter]");
   var registry = {};
   var registryEl = document.getElementById("tt-registry");
@@ -25,6 +26,22 @@
   var arrivalTimer = null;
   var destinationUrl = null;
   var held = false;
+  var lastClue = -1;
+  var clues = [
+    "CLUE: THE INDEX DOES NOT SHOW EVERYTHING.",
+    "CLUE: SOME PAGES ARE NUMBERED, BUT NOT LISTED.",
+    "CLUE: TRY THE THREE-DIGIT KEYS WHEN NOBODY IS LOOKING.",
+    "CLUE: BREAKFAST HAS A FEW CHANNELS AFTER DARK.",
+    "CLUE: THE BEST PAGES ARE FOUND BETWEEN THE LINES."
+  ];
+
+  function showRandomClue() {
+    if (!clueEl) return;
+    var index = Math.floor(Math.random() * clues.length);
+    if (clues.length > 1 && index === lastClue) index = (index + 1) % clues.length;
+    lastClue = index;
+    clueEl.textContent = clues[index];
+  }
 
   if (registryEl) {
     try {
@@ -131,6 +148,7 @@
     requestedEl.textContent = target === null ? "P---" : "P" + String(target).padStart(3, "0");
     titleEl.textContent = title || (target !== null && registry[String(target)] ? registry[String(target)].title : "SEARCHING TRANSMISSION");
     statusEl.textContent = "WAITING FOR PAGE HEADER...";
+    showRandomClue();
     meterEl.style.width = "0%";
     overlay.setAttribute("data-open", "true");
     scaleScreen();
