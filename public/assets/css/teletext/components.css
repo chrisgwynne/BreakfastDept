@@ -1311,3 +1311,61 @@ body:not(.page-home) .tt-softkey small { display: none; }
   body:not(.page-home) .tt-page__row em { grid-column: auto; }
   body:not(.page-home) .tt-softkeys { grid-template-columns: repeat(4, 160px); }
 }
+
+/* =========================================================
+   PAGE-SPECIFIC SPLIT TRANSMISSIONS
+   A 40-column service should use both axes. Splits are deliberately limited
+   to screens where two simultaneous information channels improve scanning;
+   indexes and long-form reading remain one column.
+   ========================================================= */
+body.page-contact .tt-page > .container > .grid--2,
+body.page-website-review .tt-page > .container > .grid--2 {
+  grid-template-columns: 240px 352px;
+  gap: 16px !important;
+  align-items: start;
+}
+body.page-contact .tt-page > .container > .grid--2 > *,
+body.page-website-review .tt-page > .container > .grid--2 > * { min-width: 0; }
+body.page-contact .tt-box,
+body.page-website-review .tt-box { padding: 8px; }
+body.page-contact .form,
+body.page-website-review .form { gap: 10px; }
+body.page-contact .field__hint,
+body.page-website-review .field__hint { display: none; }
+
+body.page-about .tt-split {
+  grid-template-columns: 392px 200px;
+  gap: 16px;
+  align-items: start;
+}
+body.page-about .tt-split > * { min-width: 0; }
+body.page-about .tt-split__aside { border: 2px solid var(--tt-blue); }
+body.page-about .founder {
+  display: grid;
+  grid-template-columns: 192px 1fr;
+  gap: 16px;
+  align-items: start;
+  margin-top: 8px;
+}
+body.page-about .polaroid { margin: 0; padding: 4px; border: 2px solid var(--tt-white); background: var(--tt-black); transform: none; }
+body.page-about .polaroid__img { width: 180px; height: 140px; object-fit: cover; }
+body.page-about .grid--2 { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+
+body.page-service .tt-service-facts {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+body.page-service .tt-service-fact { min-width: 0; padding: 8px; border: 2px solid var(--tt-blue); }
+body.page-service .timeline { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+
+body.page-project .cs__hero .cs__inner {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  align-items: center;
+}
+body.page-project .cs__hero-copy,
+body.page-project .cs__hero-media { min-width: 0; }
+body.page-project .cs-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+body.page-project .cs-facts__item:nth-child(odd) { border-right: 1px dotted var(--tt-cyan); }
+
+body.page-jackpot .grid--3 { grid-template-columns: repeat(3, 1fr); }
