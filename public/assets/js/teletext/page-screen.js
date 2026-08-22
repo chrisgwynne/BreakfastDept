@@ -4,11 +4,15 @@
   const content = document.querySelector('[data-tt-page-content]');
   const controls = document.querySelector('[data-tt-subpage-controls]');
   if (!stage || !holder || !content) return;
+  const isFormPage = Boolean(content.querySelector('form'));
+  document.body.classList.toggle('tt-form-page', isFormPage);
 
   // The broadcast chrome occupies the top and bottom rows. Only the middle
   // 316-unit content window turns through subpages.
   const contentHeight = 316;
-  const totalPages = Math.max(1, Math.ceil(content.scrollHeight / contentHeight));
+  // Forms are a single user task. Never split their fields across receiver
+  // subpages; project forms already provide their own step navigation.
+  const totalPages = isFormPage ? 1 : Math.max(1, Math.ceil(content.scrollHeight / contentHeight));
   const pageLabel = document.querySelector('[data-tt-subpage-label]');
   const mastheadPage = document.querySelector('.tt-masthead__page');
   const barSubs = document.querySelectorAll('.tt-bar__sub');
@@ -23,7 +27,12 @@
     stage.style.transform = `scale(${scale})`;
     holder.style.width = `${640 * scale}px`;
     holder.style.height = `${480 * scale}px`;
-    content.style.transform = `translateY(-${currentPage * contentHeight}px)`;
+    if (isFormPage) {
+      const fit = Math.min(1, contentHeight / Math.max(content.scrollHeight, contentHeight));
+      content.style.transform = `scale(${fit})`;
+    } else {
+      content.style.transform = `translateY(-${currentPage * contentHeight}px)`;
+    }
     if (controls) {
       controls.style.transform = `translateX(-50%) scale(${scale})`;
       controls.style.bottom = `${40 * scale}px`;

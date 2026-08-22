@@ -1490,6 +1490,27 @@ body:not(.page-home) .tt-subpage-controls {
   border-top: 2px solid var(--tt-white);
 }
 body:not(.page-home) .cookie-banner { bottom: 68px; }
+/* A form is one task, so keep its controls together in the single data
+   window. The project form still uses its own explicit three-step flow. */
+body.tt-form-page .tt-page-content .form {
+  gap: 6px;
+}
+body.tt-form-page .tt-page-content .form__row,
+body.tt-form-page .tt-page-content .grid--2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+body.tt-form-page .tt-page-content .field { gap: 2px; }
+body.tt-form-page .tt-page-content .field__label { font-size: 13px; }
+body.tt-form-page .tt-page-content :where(input, textarea, select) {
+  min-height: 28px;
+  padding: 3px 6px;
+  font-size: 14px;
+}
+body.tt-form-page .tt-page-content textarea { min-height: 48px; }
+body.tt-form-page .tt-page-content .fstep { gap: 6px; }
+body.tt-form-page .tt-page-content .fprogress { margin-bottom: 4px !important; }
+body.tt-form-page .tt-page-content .btn { min-height: 28px; padding: 3px 8px; }
 body.tt-arrival :where(.tt-page-content, .tt-p100) { visibility: hidden; }
 body.tt-arrival-reveal :where(.tt-page-content, .tt-p100) {
   visibility: visible;
