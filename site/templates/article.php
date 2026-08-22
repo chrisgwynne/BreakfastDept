@@ -23,7 +23,7 @@ $ttNumber = Registry::numberFor($page, $site);
       <div class="article__cover container--prose" style="margin-inline:auto"><?= $cover->crop(1200, 675)->html(['alt' => esc($cover->alt()->or($page->title())), 'fetchpriority' => 'high']) ?></div>
     <?php endif ?>
 
-    <div class="container--prose" style="margin-inline:auto">
+    <div class="container--prose article__body" style="margin-inline:auto">
       <?php if ($page->toc_enabled()->toBool(false)): ?>
         <?php snippet('partials/toc', ['page' => $page]) ?>
       <?php endif ?>

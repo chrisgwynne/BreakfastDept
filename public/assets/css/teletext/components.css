@@ -1425,11 +1425,20 @@ body.page-journal .tt-list {
   gap: 0 8px;
 }
 body.page-journal .tt-list__row { min-width: 0; }
+body.page-article .article__body .blocks {
+  column-count: 2;
+  column-gap: 16px;
+  column-fill: balance;
+}
+body.page-article .article__body .blocks > * {
+  break-inside: avoid;
+}
 @media (max-width: 560px) {
   body.page-project .tt-project__hero, body.page-project .tt-project__meta { grid-template-columns: 1fr; }
   body.page-project .tt-project__facts { grid-template-columns: 1fr; }
   body.page-project .tt-project__facts > div { border-right: 0; border-bottom: 1px dotted var(--tt-cyan); }
   body.page-journal .tt-list { grid-template-columns: 1fr; }
+  body.page-article .article__body .blocks { column-count: 1; }
 }
 
 body.page-jackpot .grid--3 { grid-template-columns: repeat(3, 1fr); }
