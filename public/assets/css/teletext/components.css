@@ -1455,11 +1455,51 @@ body:not(.page-home) .tt-subpage-controls__next { color: var(--tt-green); }
 body:not(.page-home) .tt-subpage-controls b { display: none; }
 body:not(.page-home) .tt-subpage-controls[data-held] .tt-subpage-controls__hold { background: var(--tt-yellow); color: var(--tt-black); }
 body:not(.page-home) .cookie-banner { bottom: 48px; }
+
+/* =========================================================
+   TURNING PAGES
+   The receiver frame is a fixed 640x480 screen. Only the data window turns
+   between subpages; the masthead, service footer and soft keys stay locked.
+   ========================================================= */
+body:not(.page-home) .tt-page-stage {
+  position: relative;
+  width: 640px;
+  height: 480px;
+  min-height: 480px;
+  overflow: hidden;
+}
+body:not(.page-home) .announcement { display: none; }
+body:not(.page-home) .site-header,
+body:not(.page-home) .tt-site-brandbar,
+body:not(.page-home) .site-footer {
+  flex: none;
+}
+body:not(.page-home) #main.tt-transmission {
+  height: 344px;
+  min-height: 344px;
+  overflow: hidden;
+}
+body:not(.page-home) .tt-page-content {
+  min-height: 344px;
+  transform-origin: top left;
+  will-change: transform;
+}
+body:not(.page-home) .tt-subpage-controls {
+  bottom: 40px;
+  height: 28px;
+  border-top: 2px solid var(--tt-white);
+}
+body:not(.page-home) .cookie-banner { bottom: 68px; }
+body.tt-arrival :where(.tt-page-content, .tt-p100) { visibility: hidden; }
+body.tt-arrival-reveal :where(.tt-page-content, .tt-p100) {
+  visibility: visible;
+  animation: tt-row-acquire 900ms steps(24, end) both;
+}
 @keyframes tt-row-acquire {
   from { clip-path: inset(0 0 100% 0); }
   to { clip-path: inset(0 0 0 0); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  body.tt-arrival-reveal :where(.tt-page-stage, .tt-p100) { animation-duration: 120ms; }
+  body.tt-arrival-reveal :where(.tt-page-content, .tt-p100) { animation-duration: 120ms; }
 }

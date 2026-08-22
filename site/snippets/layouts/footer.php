@@ -19,6 +19,7 @@ if (empty($tickerLines)) {
     ];
 }
 ?>
+    </div>
   </main>
 
   <?php /* A template can call snippet('layouts/footer', ['softkeys' => [...]])

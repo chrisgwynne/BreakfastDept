@@ -1,12 +1,14 @@
 (() => {
   const stage = document.querySelector('[data-tt-page-stage]');
   const holder = document.querySelector('[data-tt-page-holder]');
-  const viewport = document.querySelector('.tt-page-viewport');
+  const content = document.querySelector('[data-tt-page-content]');
   const controls = document.querySelector('[data-tt-subpage-controls]');
-  if (!stage || !holder || !viewport) return;
+  if (!stage || !holder || !content) return;
 
-  const pageHeight = 480;
-  const totalPages = Math.max(1, Math.ceil(stage.scrollHeight / pageHeight));
+  // The broadcast chrome occupies the top and bottom rows. Only the middle
+  // 316-unit content window turns through subpages.
+  const contentHeight = 316;
+  const totalPages = Math.max(1, Math.ceil(content.scrollHeight / contentHeight));
   const pageLabel = document.querySelector('[data-tt-subpage-label]');
   const mastheadPage = document.querySelector('.tt-masthead__page');
   const barSubs = document.querySelectorAll('.tt-bar__sub');
@@ -18,10 +20,14 @@
 
   const scaleStage = () => {
     const scale = Math.min(window.innerWidth / 640, window.innerHeight / 480);
-    stage.style.transform = `scale(${scale}) translateY(-${currentPage * pageHeight}px)`;
+    stage.style.transform = `scale(${scale})`;
     holder.style.width = `${640 * scale}px`;
-    holder.style.height = `${pageHeight * scale}px`;
-    if (controls) controls.style.transform = `translateX(-50%) scale(${scale})`;
+    holder.style.height = `${480 * scale}px`;
+    content.style.transform = `translateY(-${currentPage * contentHeight}px)`;
+    if (controls) {
+      controls.style.transform = `translateX(-50%) scale(${scale})`;
+      controls.style.bottom = `${40 * scale}px`;
+    }
   };
 
   const renderLabel = () => {
@@ -36,6 +42,7 @@
     currentPage = Math.max(0, Math.min(totalPages - 1, page));
     renderLabel();
     scaleStage();
+    window.scrollTo(0, 0);
   };
 
   const setHold = (nextHeld) => {
