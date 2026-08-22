@@ -1,28 +1,13 @@
 <?php
-
-/**
- * P900 — Breakfast System. A playful status board. Every row here is
- * cosmetic copy — never real infrastructure, versions, or environment data.
- * See docs/security.md if this template is ever extended.
- */
 snippet('layouts/header');
-
 $rows = [
-    ['label' => 'Web design',      'value' => 'Online',    'dot' => 'green'],
-    ['label' => 'Coffee',          'value' => 'Online',    'dot' => 'green'],
-    ['label' => 'Kirby',           'value' => 'Online',    'dot' => 'green'],
-    ['label' => 'North Wales',     'value' => 'Online',    'dot' => 'green'],
-    ['label' => 'Bad websites',    'value' => 'Detected',  'dot' => 'yellow'],
-    ['label' => 'Comic Sans',      'value' => 'Contained', 'dot' => 'green'],
-    ['label' => 'Client projects', 'value' => 'Running',   'dot' => 'green'],
+ ['Web design','ONLINE','green'], ['Coffee','ONLINE','green'], ['Kirby','ONLINE','green'],
+ ['North Wales','ONLINE','green'], ['Bad websites','DETECTED','yellow'], ['Comic Sans','CONTAINED','green'], ['Client projects','RUNNING','green'],
 ];
 ?>
-<section class="section" style="border-bottom:0">
-  <div class="container tt-egg">
-    <p class="kicker">P900</p>
-    <h1 class="hero__title tt-egg__title">BREAKFAST SYSTEM</h1>
-    <div style="margin-top:var(--s-8)"><?php snippet('teletext/status', ['rows' => $rows]) ?></div>
-    <p style="margin-top:var(--s-12)"><a class="btn btn--primary btn--lg" href="<?= esc(url('/')) ?>">P100 — Index</a></p>
-  </div>
-</section>
+<section class="section tt-egg-page"><div class="container">
+  <?php snippet('teletext/bar', ['number' => 'P900', 'title' => 'SYSTEM STATUS', 'sub' => '1/1', 'as' => 'h1']) ?>
+  <div class="tt-egg-grid"><div><p class="tt-egg-kicker">BREAKFAST SERVICE MONITOR</p><p class="tt-egg-lead">A cosmetic status board. No infrastructure is exposed here. Everything important is human-readable.</p></div><div class="tt-egg-panel"><h2>LIVE CHANNELS</h2><?php foreach ($rows as [$label, $value, $colour]): ?><div class="tt-egg-row"><span><i class="tt-status-dot tt-status-dot--<?= esc($colour) ?>"></i><?= esc($label) ?></span><b><?= esc($value) ?></b></div><?php endforeach ?></div></div>
+  <div class="tt-egg-actions"><a class="btn btn--ghost" href="<?= esc(url('/')) ?>">P100 INDEX</a></div>
+</div></section>
 <?php snippet('layouts/footer') ?>

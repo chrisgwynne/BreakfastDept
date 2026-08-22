@@ -1436,6 +1436,28 @@ body.page-services .tt-page__panel {
 }
 body.page-services .tt-page__panel-head,
 body.page-services .tt-page__notice { grid-column: 1 / -1; }
+body:not(.page-home) .tt-egg-page { border-bottom: 0; }
+body:not(.page-home) .tt-egg-page > .container { display: block; }
+body:not(.page-home) .tt-egg-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding-block: 12px; }
+body:not(.page-home) .tt-egg-kicker { color: var(--tt-green); font-size: 13px; text-transform: uppercase; }
+body:not(.page-home) .tt-egg-lead { margin-top: 8px; color: var(--tt-cyan); font-size: 16px; line-height: 1.2; }
+body:not(.page-home) .tt-egg-note { margin-top: 12px; color: var(--tt-yellow); font-size: 13px; }
+body:not(.page-home) .tt-egg-title { color: var(--tt-yellow); font-size: 28px; }
+body:not(.page-home) .tt-egg-panel { border: 2px solid var(--tt-blue); padding: 8px; }
+body:not(.page-home) .tt-egg-panel h2 { margin-bottom: 6px; color: var(--tt-yellow); font-size: 16px; }
+body:not(.page-home) .tt-egg-row { display: flex; justify-content: space-between; gap: 8px; padding: 5px 0; border-bottom: 1px dotted var(--tt-cyan); color: var(--tt-white); font-size: 14px; }
+body:not(.page-home) .tt-egg-row:last-child { border-bottom: 0; }
+body:not(.page-home) .tt-egg-row b { color: var(--tt-yellow); }
+body:not(.page-home) .tt-egg-actions { display: flex; gap: 8px; padding-top: 10px; border-top: 2px solid var(--tt-red); }
+body:not(.page-home) .tt-jackpot-panel { display: grid; gap: 10px; justify-items: start; }
+body:not(.page-home) .tt-jackpot-reels { width: 100%; gap: 6px; }
+body:not(.page-home) .tt-jackpot-reels > div { padding: 10px 4px; border: 2px solid var(--tt-yellow); color: var(--tt-yellow); text-align: center; }
+body:not(.page-home) .tt-egg-result { min-height: 18px; color: var(--tt-cyan); font-size: 14px; }
+body:not(.page-home) .tt-status-dot { display: inline-block; width: 10px; height: 10px; margin-right: 6px; background: var(--tt-green); }
+body:not(.page-home) .tt-status-dot--yellow { background: var(--tt-yellow); }
+@media (max-width: 560px) {
+  body:not(.page-home) .tt-egg-grid { grid-template-columns: 1fr; }
+}
 body.page-start-project .start-project__columns {
   display: grid;
   grid-template-columns: 208px minmax(0, 1fr);
