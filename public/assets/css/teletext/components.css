@@ -1570,6 +1570,15 @@ body:not(.page-home) .tt-page-content { font-size: 14px; }
 body:not(.page-home) .section__lead { font-size: 14px; }
 body:not(.page-home) .prose { font-size: 13px; }
 body:not(.page-home) .tt-page__row strong { font-size: 15px; }
+/* Shared transmission rule: information panels scan in two columns. */
+body:not(.page-home) :where(.grid--2, .grid--3, .form__row, .tt-split, .tt-service-facts, .timeline) {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+@media (max-width: 560px) {
+  body:not(.page-home) :where(.grid--2, .grid--3, .form__row, .tt-split, .tt-service-facts, .timeline) {
+    grid-template-columns: 1fr;
+  }
+}
 /* A form is one task, so keep its controls together in the single data
    window. The project form still uses its own explicit three-step flow. */
 body.tt-form-page .tt-page-content .form {
