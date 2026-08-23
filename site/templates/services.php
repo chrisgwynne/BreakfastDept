@@ -7,7 +7,7 @@ $services = $page->children()->listed();
 ?>
 <section class="section tt-page" aria-labelledby="services-heading">
   <div class="container">
-    <?php snippet('teletext/bar', ['number' => 'P300', 'title' => 'SERVICES', 'sub' => '1/1', 'as' => 'h1', 'id' => 'services-heading']) ?>
+    <?php snippet('teletext/bar', ['number' => 'P300', 'title' => 'WEB DESIGN · NORTH WALES', 'sub' => '1/1', 'as' => 'h1', 'id' => 'services-heading']) ?>
     <?php if ($page->intro()->isNotEmpty()): ?><p class="tt-page__intro"><?= esc($page->intro()) ?></p><?php endif ?>
 
     <div class="tt-page__panel">
