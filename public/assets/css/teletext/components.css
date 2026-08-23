@@ -1156,6 +1156,33 @@ body:not(.page-home) .tt-page-content > :is(section, article):not(.tt-project) >
 }
 body:not(.page-home) .tt-page-content > :is(section, article):not(.tt-project) > .container:not(:has(.form)) > .blocks > * { break-inside: avoid; }
 @media (max-width: 560px) {
+  .page-home #main { width: 100%; height: auto; min-height: 100vh; overflow: visible; }
+  .page-home .tt-p100-viewport { display: block; width: 100%; height: auto; min-height: 100vh; overflow: visible; }
+  .page-home .tt-p100-holder { width: 100%; height: auto; }
+  .page-home .tt-p100 { position: relative; display: block; width: 100%; height: auto; min-height: 0; overflow: visible; white-space: normal; font-size: 14px; }
+  .page-home .tt-p100 > * { width: 100%; }
+  .page-home .tt-p100__statusbar { display: grid; grid-template-columns: 1fr 1fr 1.5fr; height: 24px; font-size: 12px; line-height: 24px; }
+  .page-home .tt-p100__statusbar > span:first-child { padding-left: 8px; }
+  .page-home .tt-p100__statusbar > span:last-child { padding-right: 8px; }
+  .page-home .tt-p100__masthead { height: 72px; }
+  .page-home .tt-p100__wordmark { width: calc(100% - 32px); height: 48px; grid-template-columns: repeat(53, 1fr); grid-template-rows: repeat(7, 1fr); }
+  .page-home .tt-p100__wordmark i { width: auto; height: auto; }
+  .page-home .tt-p100__servicebar { grid-template-columns: 64px 1fr 64px; height: 24px; line-height: 24px; }
+  .page-home .tt-p100__proposition { height: auto; min-height: 48px; padding: 8px 12px; line-height: 18px; }
+  .page-home .tt-p100__indexfield { display: block; height: auto; }
+  .page-home .tt-p100__directory { width: 100%; height: auto; min-height: 180px; grid-template-rows: repeat(7, 24px) 40px; border-right: 0; }
+  .page-home .tt-p100__directory a { width: 100%; height: 24px; grid-template-columns: 48px max-content minmax(0, 1fr) 24px; }
+  .page-home .tt-p100__feature { width: 100%; height: auto; grid-template-rows: minmax(180px, 42vw) 40px; }
+  .page-home .tt-p100__art { width: 100%; height: auto; min-height: 180px; grid-template-columns: repeat(28, 1fr); grid-template-rows: repeat(20, 1fr); }
+  .page-home .tt-p100__art i { width: auto; height: auto; }
+  .page-home .tt-p100__caption { width: 100%; }
+  .page-home .tt-p100__serviceline,
+  .page-home .tt-p100__booking { height: auto; min-height: 24px; padding: 4px 12px; line-height: 18px; }
+  .page-home .tt-p100__bands { height: auto; grid-template-rows: auto auto; }
+  .page-home .tt-p100__bands p { min-height: 24px; padding: 3px 8px; line-height: 18px; text-align: center; }
+  .page-home .tt-p100__prompt { grid-template-columns: 96px 1fr 52px; height: 24px; line-height: 24px; }
+  .page-home .tt-p100__softkeys { height: 28px; }
+  .page-home .tt-p100__softkeys a { height: 28px; }
   body:not(.page-home) .tt-page-viewport { display: block; min-height: 0; overflow: visible; }
   body:not(.page-home) .tt-page-holder,
   body:not(.page-home) .tt-page-stage,
@@ -1172,6 +1199,32 @@ body:not(.page-home) .tt-page-content > :is(section, article):not(.tt-project) >
     grid-template-columns: 1fr;
   }
   body:not(.page-home) .tt-page-content > :is(section, article):not(.tt-project) > .container:not(:has(.form)) > .blocks { column-count: 1; }
+}
+
+@media (max-width: 560px) {
+  .page-home #main { width: 100% !important; height: auto !important; overflow: visible !important; }
+  .page-home .tt-p100-viewport { display: block !important; width: 100% !important; height: auto !important; min-height: 100vh; overflow: visible !important; }
+  .page-home .tt-p100-holder { width: 100% !important; height: auto !important; }
+  .page-home .tt-p100 { position: relative !important; display: block !important; width: 100% !important; height: auto !important; min-height: 0; overflow: visible !important; white-space: normal; font-size: 14px; }
+  .page-home .tt-p100 > * { width: 100% !important; }
+  .page-home .tt-p100__statusbar { grid-template-columns: 1fr 1fr 1.5fr; height: 24px; font-size: 12px; line-height: 24px; }
+  .page-home .tt-p100__masthead { height: 72px; }
+  .page-home .tt-p100__wordmark { width: calc(100% - 32px); height: 48px; grid-template-columns: repeat(53, 1fr); grid-template-rows: repeat(7, 1fr); }
+  .page-home .tt-p100__wordmark i { width: auto; height: auto; }
+  .page-home .tt-p100__servicebar { grid-template-columns: 64px 1fr 64px; height: 24px; line-height: 24px; }
+  .page-home .tt-p100__proposition { height: auto; min-height: 48px; padding: 8px 12px; line-height: 18px; }
+  .page-home .tt-p100__indexfield { display: block; height: auto; }
+  .page-home .tt-p100__directory { width: 100%; height: auto; min-height: 180px; grid-template-rows: repeat(7, 24px) 40px; border-right: 0; }
+  .page-home .tt-p100__directory a { width: 100%; height: 24px; grid-template-columns: 48px max-content minmax(0, 1fr) 24px; }
+  .page-home .tt-p100__feature { width: 100%; height: auto; grid-template-rows: minmax(180px, 42vw) 40px; }
+  .page-home .tt-p100__art { width: 100%; height: auto; min-height: 180px; grid-template-columns: repeat(28, 1fr); grid-template-rows: repeat(20, 1fr); }
+  .page-home .tt-p100__art i { width: auto; height: auto; }
+  .page-home .tt-p100__caption { width: 100%; }
+  .page-home .tt-p100__serviceline, .page-home .tt-p100__booking { width: 100%; height: auto; min-height: 24px; padding: 4px 12px; line-height: 18px; }
+  .page-home .tt-p100__bands { width: 100%; height: auto; grid-template-rows: auto auto; }
+  .page-home .tt-p100__bands p { min-height: 24px; padding: 3px 8px; line-height: 18px; }
+  .page-home .tt-p100__prompt { width: 100%; grid-template-columns: 96px 1fr 52px; height: 24px; line-height: 24px; }
+  .page-home .tt-p100__softkeys { width: 100%; height: 28px; }
 }
 
 /* =========================================================
