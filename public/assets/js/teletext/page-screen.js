@@ -28,6 +28,15 @@
   let autoTimer = null;
 
   const scaleStage = () => {
+    const mobile = window.matchMedia('(max-width: 560px)').matches;
+    if (mobile) {
+      stage.style.transform = 'none';
+      holder.style.width = '100%';
+      holder.style.height = 'auto';
+      content.style.transform = 'none';
+      if (controls) controls.style.transform = 'none';
+      return;
+    }
     const scale = Math.min(window.innerWidth / 640, window.innerHeight / 480);
     stage.style.transform = `scale(${scale})`;
     holder.style.width = `${640 * scale}px`;

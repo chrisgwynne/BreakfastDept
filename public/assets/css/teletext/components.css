@@ -1156,6 +1156,18 @@ body:not(.page-home) .tt-page-content > :is(section, article):not(.tt-project) >
 }
 body:not(.page-home) .tt-page-content > :is(section, article):not(.tt-project) > .container:not(:has(.form)) > .blocks > * { break-inside: avoid; }
 @media (max-width: 560px) {
+  body:not(.page-home) .tt-page-viewport { display: block; min-height: 0; overflow: visible; }
+  body:not(.page-home) .tt-page-holder,
+  body:not(.page-home) .tt-page-stage,
+  body:not(.page-home) .tt-transmission,
+  body:not(.page-home) .site-header,
+  body:not(.page-home) .tt-site-brandbar,
+  body:not(.page-home) .site-footer { width: 100%; max-width: 100%; }
+  body:not(.page-home) .tt-page-stage { height: auto; min-height: 0; overflow: visible; }
+  body:not(.page-home) #main.tt-transmission { height: auto; min-height: 0; overflow: visible; }
+  body:not(.page-home) .tt-page-content { min-height: 0; transform: none !important; }
+  body:not(.page-home) .tt-subpage-controls { position: sticky; bottom: 0; left: 0; width: 100%; transform: none !important; }
+  body:not(.page-home) .container { width: 100%; max-width: none; padding-inline: 12px; }
   body:not(.page-home) .tt-page-content > :is(section, article):not(.tt-project) > .container:not(:has(.form)) {
     grid-template-columns: 1fr;
   }
@@ -1700,4 +1712,20 @@ body:not(.page-home) .tt-page-content > :is(section, article):not(.tt-project) >
 
 @media (prefers-reduced-motion: reduce) {
   body.tt-arrival-reveal :where(.tt-page-content, .tt-p100) { animation-duration: 120ms; }
+}
+
+/* Mobile is a full-width reading surface, not a shrunken desktop raster. */
+@media (max-width: 560px) {
+  body:not(.page-home) .tt-page-viewport { display: block; min-height: 0; overflow: visible; }
+  body:not(.page-home) .tt-page-holder,
+  body:not(.page-home) .tt-page-stage,
+  body:not(.page-home) .tt-transmission,
+  body:not(.page-home) .site-header,
+  body:not(.page-home) .tt-site-brandbar,
+  body:not(.page-home) .site-footer { width: 100%; max-width: 100%; }
+  body:not(.page-home) .tt-page-stage { height: auto; min-height: 0; overflow: visible; }
+  body:not(.page-home) #main.tt-transmission { height: auto; min-height: 0; overflow: visible; }
+  body:not(.page-home) .tt-page-content { min-height: 0; transform: none !important; }
+  body:not(.page-home) .tt-subpage-controls { position: sticky; bottom: 0; left: 0; width: 100%; transform: none !important; }
+  body:not(.page-home) .container { width: 100%; max-width: none; padding-inline: 12px; }
 }
