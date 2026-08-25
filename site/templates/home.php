@@ -127,6 +127,7 @@ snippet('layouts/header');
       </div>
 
       <div class="tt-p100__proposition">
+        <?php if ($page->hero_eyebrow()->isNotEmpty()): ?><p class="tt-p100__eyebrow"><?= esc($page->hero_eyebrow()) ?></p><?php endif ?>
         <p>WEBSITES YOU'LL BE PROUD TO SEND PEOPLE TO.</p>
         <p>CLEAR WORDS · USEFUL DESIGN · BUILT TO WORK</p>
       </div>

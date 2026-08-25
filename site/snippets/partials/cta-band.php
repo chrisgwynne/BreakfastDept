@@ -7,7 +7,7 @@
 $heading = $heading ?? $site->cta_heading();
 $text    = $text ?? $site->cta_text();
 $primaryLabel = $site->cta_primary_label()->or('Start a project');
-$primaryLink  = $site->cta_primary_link()->or(url('start-a-project'));
+$primaryLink  = $primaryLink ?? $site->cta_primary_link()->or(url('start-a-project'));
 $secondaryLabel = $site->cta_secondary_label();
 $secondaryLink  = $site->cta_secondary_link()->or(url('contact'));
 $trackLabel = $trackLabel ?? 'cta-band';
