@@ -249,12 +249,10 @@ final class WebsiteContent
             throw new WebsiteException(422, 'Only pages can be previewed.');
         }
         $merged  = $this->editingContent($model);
-        $preview = $model->clone(['content' => $merged]);
-
-        // Page::render() resolves the current request page unless the cloned
-        // model is passed explicitly. Without this, the preview route renders
-        // the live page even though the draft was loaded correctly above.
-        return (string) $preview->render(['page' => $preview]);
+        // Render the model explicitly against Kirby's changes version. Passing
+        // a cloned page as template data does not replace the page that Kirby's
+        // controller resolves internally, so it can silently render live data.
+        return (string) $model->render([], 'html', VersionId::changes());
     }
 
     // ==================================================================

@@ -8,7 +8,7 @@ const { test, expect } = require("@playwright/test");
 test.describe("Start a project — multi-step form", () => {
   test("service offer CTA carries the buyer's choice into the enquiry", async ({ page }) => {
     await page.goto("/services/new-website");
-    await expect(page.getByRole("heading", { name: "A new website", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "New business website design", exact: true })).toBeVisible();
     await expect(page.getByText("What you get").first()).toBeVisible();
 
     await page.locator('[data-track-label="service-new-website"]').click();
