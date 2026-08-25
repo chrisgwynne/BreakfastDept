@@ -11,7 +11,7 @@ test.describe("Start a project — multi-step form", () => {
     await expect(page.getByRole("heading", { name: "New business website design", exact: true })).toBeVisible();
     await expect(page.getByText("What you get").first()).toBeVisible();
 
-    await page.locator('[data-track-label="service-new-website"]').click({ force: true });
+    await page.locator('[data-track-label="service-new-website"]').evaluate((el) => el.click());
     await expect(page).toHaveURL(/start-a-project\?service=new-website#form/);
 
     await page.fill("#field-name", "Offer Path Tester");
