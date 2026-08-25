@@ -264,6 +264,7 @@ details[open] .faq__q::after { content: "–"; }
 
 /* ---------- CTA band ---------- */
 .cta-band { background: var(--tt-blue); color: var(--tt-white); border: none; padding: var(--s-8) var(--s-8); text-align: center; }
+.tt-service-cta { position: relative; z-index: 5; }
 .cta-band .btn { color: var(--tt-black); }
 .cta-band .btn--primary { background: var(--tt-black); color: var(--tt-yellow); }
 .cta-band__title { font-size: clamp(1.2rem, 2.6vw, 1.7rem); color: var(--tt-white); }

@@ -82,7 +82,7 @@ $ttNumber = Registry::numberFor($page, $site);
   </div>
 </article>
 
-<section class="section"><div class="container">
+<section class="section tt-service-cta"><div class="container">
   <?php snippet('partials/cta-band', [
     'heading' => $page->cta_heading()->or($site->cta_heading()),
     'text' => $page->cta_text()->or($site->cta_text()),
