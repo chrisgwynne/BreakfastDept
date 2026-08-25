@@ -1,10 +1,34 @@
 <?php
 
 use Breakfast\Platform\Teletext\Registry;
+use Breakfast\Platform\Content\ArtDirection;
 
 snippet('layouts/header');
 
 $ttNumber = Registry::numberFor($page, $site);
+$blocks = $page->body()->toBlocks();
+$art = ArtDirection::resolve([
+    'preset' => $page->ad_preset()->value(),
+    'accent' => $page->ad_accent()->value(),
+    'secondary' => $page->ad_secondary()->value(),
+    'bg' => $page->ad_bg()->value(),
+    'text' => $page->ad_text()->value(),
+    'display' => $page->ad_display()->value(),
+    'body' => $page->ad_body()->value(),
+    'density' => $page->ad_density()->value(),
+    'corner' => $page->ad_corner()->value(),
+    'border' => $page->ad_border()->value(),
+    'image_scale' => $page->ad_image_scale()->value(),
+    'rotation' => $page->ad_rotation()->value(),
+    'caption' => $page->ad_caption()->value(),
+    'pullquote' => $page->ad_pullquote()->value(),
+    'animation' => $page->ad_animation()->value(),
+    'transition' => $page->ad_transition()->value(),
+    'motif' => $page->ad_motif()->value(),
+    'hero' => $page->ad_hero()->value(),
+    'ending' => $page->ad_ending()->value(),
+]);
+$hasArtDirection = $page->ad_preset()->isNotEmpty() && $blocks->count() > 0;
 $heroImg = $page->hero_image()->toFile();
 $isConcept = $page->project_status()->value() === 'concept';
 $story = [];
@@ -19,6 +43,14 @@ foreach ([
     if ($page->$field()->isNotEmpty()) $story[] = [$field, $label];
 }
 ?>
+
+<?php if ($hasArtDirection): ?>
+<article class="cs" style="<?= esc(ArtDirection::styleAttr($art['vars']), 'attr') ?>" <?= ArtDirection::dataAttrs($art['data']) ?> aria-labelledby="case-study-heading">
+  <?php snippet('case-study/hero', ['page' => $page, 'variant' => $art['data']['hero']]) ?>
+  <div class="cs__body" id="case-study-heading"><?= $blocks ?></div>
+  <?php snippet('case-study/ending', ['page' => $page, 'variant' => $art['data']['ending']]) ?>
+</article>
+<?php else: ?>
 
 <article class="tt-project" aria-labelledby="project-heading">
   <div class="container">
@@ -80,6 +112,7 @@ foreach ([
 
 <?php if ($page->related_projects()->toPages()->isNotEmpty()): ?><section class="section"><div class="container"><?php snippet('partials/related', ['related' => $page->related_projects()->toPages(), 'heading' => t('breakfast.relatedprojects', 'More work')]) ?></div></section><?php endif ?>
 <section class="section"><div class="container"><?php snippet('partials/cta-band') ?></div></section>
+<?php endif ?>
 <?php snippet('layouts/footer', ['softkeys' => [
     ['label' => 'Back', 'sub' => 'P200', 'href' => page('work') ? page('work')->url() : url('work')],
     ['label' => 'Project', 'sub' => $ttNumber !== null ? 'P' . $ttNumber : '', 'href' => $page->url()],

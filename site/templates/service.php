@@ -83,7 +83,12 @@ $ttNumber = Registry::numberFor($page, $site);
 </article>
 
 <section class="section"><div class="container">
-  <?php snippet('partials/cta-band', ['heading' => $page->cta_heading()->or($site->cta_heading()), 'text' => $page->cta_text()->or($site->cta_text())]) ?>
+  <?php snippet('partials/cta-band', [
+    'heading' => $page->cta_heading()->or($site->cta_heading()),
+    'text' => $page->cta_text()->or($site->cta_text()),
+    'trackLabel' => 'service-' . $page->slug(),
+    'primaryLink' => url('start-a-project') . '?service=' . rawurlencode($page->slug()) . '#form',
+  ]) ?>
 </div></section>
 <?php snippet('layouts/footer', ['softkeys' => [
     ['label' => 'Back',     'sub' => 'P300', 'href' => page('services') ? page('services')->url() : url('services')],

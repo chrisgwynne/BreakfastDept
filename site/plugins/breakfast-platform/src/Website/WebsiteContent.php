@@ -251,7 +251,10 @@ final class WebsiteContent
         $merged  = $this->editingContent($model);
         $preview = $model->clone(['content' => $merged]);
 
-        return (string) $preview->render();
+        // Page::render() resolves the current request page unless the cloned
+        // model is passed explicitly. Without this, the preview route renders
+        // the live page even though the draft was loaded correctly above.
+        return (string) $preview->render(['page' => $preview]);
     }
 
     // ==================================================================
