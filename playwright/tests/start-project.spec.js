@@ -13,6 +13,7 @@ test.describe("Start a project — multi-step form", () => {
 
     await page.locator('[data-track-label="service-new-website"]').evaluate((el) => el.click());
     await expect(page).toHaveURL(/start-a-project\?service=new-website#form/);
+    await page.locator('[data-cookie-banner] button[data-consent="decline"]').evaluate((el) => el.click());
 
     await page.fill("#field-name", "Offer Path Tester");
     await page.fill("#field-email", "offer-path@example.co.uk");
