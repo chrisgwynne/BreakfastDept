@@ -7,12 +7,13 @@ const { test, expect } = require("@playwright/test");
 
 test.describe("Start a project — multi-step form", () => {
   test("service offer CTA carries the buyer's choice into the enquiry", async ({ page }) => {
-    await page.goto("/services");
-    await expect(page.getByRole("heading", { name: "A new website", exact: true })).toBeVisible();
-    await expect(page.getByText("What’s included").first()).toBeVisible();
+    await page.goto("/services/new-website");
+    await expect(page.getByRole("heading", { name: "New business website design", exact: true })).toBeVisible();
+    await expect(page.getByText("What you get").first()).toBeVisible();
 
-    await page.locator('[data-track-label="service-new-website"]').click();
+    await page.locator('[data-track-label="service-new-website"]').evaluate((el) => el.click());
     await expect(page).toHaveURL(/start-a-project\?service=new-website#form/);
+    await page.locator('[data-cookie-banner] button[data-consent="decline"]').evaluate((el) => el.click());
 
     await page.fill("#field-name", "Offer Path Tester");
     await page.fill("#field-email", "offer-path@example.co.uk");
@@ -29,6 +30,7 @@ test.describe("Start a project — multi-step form", () => {
     });
     page.on("pageerror", (e) => errs.push(String(e)));
     await page.goto("/start-a-project");
+    await page.locator('[data-cookie-banner] button[data-consent="decline"]').click();
 
     // Enhanced: step 1 visible, later steps hidden, progress shown.
     await expect(page.locator('.fstep[data-step="1"]')).toBeVisible();

@@ -28,6 +28,16 @@
   font-family: var(--ad-body-font, var(--font));
   overflow: clip;                 /* contain rotated/oversized art without page scroll */
 }
+/* Rotated and viewport-bleed compositions must not widen the document on
+   narrow screens. Keep the clipping boundary on the page as well as the root
+   component so mobile browsers report no horizontal overflow. */
+.page-project,
+.page-project .tt-page-viewport,
+.page-project .tt-page-holder,
+.page-project .tt-page-stage { overflow-x: hidden; }
+.page-project .cs { position: relative; z-index: 0; }
+html:has(article.cs),
+html:has(article.cs) body { overflow-x: hidden; }
 /* The case study paints its own field, so drop the site's dotted paper here. */
 .cs { background-image: none; }
 

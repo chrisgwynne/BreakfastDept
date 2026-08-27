@@ -81,6 +81,9 @@ if ($page->isHomePage() === false) {
   <?php /* Components load last so the site-wide Teletext transmission rules
           remain authoritative over optional project art direction. */ ?>
   <link rel="stylesheet" href="<?= esc(url('assets/css/teletext/components.css')) ?>?v=<?= $assetVer ?>">
+  <?php if ($page->intendedTemplate()->name() === 'project'): ?>
+  <link rel="stylesheet" href="<?= esc(url('assets/css/case-study.css')) ?>?v=<?= (int) (@filemtime($kirby->root('assets') . '/css/case-study.css') ?: 1) ?>">
+  <?php endif ?>
 
   <?= StructuredData::toScript($structured->business()) ?>
   <?= StructuredData::toScript($structured->website()) ?>
