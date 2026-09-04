@@ -14,23 +14,23 @@ Hero_highlight: win more enquiries.
 
 ----
 
-Hero_text: I design, write and build clear, fast websites for small businesses across North Wales — so visitors quickly understand what you do and how to take the next step.
+Hero_text: I design, write and build clear, fast websites for small businesses across North Wales — so visitors quickly understand what you do and how to take the next step. Already have a site? Send it over and I’ll give you an honest first view.
 
 ----
 
-Hero_primary_label: Tell me about your project
+Hero_primary_label: Get a plain-English website review
 
 ----
 
-Hero_primary_link: /start-a-project
+Hero_primary_link: /website-review
 
 ----
 
-Hero_secondary_label: How it works
+Hero_secondary_label: Tell me about your project
 
 ----
 
-Hero_secondary_link: #process
+Hero_secondary_link: /start-a-project
 
 ----
 
