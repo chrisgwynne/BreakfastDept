@@ -109,6 +109,19 @@ final class SeoLaunchTest extends TestCase
         $this->assertStringContainsString('North Wales', $service->seoMeta()->title());
     }
 
+    public function testServiceStructuredDataIdentifiesTheOfferingAndProvider(): void
+    {
+        $service = $this->kirby->page('services/new-website');
+        $this->assertNotNull($service);
+
+        $data = (new StructuredData($this->kirby->site()))->service($service);
+
+        $this->assertSame('Service', $data['@type']);
+        $this->assertSame($service->title()->value(), $data['name']);
+        $this->assertSame($service->url() . '#service', $data['@id']);
+        $this->assertSame($this->kirby->site()->url() . '#business', $data['provider']['@id']);
+    }
+
     public function testCommercialPageTitlesAreConciseAndDoNotDuplicateTheBrand(): void
     {
         foreach (['home', 'work', 'work/localmarkers'] as $pageId) {
