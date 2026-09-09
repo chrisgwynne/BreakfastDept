@@ -157,6 +157,40 @@ final class StructuredData
     }
 
     /**
+     * A specific service offering, linked to the primary business entity.
+     * Only page fields that are already public are emitted.
+     *
+     * @return array<string,mixed>
+     */
+    public function service(Page $page): array
+    {
+        $content = $page->content();
+        $data = [
+            '@context'    => 'https://schema.org',
+            '@type'       => 'Service',
+            '@id'         => $page->url() . '#service',
+            'name'        => $content->get('title')->value(),
+            'url'         => $page->url(),
+            'provider'    => ['@id' => $this->site->url() . '#business'],
+            'serviceType' => $content->get('title')->value(),
+        ];
+
+        if ($summary = $content->get('summary')->value()) {
+            $data['description'] = $summary;
+        }
+
+        $areas = $this->areasServed();
+        if ($areas !== []) {
+            $data['areaServed'] = array_map(
+                static fn (string $name): array => ['@type' => 'AdministrativeArea', 'name' => $name],
+                $areas
+            );
+        }
+
+        return $data;
+    }
+
+    /**
      * Real profile URLs only (http/https) — never a mailto: or tel:, which are
      * invalid targets for schema.org sameAs.
      *

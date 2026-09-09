@@ -94,6 +94,8 @@ if ($page->isHomePage() === false) {
   <?= StructuredData::toScript($structured->article($page)) ?>
   <?php elseif ($page->intendedTemplate()->name() === 'project'): ?>
   <?= StructuredData::toScript($structured->creativeWork($page)) ?>
+  <?php elseif ($page->intendedTemplate()->name() === 'service'): ?>
+  <?= StructuredData::toScript($structured->service($page)) ?>
   <?php endif ?>
 
   <?php /* Analytics: cookieless providers load immediately; GA4 waits for consent (see footer). */ ?>
