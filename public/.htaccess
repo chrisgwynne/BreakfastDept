@@ -9,6 +9,12 @@ Options -Indexes -MultiViews +FollowSymLinks
 <IfModule mod_rewrite.c>
     RewriteEngine On
 
+    # Temporary public-site pause. Remove this block to reopen Breakfast.
+    # Exact web hostnames only; do not affect separate preview or admin hosts.
+    RewriteCond %{HTTP_HOST} ^(?:www\.)?breakfastdept\.com\.?(?::[0-9]+)?$ [NC]
+    RewriteCond %{REQUEST_URI} !^/\.well-known/acme-challenge/
+    RewriteRule ^ - [R=503,L]
+
     # Uncomment and set if the site is served from a subfolder.
     # RewriteBase /
 
